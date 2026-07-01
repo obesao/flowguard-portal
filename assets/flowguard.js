@@ -642,6 +642,36 @@
     s.ctx.fillText(message, s.padding.left, s.h / 2);
   }
 
+  function pad2(n) {
+    return n < 10 ? "0" + n : String(n);
+  }
+
+  function fmtAxisTime(ts, spanS) {
+    var d = new Date(ts * 1000);
+    var hhmm = pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+    if (spanS > 86400) return pad2(d.getDate()) + "/" + pad2(d.getMonth() + 1) + " " + hhmm;
+    return hhmm;
+  }
+
+  // rótulos de horário no eixo X — usado pelos três gráficos (linha, área
+  // empilhada e timeline), sempre a partir de timestamps unix reais dos dados.
+  function drawTimeAxis(s, sinceTs, nowTs) {
+    if (sinceTs == null || nowTs == null) return;
+    var plotW = s.w - s.padding.left - s.padding.right;
+    var span = nowTs - sinceTs || 1;
+    var ticks = 6;
+    var ctx = s.ctx;
+    ctx.fillStyle = "#8b949e";
+    ctx.font = "10px sans-serif";
+    ctx.textAlign = "center";
+    for (var t = 0; t <= ticks; t++) {
+      var frac = t / ticks;
+      var xx = s.padding.left + frac * plotW;
+      ctx.fillText(fmtAxisTime(sinceTs + frac * span, span), xx, s.h - 5);
+    }
+    ctx.textAlign = "left";
+  }
+
   function drawLineChart(canvas, series, lines, band) {
     if (!series || series.length < 2) {
       drawEmpty(canvas, "Sem dados suficientes na janela selecionada.");
@@ -700,6 +730,8 @@
       ctx.stroke();
     });
     ctx.setLineDash([]);
+
+    drawTimeAxis(s, series[0].ts, series[series.length - 1].ts);
   }
 
   function drawStackedArea(canvas, series, keys, colors) {
@@ -746,6 +778,8 @@
       ctx.fill();
       series.forEach(function (pt, i) { cumulative[i] += pt[key] || 0; });
     });
+
+    drawTimeAxis(s, series[0].ts, series[series.length - 1].ts);
   }
 
   function drawTimeline(canvas, attacks, windowS) {
@@ -783,6 +817,8 @@
       ctx.fillStyle = SEV_COLORS[a.severity] || "#8b949e";
       ctx.fillRect(x1, yy, Math.max(x2 - x1, 2), rowH * 0.5);
     });
+
+    drawTimeAxis(s, since, now);
   }
 
   function populateChartPrefixSelect(prefixes) {
@@ -807,14 +843,17 @@
         if (!canvas) return;
         if (!data.ok) { drawEmpty(canvas, data.error || "erro ao carregar"); return; }
         var series = data.series.map(function (pt) {
-          var withBaseline = { ts: pt.bucket, bps: pt.bps };
+          var withBaseline = { ts: pt.ts, bps_in: pt.bps_in, bps_out: pt.bps_out };
           if (data.baseline) {
             withBaseline.baseline_mean = data.baseline.bps_mean;
             withBaseline.baseline_upper = data.baseline.bps_upper;
           }
           return withBaseline;
         });
-        var lines = [{ key: "bps", color: "#58a6ff" }];
+        var lines = [
+          { key: "bps_in", color: "#58a6ff" },
+          { key: "bps_out", color: "#ffa657" },
+        ];
         var band = null;
         if (data.baseline) {
           lines.push({ key: "baseline_mean", color: "#8b949e", dashed: true });

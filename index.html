@@ -146,6 +146,7 @@
       <button class="fg-tab-btn" data-tab="flows">Flows</button>
       <button class="fg-tab-btn" data-tab="rules">Regras</button>
       <button class="fg-tab-btn" data-tab="cfg">Configuração</button>
+      <button class="fg-tab-btn" data-tab="clientguard">ClientGuard <span class="fg-badge" id="cg-suspicious-badge" style="display:none;">0</span></button>
       <button class="fg-tab-btn" data-tab="charts">Gráficos</button>
     </div>
 
@@ -212,6 +213,46 @@
       <section class="fg-panel-section">
         <h2>Configuração</h2>
         <div id="flowguard-cfg">Carregando...</div>
+      </section>
+    </div>
+
+    <div class="fg-tab-panel" data-tab="clientguard">
+      <section class="fg-panel-section">
+        <h2>ClientGuard — Status</h2>
+        <div class="fg-kpis" id="cg-kpis">Carregando...</div>
+      </section>
+      <section class="fg-panel-section">
+        <h2>Top Clientes por Tráfego</h2>
+        <div id="cg-top">Carregando...</div>
+      </section>
+      <section class="fg-panel-section">
+        <h2>Sinais Suspeitos</h2>
+        <div class="fg-toolbar">
+          <div class="fg-toggle-group" id="cg-suspicious-view-toggle">
+            <button class="fg-toggle-btn active" data-view="open">Abertos</button>
+            <button class="fg-toggle-btn" data-view="history">Resolvidos</button>
+          </div>
+        </div>
+        <div id="cg-suspicious">Carregando...</div>
+        <div id="cg-suspicious-detail"></div>
+      </section>
+      <section class="fg-panel-section">
+        <h2>Redes de Clientes</h2>
+        <form id="cg-customers-form" class="fg-form">
+          <input type="text" name="network" placeholder="CIDR ou IP, ex: 177.86.16.0/24" required>
+          <input type="text" name="prefix" placeholder="rótulo (customer_prefix)" required>
+          <input type="text" name="name" placeholder="nome (opcional)">
+          <button type="submit" class="fg-btn">Adicionar</button>
+        </form>
+        <div id="cg-customers">Carregando...</div>
+      </section>
+      <section class="fg-panel-section">
+        <h2>Whitelist</h2>
+        <form id="cg-whitelist-form" class="fg-form">
+          <input type="text" name="ip" placeholder="IP" required>
+          <button type="submit" class="fg-btn">Adicionar</button>
+        </form>
+        <div id="cg-whitelist">Carregando...</div>
       </section>
     </div>
 

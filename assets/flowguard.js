@@ -12,6 +12,9 @@
   var HISTORY_ENDPOINT = "/cgi-bin/flowguard-history.sh";
   var LOGIN_ENDPOINT = "/cgi-bin/flowguard-login.sh";
   var LOGOUT_ENDPOINT = "/cgi-bin/flowguard-logout.sh";
+  var CG_STATUS_ENDPOINT = "/cgi-bin/clientguard-status.sh";
+  var CG_SUSPICIOUS_ENDPOINT = "/cgi-bin/clientguard-suspicious.sh";
+  var CG_CFG_ENDPOINT = "/cgi-bin/clientguard-cfg.sh";
 
   var PROTO_NAMES = { 6: "TCP", 17: "UDP", 1: "ICMP" };
 
@@ -41,6 +44,8 @@
       prefix: null,
       prefixesLoaded: false,
     },
+    cgSuspiciousView: "open",
+    cgSuspicious: [],
   };
 
   function getToken() {
@@ -256,6 +261,7 @@
       document.querySelectorAll(".fg-tab-btn").forEach(function (b) { b.classList.toggle("active", b === btn); });
       document.querySelectorAll(".fg-tab-panel").forEach(function (p) { p.classList.toggle("active", p.getAttribute("data-tab") === tab); });
       if (tab === "charts") loadCharts();
+      if (tab === "clientguard") loadClientGuard();
     });
   }
 
@@ -811,6 +817,296 @@
     }
   }
 
+  // --- ClientGuard: status + top clientes ---------------------------------
+
+  var CG_SIGNAL_LABELS = {
+    port_scan_horizontal: "scan horizontal",
+    port_scan_vertical: "scan vertical",
+    amplifier_hosted: "amplificador hospedado",
+    spam_bot: "spam bot",
+    malicious_contact: "contato com IP malicioso conhecido",
+    coordinated_destination: "destino coordenado (múltiplos clientes)",
+    dns_tunneling: "túnel DNS / exfiltração via DNS",
+  };
+
+  function updateCgBadge(count) {
+    var badge = document.getElementById("cg-suspicious-badge");
+    if (!badge) return;
+    if (count > 0) {
+      badge.style.display = "inline-block";
+      badge.textContent = count;
+    } else {
+      badge.style.display = "none";
+    }
+  }
+
+  function renderCgKpis(status) {
+    var el = document.getElementById("cg-kpis");
+    if (!el) return;
+    if (!status || !status.ok) {
+      el.innerHTML = kpiCard("Daemon", '<span class="fg-dot fg-dot-down"></span>indisponível', (status && status.error) || "");
+      return;
+    }
+    el.innerHTML =
+      kpiCard("Flows na janela", status.flows_window, "") +
+      kpiCard("Clientes ativos", status.distinct_src_ips, "na janela atual") +
+      kpiCard("Sinais abertos", status.open_signals, status.open_signals > 0 ? "requer atenção" : "tudo normal") +
+      kpiCard("Redes cadastradas", status.n_customers, "") +
+      kpiCard("Whitelist", status.n_whitelist, "") +
+      kpiCard("Daemon", '<span class="fg-dot fg-dot-up"></span>ativo', "uptime " + fmtUptime(status.uptime_s) + " · pid " + status.pid);
+  }
+
+  function renderCgTop(rows) {
+    var el = document.getElementById("cg-top");
+    if (!el) return;
+    if (!rows.length) {
+      el.innerHTML = '<p class="fg-ok">Nenhum tráfego na janela atual.</p>';
+      return;
+    }
+    var body = rows
+      .map(function (r) {
+        return (
+          "<tr><td>" + escapeHtml(r.src_ip) + "</td><td>" + escapeHtml(r.customer_prefix || "-") + "</td><td>" +
+          fmtBytes(r.bytes) + "</td><td>" + (r.flows || 0).toLocaleString("pt-BR") + "</td></tr>"
+        );
+      })
+      .join("");
+    el.innerHTML =
+      "<table><thead><tr><th>src_ip</th><th>Cliente</th><th>Tráfego</th><th>Flows</th></tr></thead><tbody>" +
+      body + "</tbody></table>";
+  }
+
+  function loadClientGuardStatus() {
+    getJson(CG_STATUS_ENDPOINT).then(function (data) {
+      if (!data.ok) {
+        renderCgKpis(null);
+        showError(document.getElementById("cg-top"), data.error || "erro desconhecido");
+        return;
+      }
+      renderCgKpis(data.status);
+      renderCgTop(data.top || []);
+    }).catch(function (err) {
+      showError(document.getElementById("cg-kpis"), "falha ao consultar status do ClientGuard");
+      console.error("flowguard.js:", err);
+    });
+  }
+
+  // --- ClientGuard: sinais suspeitos ---------------------------------------
+
+  function renderCgSuspicious(rows) {
+    var el = document.getElementById("cg-suspicious");
+    if (!el) return;
+    if (state.cgSuspiciousView === "open") updateCgBadge(rows.length);
+    if (!rows.length) {
+      el.innerHTML = '<p class="fg-ok">Nenhum sinal ' + (state.cgSuspiciousView === "open" ? "aberto" : "resolvido") + ".</p>";
+      return;
+    }
+    var body = rows
+      .map(function (r) {
+        var resolveBtn = state.cgSuspiciousView === "open"
+          ? '<button class="fg-btn" data-action="resolve">Resolver</button> '
+          : "";
+        return (
+          '<tr data-signal-id="' + r.id + '">' +
+          "<td>" + escapeHtml(r.src_ip) + "</td><td>" + escapeHtml(r.customer_prefix || "-") + "</td><td>" +
+          escapeHtml(CG_SIGNAL_LABELS[r.signal_type] || r.signal_type) + "</td><td>" +
+          Math.round((r.confidence || 0) * 100) + "%</td><td>" + fmtDateTime(r.ts_detected) + "</td><td>" +
+          fmtDateTime(r.ts_last_seen) + "</td>" +
+          "<td>" + resolveBtn + '<button class="fg-btn" data-action="detail">Detalhes</button></td></tr>'
+        );
+      })
+      .join("");
+    el.innerHTML =
+      "<table><thead><tr><th>src_ip</th><th>Cliente</th><th>Sinal</th><th>Confiança</th><th>Detectado</th>" +
+      "<th>Última vez</th><th>Ações</th></tr></thead><tbody>" + body + "</tbody></table>";
+  }
+
+  function loadClientGuardSuspicious() {
+    var url = state.cgSuspiciousView === "history" ? CG_SUSPICIOUS_ENDPOINT + "?history=1" : CG_SUSPICIOUS_ENDPOINT;
+    getJson(url).then(function (data) {
+      if (!data.ok) {
+        showError(document.getElementById("cg-suspicious"), data.error || "erro desconhecido");
+        return;
+      }
+      state.cgSuspicious = data.suspicious;
+      renderCgSuspicious(data.suspicious);
+    }).catch(function (err) {
+      showError(document.getElementById("cg-suspicious"), "falha ao consultar sinais suspeitos");
+      console.error("flowguard.js:", err);
+    });
+  }
+
+  function renderCgSuspiciousDetail(row) {
+    var el = document.getElementById("cg-suspicious-detail");
+    if (!el) return;
+    var evidence = row.evidence;
+    try {
+      var parsed = typeof row.evidence === "string" ? JSON.parse(row.evidence) : row.evidence;
+      evidence = Object.keys(parsed || {}).map(function (k) { return k + "=" + parsed[k]; }).join(", ");
+    } catch (e) {
+      // evidencia não é JSON válido — mostra a string crua mesmo
+    }
+    var aiHtml = row.ai_explanation
+      ? "<h5>Explicação (IA)</h5><pre>" + escapeHtml(row.ai_explanation) + "</pre>"
+      : '<p class="fg-kpi-sub">sem explicação de IA registrada para este sinal</p>';
+    el.innerHTML =
+      '<div class="fg-ai-panel"><div class="fg-panel-header"><h4>Sinal #' + row.id + " — " + escapeHtml(row.src_ip) + "</h4>" +
+      '<button class="fg-btn" data-action="close-detail">Fechar</button></div>' +
+      '<p class="fg-kpi-sub">Tipo: ' + escapeHtml(CG_SIGNAL_LABELS[row.signal_type] || row.signal_type) +
+      " · Confiança: " + Math.round((row.confidence || 0) * 100) + "% · Evidência: " + escapeHtml(evidence) + "</p>" +
+      aiHtml +
+      "</div>";
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function onCgSuspiciousClick(ev) {
+    var btn = ev.target.closest("button[data-action]");
+    if (!btn) return;
+    var row = btn.closest("tr[data-signal-id]");
+    if (!row) return;
+    var signalId = Number(row.getAttribute("data-signal-id"));
+    var action = btn.getAttribute("data-action");
+
+    if (action === "detail") {
+      var data = (state.cgSuspicious || []).filter(function (r) { return r.id === signalId; })[0];
+      if (data) renderCgSuspiciousDetail(data);
+      return;
+    }
+
+    if (action === "resolve") {
+      btn.disabled = true;
+      postJson(CG_SUSPICIOUS_ENDPOINT, { id: signalId }).then(function (resp) {
+        showToast(resp.ok ? "Sinal marcado como resolvido" : resp.error, resp.ok ? "success" : "error");
+        loadClientGuardSuspicious();
+      });
+    }
+  }
+
+  function onCgDetailClick(ev) {
+    var btn = ev.target.closest("button[data-action='close-detail']");
+    if (!btn) return;
+    var el = document.getElementById("cg-suspicious-detail");
+    if (el) el.innerHTML = "";
+  }
+
+  function initCgSuspiciousControls() {
+    var toggle = document.getElementById("cg-suspicious-view-toggle");
+    if (!toggle) return;
+    toggle.addEventListener("click", function (ev) {
+      var btn = ev.target.closest(".fg-toggle-btn");
+      if (!btn) return;
+      state.cgSuspiciousView = btn.getAttribute("data-view");
+      toggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { b.classList.toggle("active", b === btn); });
+      loadClientGuardSuspicious();
+    });
+  }
+
+  // --- ClientGuard: redes de clientes + whitelist --------------------------
+
+  function renderCgCustomers(customers) {
+    var el = document.getElementById("cg-customers");
+    if (!el) return;
+    if (!customers.length) {
+      el.innerHTML = '<p class="fg-ok">Nenhuma rede cadastrada.</p>';
+      return;
+    }
+    var rows = customers
+      .map(function (c) {
+        return (
+          '<tr data-network="' + escapeHtml(c.network) + '"><td>' + escapeHtml(c.network) + "</td><td>" +
+          escapeHtml(c.prefix) + "</td><td>" + escapeHtml(c.name || "-") + "</td>" +
+          '<td><button class="fg-btn" data-action="del-customer">Remover</button></td></tr>'
+        );
+      })
+      .join("");
+    el.innerHTML =
+      "<table><thead><tr><th>Rede</th><th>Rótulo</th><th>Nome</th><th></th></tr></thead><tbody>" + rows + "</tbody></table>";
+  }
+
+  function renderCgWhitelist(whitelist) {
+    var el = document.getElementById("cg-whitelist");
+    if (!el) return;
+    if (!whitelist.length) {
+      el.innerHTML = '<p class="fg-ok">Whitelist vazia.</p>';
+      return;
+    }
+    var rows = whitelist
+      .map(function (ip) {
+        return (
+          '<tr data-ip="' + escapeHtml(ip) + '"><td>' + escapeHtml(ip) +
+          '</td><td><button class="fg-btn" data-action="del-whitelist-ip">Remover</button></td></tr>'
+        );
+      })
+      .join("");
+    el.innerHTML = "<table><thead><tr><th>IP</th><th></th></tr></thead><tbody>" + rows + "</tbody></table>";
+  }
+
+  function loadClientGuardCfg() {
+    if (!getToken()) return;
+    getJson(CG_CFG_ENDPOINT).then(function (data) {
+      if (!data.ok) {
+        showError(document.getElementById("cg-customers"), data.error || "erro desconhecido");
+        return;
+      }
+      renderCgCustomers(data.customers);
+      renderCgWhitelist(data.whitelist);
+    }).catch(function (err) {
+      showError(document.getElementById("cg-customers"), "falha ao consultar configuração do ClientGuard");
+      console.error("flowguard.js:", err);
+    });
+  }
+
+  function onCgCfgClick(ev) {
+    var btn = ev.target.closest("button[data-action]");
+    if (!btn) return;
+    var action = btn.getAttribute("data-action");
+    if (action === "del-customer") {
+      var row = btn.closest("tr[data-network]");
+      if (!row) return;
+      postJson(CG_CFG_ENDPOINT, { cmd: "customers_del", network: row.getAttribute("data-network") }).then(function (resp) {
+        showToast(resp.ok ? "Rede removida" : resp.error, resp.ok ? "success" : "error");
+        loadClientGuardCfg();
+        loadClientGuardStatus();
+      });
+    } else if (action === "del-whitelist-ip") {
+      var row2 = btn.closest("tr[data-ip]");
+      if (!row2) return;
+      postJson(CG_CFG_ENDPOINT, { cmd: "whitelist_del", ip: row2.getAttribute("data-ip") }).then(function (resp) {
+        showToast(resp.ok ? "IP removido da whitelist" : resp.error, resp.ok ? "success" : "error");
+        loadClientGuardCfg();
+        loadClientGuardStatus();
+      });
+    }
+  }
+
+  function onCgCfgSubmit(ev) {
+    var form = ev.target;
+    if (form.id === "cg-customers-form") {
+      ev.preventDefault();
+      postJson(CG_CFG_ENDPOINT, {
+        cmd: "customers_add", network: form.network.value.trim(), prefix: form.prefix.value.trim(), name: form.name.value.trim(),
+      }).then(function (resp) {
+        showToast(resp.ok ? "Rede adicionada" : resp.error, resp.ok ? "success" : "error");
+        if (resp.ok) form.reset();
+        loadClientGuardCfg();
+        loadClientGuardStatus();
+      });
+    } else if (form.id === "cg-whitelist-form") {
+      ev.preventDefault();
+      postJson(CG_CFG_ENDPOINT, { cmd: "whitelist_add", ip: form.ip.value.trim() }).then(function (resp) {
+        showToast(resp.ok ? "IP adicionado à whitelist" : resp.error, resp.ok ? "success" : "error");
+        if (resp.ok) form.reset();
+        loadClientGuardCfg();
+        loadClientGuardStatus();
+      });
+    }
+  }
+
+  function loadClientGuard() {
+    loadClientGuardStatus();
+    loadClientGuardSuspicious();
+  }
+
   // --- gráficos (canvas, sem dependência externa) -------------------------
 
   var SEV_COLORS = { critical: "#f85149", high: "#ffa657", medium: "#d29922", info: "#8b949e" };
@@ -1287,6 +1583,28 @@
       cfgEl.addEventListener("submit", onCfgSubmit);
       loadCfg();
     }
+
+    var cgSuspiciousEl = document.getElementById("cg-suspicious");
+    if (cgSuspiciousEl) cgSuspiciousEl.addEventListener("click", onCgSuspiciousClick);
+
+    var cgDetailEl = document.getElementById("cg-suspicious-detail");
+    if (cgDetailEl) cgDetailEl.addEventListener("click", onCgDetailClick);
+
+    initCgSuspiciousControls();
+
+    var cgCustomersForm = document.getElementById("cg-customers-form");
+    if (cgCustomersForm) cgCustomersForm.addEventListener("submit", onCgCfgSubmit);
+
+    var cgWhitelistForm = document.getElementById("cg-whitelist-form");
+    if (cgWhitelistForm) cgWhitelistForm.addEventListener("submit", onCgCfgSubmit);
+
+    var cgCustomersEl = document.getElementById("cg-customers");
+    if (cgCustomersEl) cgCustomersEl.addEventListener("click", onCgCfgClick);
+
+    var cgWhitelistEl = document.getElementById("cg-whitelist");
+    if (cgWhitelistEl) cgWhitelistEl.addEventListener("click", onCgCfgClick);
+
+    if (getToken()) loadClientGuardCfg();
 
     initChartControls();
 

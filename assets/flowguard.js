@@ -101,6 +101,14 @@
     return PROTO_NAMES[proto] || String(proto);
   }
 
+  function fmtBytes(n) {
+    n = Number(n) || 0;
+    var units = ["B", "KB", "MB", "GB", "TB"];
+    var i = 0;
+    while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+    return n.toFixed(1) + " " + units[i];
+  }
+
   function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
@@ -449,28 +457,45 @@
     var byPort = resp.by_port || [];
     var topSources = resp.top_sources || [];
     var topHosts = resp.top_hosts || [];
+    var summary = resp.summary || {};
+    var series = resp.timeseries || [];
     var portRows = byPort.length
       ? byPort.map(function (p) {
-          return "<tr><td>" + protoName(p.protocol) + "</td><td>" + p.dst_port + "</td><td>" + fmtBps(p.bps) + "</td><td>" + p.pps + " pps</td></tr>";
+          return "<tr><td>" + protoName(p.protocol) + "</td><td>" + p.dst_port + "</td><td>" + fmtBps(p.bps) + "</td><td>" +
+            p.pps + " pps</td><td>" + fmtBytes(p.total_bytes) + "</td><td>" + (p.total_packets || 0).toLocaleString("pt-BR") +
+            "</td><td>" + (p.avg_pkt_size || 0) + " B</td><td>" + (p.flow_count || 0).toLocaleString("pt-BR") + "</td></tr>";
         }).join("")
-      : '<tr><td colspan="4">sem dados de flow na janela do ataque</td></tr>';
+      : '<tr><td colspan="8">sem dados de flow na janela do ataque</td></tr>';
     var hostItems = topHosts.length
       ? topHosts.map(function (h) { return "<li>" + escapeHtml(h.ip) + "/32 — " + h.occurrences + " ciclo(s)</li>"; }).join("")
       : "<li>sem host específico identificado na janela do ataque</li>";
     var sourceItems = topSources.length
       ? topSources.map(function (s) { return "<li>" + escapeHtml(s.ip) + " — " + s.occurrences + " ciclo(s)</li>"; }).join("")
       : "<li>sem IPs de origem registrados na janela do ataque</li>";
+    var summaryLine =
+      "Duração: " + fmtUptime(summary.duration_s) + "  |  Total: " + fmtBytes(summary.total_bytes) + ", " +
+      (summary.total_packets || 0).toLocaleString("pt-BR") + " pacotes, " +
+      (summary.total_flows || 0).toLocaleString("pt-BR") + " flows (" + (summary.cycles || 0) + " ciclos de agregação)";
     el.innerHTML =
       '<div class="fg-ai-panel"><div class="fg-panel-header"><h4>Detalhes — ' + escapeHtml(prefix) + "</h4>" +
       '<button class="fg-btn" data-action="close-detail">Fechar</button></div>' +
+      '<p class="fg-kpi-sub">' + summaryLine + "</p>" +
+      "<h5>Linha do tempo (bps recebido)</h5>" +
+      '<canvas id="fg-attack-detail-chart" width="760" height="140"></canvas>' +
       "<h5>Host(s) atacado(s) (top " + topHosts.length + ")</h5>" +
       "<ul>" + hostItems + "</ul>" +
       "<h5>Tráfego por protocolo/porta</h5>" +
-      "<table><thead><tr><th>Protocolo</th><th>Porta</th><th>bps</th><th>pps</th></tr></thead><tbody>" + portRows + "</tbody></table>" +
+      "<table><thead><tr><th>Protocolo</th><th>Porta</th><th>bps</th><th>pps</th><th>Bytes totais</th>" +
+      "<th>Pacotes totais</th><th>Tam. médio pkt</th><th>Flows</th></tr></thead><tbody>" + portRows + "</tbody></table>" +
       "<h5>IPs de origem observados (top " + topSources.length + ")</h5>" +
       "<ul>" + sourceItems + "</ul>" +
-      '<p class="fg-kpi-sub">Ocorrências = em quantos ciclos de agregação o IP apareceu entre os top 10 daquele grupo — não é volume exato por IP.</p>' +
+      '<p class="fg-kpi-sub">Ocorrências = em quantos ciclos de agregação o IP apareceu entre os top 10 daquele grupo — não é volume exato por IP. ' +
+      "Bytes/pacotes totais são estimados a partir das taxas bps/pps de cada ciclo, não medidos diretamente.</p>" +
       "</div>";
+    var canvas = document.getElementById("fg-attack-detail-chart");
+    if (canvas) {
+      drawLineChart(canvas, series, [{ key: "bps", color: "#58a6ff" }]);
+    }
     el.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 

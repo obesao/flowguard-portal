@@ -88,10 +88,15 @@ try:
         if not attack:
             print(json.dumps({"ok": False, "error": "ataque não encontrado"}))
         else:
-            detail = storage.attack_detail(conn, attack["dst_prefix"], attack["ts_start"], attack["ts_end"])
+            interval_s = cfg["database"]["aggregate_interval_s"]
+            detail = storage.attack_detail(
+                conn, attack["dst_prefix"], attack["ts_start"], attack["ts_end"], limit=20, interval_s=interval_s,
+            )
+            timeseries = storage.attack_timeseries(conn, attack["dst_prefix"], attack["ts_start"], attack["ts_end"])
             print(json.dumps({
                 "ok": True, "attack": attack, "by_port": detail["by_port"],
                 "top_sources": detail["top_sources"], "top_hosts": detail["top_hosts"],
+                "summary": detail["summary"], "timeseries": timeseries,
             }))
     else:
         history = os.environ.get("HISTORY") in ("1", "true", "yes")

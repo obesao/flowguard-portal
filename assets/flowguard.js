@@ -351,7 +351,7 @@
       "<table><thead><tr><th>Início</th><th>Duração</th><th>Alvo</th><th>Cliente</th><th>Tipo</th><th>Severidade</th>" +
       "<th>Pico (bps)</th><th>Pico (pps)</th><th>Mitigado</th><th>Sugestão</th><th>Ações</th></tr></thead><tbody>" +
       rows +
-      '</tbody></table><div id="flowguard-attack-detail"></div>';
+      "</tbody></table>";
   }
 
   function renderAttacksFiltered() {

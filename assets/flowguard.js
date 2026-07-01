@@ -461,7 +461,8 @@
       ? topSources.map(function (s) { return "<li>" + escapeHtml(s.ip) + " — " + s.occurrences + " ciclo(s)</li>"; }).join("")
       : "<li>sem IPs de origem registrados na janela do ataque</li>";
     el.innerHTML =
-      '<div class="fg-ai-panel"><h4>Detalhes — ' + escapeHtml(prefix) + "</h4>" +
+      '<div class="fg-ai-panel"><div class="fg-panel-header"><h4>Detalhes — ' + escapeHtml(prefix) + "</h4>" +
+      '<button class="fg-btn" data-action="close-detail">Fechar</button></div>' +
       "<h5>Host(s) atacado(s) (top " + topHosts.length + ")</h5>" +
       "<ul>" + hostItems + "</ul>" +
       "<h5>Tráfego por protocolo/porta</h5>" +
@@ -482,8 +483,17 @@
       return;
     }
     el.innerHTML =
-      '<div class="fg-ai-panel"><h4>Análise IA — ' + escapeHtml(prefix) + "</h4><pre>" + escapeHtml(resp.analysis) + "</pre></div>";
+      '<div class="fg-ai-panel"><div class="fg-panel-header"><h4>Análise IA — ' + escapeHtml(prefix) + "</h4>" +
+      '<button class="fg-btn" data-action="close-detail">Fechar</button></div>' +
+      "<pre>" + escapeHtml(resp.analysis) + "</pre></div>";
     el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function onAttackDetailClick(ev) {
+    var btn = ev.target.closest("button[data-action='close-detail']");
+    if (!btn) return;
+    var el = document.getElementById("flowguard-attack-detail");
+    if (el) el.innerHTML = "";
   }
 
   function onAttacksClick(ev) {
@@ -1224,6 +1234,9 @@
 
     var attacksEl = document.getElementById("flowguard-attacks");
     if (attacksEl) attacksEl.addEventListener("click", onAttacksClick);
+
+    var attackDetailEl = document.getElementById("flowguard-attack-detail");
+    if (attackDetailEl) attackDetailEl.addEventListener("click", onAttackDetailClick);
 
     var rulesEl = document.getElementById("flowguard-rules");
     if (rulesEl) rulesEl.addEventListener("click", onRulesClick);

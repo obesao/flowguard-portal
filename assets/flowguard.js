@@ -350,22 +350,26 @@
     var p = paginate(rows, "topPrefixes");
     var bodyRows = p.pageRows
       .map(function (p) {
-        return "<tr><td>" + escapeHtml(p.dst_prefix) + "</td><td>" + fmtBps(p.bps) + "</td><td>" + p.pps + " pps</td></tr>";
+        return (
+          "<tr><td>" + escapeHtml(p.dst_prefix) + "</td><td>" + escapeHtml(p.customer || "-") + "</td>" +
+          "<td>" + fmtBps(p.bps) + "</td><td>" + p.pps + " pps</td></tr>"
+        );
       })
       .join("");
     el.innerHTML =
       '<table data-table="topPrefixes"><thead><tr>' +
       sortableTh("Prefixo", "dst_prefix", state.sort.topPrefixes) +
+      "<th>Cliente</th>" +
       sortableTh("Tráfego", "bps", state.sort.topPrefixes) +
       sortableTh("Pacotes", "pps", state.sort.topPrefixes) +
       "</tr></thead><tbody>" +
-      (bodyRows || '<tr><td colspan="3">Sem dados.</td></tr>') +
+      (bodyRows || '<tr><td colspan="4">Sem dados.</td></tr>') +
       "</tbody></table>" +
       paginationHtml("topPrefixes", p.page, p.totalPages, p.total);
   }
 
   function renderTopPrefixesFiltered() {
-    var rows = filterRows(state.topPrefixes, state.filter.topPrefixes, ["dst_prefix"]);
+    var rows = filterRows(state.topPrefixes, state.filter.topPrefixes, ["dst_prefix", "customer"]);
     rows = sortRows(rows, state.sort.topPrefixes);
     renderTopPrefixesTable(rows);
   }
@@ -390,11 +394,14 @@
           ? '<span class="fg-menu-hint">' + escapeHtml(suggestion.label) + "</span>" +
             '<button data-action="apply_suggestion">Aplicar sugestão</button>'
           : "";
+        var targetHtml = a.target_host
+          ? escapeHtml(a.target_host) + "/32" + '<br><span class="fg-kpi-sub">' + escapeHtml(a.dst_prefix) + "</span>"
+          : escapeHtml(a.dst_prefix);
         return (
           '<tr data-attack-id="' + a.id + '" data-prefix="' + escapeHtml(a.dst_prefix) + '">' +
           "<td>" + fmtDateTime(a.ts_start) + "</td>" +
           "<td>" + fmtAttackDuration(a) + "</td>" +
-          "<td>" + escapeHtml(a.dst_prefix) + "</td>" +
+          '<td class="fg-wrap-cell">' + targetHtml + "</td>" +
           "<td>" + escapeHtml(a.customer || "-") + "</td>" +
           "<td>" + escapeHtml(a.attack_type) + "</td>" +
           "<td class=\"" + sevClass + "\">" + escapeHtml(a.severity) + "</td>" +
@@ -441,21 +448,27 @@
     }
     var byPort = resp.by_port || [];
     var topSources = resp.top_sources || [];
+    var topHosts = resp.top_hosts || [];
     var portRows = byPort.length
       ? byPort.map(function (p) {
           return "<tr><td>" + protoName(p.protocol) + "</td><td>" + p.dst_port + "</td><td>" + fmtBps(p.bps) + "</td><td>" + p.pps + " pps</td></tr>";
         }).join("")
       : '<tr><td colspan="4">sem dados de flow na janela do ataque</td></tr>';
+    var hostItems = topHosts.length
+      ? topHosts.map(function (h) { return "<li>" + escapeHtml(h.ip) + "/32 — " + h.occurrences + " ciclo(s)</li>"; }).join("")
+      : "<li>sem host específico identificado na janela do ataque</li>";
     var sourceItems = topSources.length
       ? topSources.map(function (s) { return "<li>" + escapeHtml(s.ip) + " — " + s.occurrences + " ciclo(s)</li>"; }).join("")
       : "<li>sem IPs de origem registrados na janela do ataque</li>";
     el.innerHTML =
       '<div class="fg-ai-panel"><h4>Detalhes — ' + escapeHtml(prefix) + "</h4>" +
+      "<h5>Host(s) atacado(s) (top " + topHosts.length + ")</h5>" +
+      "<ul>" + hostItems + "</ul>" +
       "<h5>Tráfego por protocolo/porta</h5>" +
       "<table><thead><tr><th>Protocolo</th><th>Porta</th><th>bps</th><th>pps</th></tr></thead><tbody>" + portRows + "</tbody></table>" +
       "<h5>IPs de origem observados (top " + topSources.length + ")</h5>" +
       "<ul>" + sourceItems + "</ul>" +
-      '<p class="fg-kpi-sub">Ocorrências = em quantos ciclos de agregação o IP apareceu entre os top 10 de origem daquele grupo — não é volume exato por IP.</p>' +
+      '<p class="fg-kpi-sub">Ocorrências = em quantos ciclos de agregação o IP apareceu entre os top 10 daquele grupo — não é volume exato por IP.</p>' +
       "</div>";
     el.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -1004,6 +1017,27 @@
       var windowSeconds = { "1h": 3600, "6h": 21600, "24h": 86400, "7d": 604800 }[windowName] || 21600;
       drawTimeline(canvas, data.attacks, windowSeconds);
     });
+
+    getJson(HISTORY_ENDPOINT + "?metric=hosts&prefix=" + encodeURIComponent(state.chart.prefix) + "&window=" + windowName)
+      .then(function (data) {
+        var el = document.getElementById("flowguard-top-hosts");
+        if (!el) return;
+        if (!data.ok) { showError(el, data.error || "erro ao carregar"); return; }
+        renderTopHosts(el, data.hosts || []);
+      });
+  }
+
+  function renderTopHosts(el, hosts) {
+    if (!hosts.length) {
+      el.innerHTML = '<p class="fg-ok">Nenhum host individual identificado na janela selecionada.</p>';
+      return;
+    }
+    var rows = hosts
+      .map(function (h) { return "<tr><td>" + escapeHtml(h.ip) + "/32</td><td>" + h.occurrences + " ciclo(s)</td></tr>"; })
+      .join("");
+    el.innerHTML =
+      "<table><thead><tr><th>Host</th><th>Presença na janela</th></tr></thead><tbody>" + rows + "</tbody></table>" +
+      '<p class="fg-kpi-sub">Presença = em quantos ciclos de agregação o host apareceu entre os top 10 de destino do prefixo — não é volume exato por host.</p>';
   }
 
   function initChartControls() {

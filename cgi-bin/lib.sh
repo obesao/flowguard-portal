@@ -2,13 +2,20 @@
 # lib.sh — funções compartilhadas pelos CGI scripts do portal (padrão dash/POSIX)
 
 PORTAL_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+PYTHON_BIN="/root/flowguard/venv/bin/python3"
 SESSIONS_DIR="$PORTAL_ROOT/.sessions"
 mkdir -p "$SESSIONS_DIR"
 chmod 700 "$SESSIONS_DIR"
 
-# urldecode <string>
+# urldecode <string> — sob dash (o /bin/sh real usado pelo httpd), printf '%b'
+# não decodifica \xHH (é extensão do bash, não POSIX) — silenciosamente devolvia
+# o valor cru sempre que um parâmetro tinha "%XX" (ex: "/" em prefix=X%2F24).
+# Só chama python (mais caro) quando há de fato algo a decodificar.
 urldecode() {
-  printf '%b' "$(printf '%s' "$1" | sed 's/+/ /g; s/%\([0-9A-Fa-f][0-9A-Fa-f]\)/\\x\1/g')"
+  case "$1" in
+    *%*|*+*) "$PYTHON_BIN" -c "import sys, urllib.parse as u; sys.stdout.write(u.unquote_plus(sys.argv[1]))" "$1" ;;
+    *) printf '%s' "$1" ;;
+  esac
 }
 
 # parse_param <name> — lê exclusivamente de $QUERY_STRING (nunca do corpo POST)

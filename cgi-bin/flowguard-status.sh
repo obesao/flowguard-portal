@@ -25,7 +25,19 @@ try:
     conn = storage.connect(cfg["database"]["path"])
     interval = cfg["database"]["aggregate_interval_s"]
     stats = storage.daemon_stats(conn, window_s=interval)
-    top = storage.top_prefixes(conn, window_s=interval, limit=20)
+
+    protected = yaml.safe_load(open(cfg.get("protected_prefixes_file", "/root/flowguard/protected_prefixes.yaml"), encoding="utf-8")) or []
+    prefix_list = [p["prefix"] for p in protected if p.get("prefix")]
+    prefix_stats = storage.stats_for_prefixes(conn, prefix_list, window_s=interval)
+    top = [
+        {
+            "dst_prefix": p["prefix"], "customer": p.get("customer") or "",
+            "bps": prefix_stats.get(p["prefix"], {}).get("bps", 0),
+            "pps": prefix_stats.get(p["prefix"], {}).get("pps", 0),
+        }
+        for p in protected if p.get("prefix")
+    ]
+
     protocol_series = storage.protocol_timeseries(conn, window_s=300, bucket_s=interval)
 
     ping = control.send_command(cfg["daemon"]["socket"], {"cmd": "status"}, timeout=1.5)

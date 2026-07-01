@@ -3,6 +3,7 @@
 #   ?metric=prefix&prefix=X&window=1h|6h|24h|7d   -> série de bps/pps do prefixo + baseline
 #   ?metric=protocol&window=...                    -> série de bps por protocolo (área empilhada)
 #   ?metric=attacks&window=...                      -> ataques no período (timeline/heatmap)
+#   ?metric=hosts&prefix=X&window=...               -> top hosts /32 dentro do prefixo
 
 . "$(dirname -- "$0")/lib.sh"
 
@@ -58,6 +59,12 @@ try:
     elif metric == "protocol":
         series = storage.protocol_timeseries(conn, window_s=window_s, bucket_s=bucket_s)
         print(json.dumps({"ok": True, "series": series}))
+    elif metric == "hosts":
+        if not prefix:
+            print(json.dumps({"ok": False, "error": "prefix obrigatório para metric=hosts"}))
+        else:
+            hosts = storage.top_hosts_for_prefix(conn, prefix, window_s=window_s, limit=15)
+            print(json.dumps({"ok": True, "hosts": hosts}))
     elif metric == "attacks":
         attacks = storage.list_attacks(conn, active_only=False, since_s=window_s)
         print(json.dumps({"ok": True, "attacks": attacks}))

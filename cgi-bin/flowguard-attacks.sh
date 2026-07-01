@@ -71,6 +71,7 @@ HISTORY="$HISTORY" DETAIL="$DETAIL" /root/flowguard/venv/bin/python3 <<'PYEOF'
 import json
 import os
 import sys
+import time
 
 sys.path.insert(0, "/root/flowguard")
 
@@ -88,12 +89,23 @@ try:
             print(json.dumps({"ok": False, "error": "ataque não encontrado"}))
         else:
             detail = storage.attack_detail(conn, attack["dst_prefix"], attack["ts_start"], attack["ts_end"])
-            print(json.dumps({"ok": True, "attack": attack, "by_port": detail["by_port"], "top_sources": detail["top_sources"]}))
+            print(json.dumps({
+                "ok": True, "attack": attack, "by_port": detail["by_port"],
+                "top_sources": detail["top_sources"], "top_hosts": detail["top_hosts"],
+            }))
     else:
         history = os.environ.get("HISTORY") in ("1", "true", "yes")
         attacks = storage.list_attacks(conn, active_only=not history)
+        now = int(time.time())
         for attack in attacks:
             attack["suggested_mitigation"] = flowspec.suggest_mitigation(attack["attack_type"], attack["dst_prefix"])
+            # ataques encerrados já têm target_host persistido no fechamento
+            # (ver storage.apply_attack_changes) — só ataques ainda ativos precisam
+            # de lookup ao vivo aqui, e só sobre os últimos 5min (não a duração toda,
+            # senão um ataque de horas fica caro de listar a cada poll de 5s)
+            if not attack.get("ts_end"):
+                lookup_start = max(attack["ts_start"], now - 300)
+                attack["target_host"] = storage.attack_top_host(conn, attack["dst_prefix"], lookup_start, None)
         print(json.dumps({"ok": True, "attacks": attacks, "history": history}))
 except Exception as exc:
     print(json.dumps({"ok": False, "error": str(exc)}))

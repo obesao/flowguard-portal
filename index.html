@@ -10,9 +10,13 @@
     h2 { margin-top: 0; }
     h4 { margin: 1rem 0 0.5rem; }
 
-    #fg-token-bar { margin-bottom: 1.5rem; display: flex; gap: 0.5rem; align-items: center; max-width: 1100px; }
-    #fg-token-input { flex: 1; background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; padding: 0.4rem 0.6rem; }
-    #fg-token-status { font-size: 0.85rem; color: #8b949e; }
+    #fg-login-screen { max-width: 340px; margin: 4rem auto 0; }
+    #fg-login-screen .fg-card { padding: 1.5rem; }
+    #fg-login-form { display: flex; flex-direction: column; gap: 0.7rem; margin-top: 1rem; }
+    #fg-login-form input { background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; padding: 0.5rem 0.6rem; }
+    #fg-login-status { font-size: 0.85rem; min-height: 1.1em; }
+
+    .fg-topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 
     .fg-wrap { max-width: 1100px; }
 
@@ -97,35 +101,23 @@
   </style>
 </head>
 <body>
-  <div id="fg-token-bar">
-    <input type="text" id="fg-token-input" placeholder="cole o token de sessão aqui">
-    <button id="fg-token-save" class="fg-btn">Salvar token</button>
-    <span id="fg-token-status"></span>
+  <div id="fg-login-screen">
+    <div class="fg-card">
+      <h2 style="font-size: 1.1rem;">FlowGuard — POX Network</h2>
+      <form id="fg-login-form">
+        <input type="text" id="fg-login-user" placeholder="usuário" autocomplete="username" required>
+        <input type="password" id="fg-login-pass" placeholder="senha" autocomplete="current-password" required>
+        <button type="submit" class="fg-btn">Entrar</button>
+        <span id="fg-login-status" class="fg-error"></span>
+      </form>
+    </div>
   </div>
-  <script>
-    (function () {
-      var m = location.search.match(/(?:^\?|&)token=([^&]+)/);
-      if (m) {
-        window.localStorage.setItem("portal_token", decodeURIComponent(m[1]));
-        history.replaceState(null, "", location.pathname);
-      }
-      var input = document.getElementById("fg-token-input");
-      var btn = document.getElementById("fg-token-save");
-      var status = document.getElementById("fg-token-status");
-      var saved = window.localStorage.getItem("portal_token");
-      if (saved) {
-        input.value = saved;
-        status.textContent = "token salvo";
-      }
-      btn.addEventListener("click", function () {
-        window.localStorage.setItem("portal_token", input.value.trim());
-        status.textContent = "token salvo — atualizando em até 5s...";
-      });
-    })();
-  </script>
 
-  <div class="fg-wrap">
-    <h1 style="font-size: 1.3rem;">FlowGuard — POX Network</h1>
+  <div id="fg-app" class="fg-wrap" style="display: none;">
+    <div class="fg-topbar">
+      <h1 style="font-size: 1.3rem; margin: 0;">FlowGuard — POX Network</h1>
+      <button id="fg-logout-btn" class="fg-btn">Sair</button>
+    </div>
 
     <div id="fg-kpis" class="fg-kpis"></div>
 

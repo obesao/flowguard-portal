@@ -10,6 +10,8 @@
   var CFG_ENDPOINT = "/cgi-bin/flowguard-cfg.sh";
   var AI_ENDPOINT = "/cgi-bin/flowguard-ai.sh";
   var HISTORY_ENDPOINT = "/cgi-bin/flowguard-history.sh";
+  var LOGIN_ENDPOINT = "/cgi-bin/flowguard-login.sh";
+  var LOGOUT_ENDPOINT = "/cgi-bin/flowguard-logout.sh";
 
   var PROTO_NAMES = { 6: "TCP", 17: "UDP", 1: "ICMP" };
 
@@ -37,6 +39,31 @@
 
   function getToken() {
     return window.localStorage.getItem("portal_token") || "";
+  }
+
+  function setToken(token) {
+    window.localStorage.setItem("portal_token", token);
+  }
+
+  function clearToken() {
+    window.localStorage.removeItem("portal_token");
+  }
+
+  function showApp() {
+    var login = document.getElementById("fg-login-screen");
+    var app = document.getElementById("fg-app");
+    if (login) login.style.display = "none";
+    if (app) app.style.display = "";
+  }
+
+  function showLogin(message) {
+    clearToken();
+    var login = document.getElementById("fg-login-screen");
+    var app = document.getElementById("fg-app");
+    if (app) app.style.display = "none";
+    if (login) login.style.display = "";
+    var status = document.getElementById("fg-login-status");
+    if (status) status.textContent = message || "";
   }
 
   function fmtBps(bps) {
@@ -68,6 +95,10 @@
     var token = encodeURIComponent(getToken());
     var sep = url.indexOf("?") === -1 ? "?" : "&";
     return fetch(url + sep + "token=" + token, { credentials: "same-origin" }).then(function (resp) {
+      if (resp.status === 401) {
+        showLogin("sessão expirada, faça login novamente.");
+        throw new Error("unauthorized");
+      }
       return resp.json();
     });
   }
@@ -80,6 +111,10 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }).then(function (resp) {
+      if (resp.status === 401) {
+        showLogin("sessão expirada, faça login novamente.");
+        throw new Error("unauthorized");
+      }
       return resp.json();
     });
   }
@@ -898,6 +933,7 @@
   }
 
   function loadCfg() {
+    if (!getToken()) return;
     getJson(CFG_ENDPOINT).then(renderCfg).catch(function (err) {
       showError(document.getElementById("flowguard-cfg"), "falha ao consultar configuração");
       console.error("flowguard.js:", err);
@@ -905,15 +941,74 @@
   }
 
   function poll() {
+    if (!getToken()) return;
     loadStatus();
     loadAttacks();
     loadFlows();
     loadRules();
   }
 
+  function initLogin() {
+    var form = document.getElementById("fg-login-form");
+    if (!form) return;
+
+    var userInput = document.getElementById("fg-login-user");
+    var passInput = document.getElementById("fg-login-pass");
+    var status = document.getElementById("fg-login-status");
+    var logoutBtn = document.getElementById("fg-logout-btn");
+
+    form.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      status.textContent = "autenticando...";
+      fetch(LOGIN_ENDPOINT, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: userInput.value.trim(), password: passInput.value }),
+      })
+        .then(function (resp) {
+          return resp.json().then(function (data) {
+            return { status: resp.status, data: data };
+          });
+        })
+        .then(function (result) {
+          if (result.status === 200 && result.data.ok) {
+            setToken(result.data.token);
+            passInput.value = "";
+            status.textContent = "";
+            showApp();
+            poll();
+            loadCfg();
+          } else {
+            status.textContent = "usuário ou senha inválidos";
+          }
+        })
+        .catch(function () {
+          status.textContent = "erro ao conectar com o portal";
+        });
+    });
+
+    if (logoutBtn) {
+      logoutBtn.addEventListener("click", function () {
+        var token = getToken();
+        showLogin();
+        if (token) {
+          fetch(LOGOUT_ENDPOINT + "?token=" + encodeURIComponent(token), { credentials: "same-origin" });
+        }
+      });
+    }
+
+    if (getToken()) {
+      showApp();
+    } else {
+      showLogin();
+    }
+  }
+
   function init() {
     if (!document.getElementById("fg-kpis")) return;
 
+    initLogin();
     initTabs();
     initSortHandlers();
     initAttacksControls();

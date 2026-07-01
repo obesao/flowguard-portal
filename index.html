@@ -169,7 +169,13 @@
         <div class="fg-toolbar">
           <div class="fg-toggle-group" id="fg-attacks-view-toggle">
             <button class="fg-toggle-btn active" data-view="active">Ativos</button>
-            <button class="fg-toggle-btn" data-view="history">Histórico (24h)</button>
+            <button class="fg-toggle-btn" data-view="history">Histórico</button>
+          </div>
+          <div class="fg-toggle-group" id="fg-attacks-window" hidden>
+            <button class="fg-toggle-btn" data-window="1h">1h</button>
+            <button class="fg-toggle-btn" data-window="6h">6h</button>
+            <button class="fg-toggle-btn active" data-window="24h">24h</button>
+            <button class="fg-toggle-btn" data-window="7d">7d</button>
           </div>
           <select id="fg-attacks-severity-filter">
             <option value="">todas severidades</option>

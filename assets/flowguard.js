@@ -20,6 +20,7 @@
     flows: [],
     attacks: [],
     attacksView: "active",
+    attacksWindow: "24h",
     sort: {
       topPrefixes: { key: "bps", dir: "desc" },
       flows: { key: "bps", dir: "desc" },
@@ -568,6 +569,7 @@
 
   function initAttacksControls() {
     var toggle = document.getElementById("fg-attacks-view-toggle");
+    var windowToggle = document.getElementById("fg-attacks-window");
     if (toggle) {
       toggle.addEventListener("click", function (ev) {
         var btn = ev.target.closest(".fg-toggle-btn");
@@ -575,6 +577,17 @@
         state.attacksView = btn.getAttribute("data-view");
         state.page.attacks = 1;
         toggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { b.classList.toggle("active", b === btn); });
+        if (windowToggle) windowToggle.hidden = state.attacksView !== "history";
+        loadAttacks();
+      });
+    }
+    if (windowToggle) {
+      windowToggle.addEventListener("click", function (ev) {
+        var btn = ev.target.closest(".fg-toggle-btn");
+        if (!btn) return;
+        state.attacksWindow = btn.getAttribute("data-window");
+        state.page.attacks = 1;
+        windowToggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { b.classList.toggle("active", b === btn); });
         loadAttacks();
       });
     }
@@ -1133,7 +1146,9 @@
   }
 
   function loadAttacks() {
-    var url = state.attacksView === "history" ? ATTACKS_ENDPOINT + "?history=1" : ATTACKS_ENDPOINT;
+    var url = state.attacksView === "history"
+      ? ATTACKS_ENDPOINT + "?history=1&window=" + encodeURIComponent(state.attacksWindow)
+      : ATTACKS_ENDPOINT;
     getJson(url).then(function (data) {
       if (!data.ok) {
         showError(document.getElementById("flowguard-attacks"), data.error);

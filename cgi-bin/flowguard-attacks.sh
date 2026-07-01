@@ -9,6 +9,7 @@
 TOKEN=$(parse_param "token")
 HISTORY=$(parse_param "history")
 DETAIL=$(parse_param "detail")
+WINDOW=$(parse_param "window")
 
 if ! check_session "$TOKEN"; then
   deny_unauthorized
@@ -67,7 +68,7 @@ PYEOF
 fi
 
 print_header 200
-HISTORY="$HISTORY" DETAIL="$DETAIL" /root/flowguard/venv/bin/python3 <<'PYEOF'
+HISTORY="$HISTORY" DETAIL="$DETAIL" WINDOW="$WINDOW" /root/flowguard/venv/bin/python3 <<'PYEOF'
 import json
 import os
 import sys
@@ -100,7 +101,8 @@ try:
             }))
     else:
         history = os.environ.get("HISTORY") in ("1", "true", "yes")
-        attacks = storage.list_attacks(conn, active_only=not history)
+        window_s, _ = storage.pick_window(os.environ.get("WINDOW") or "24h")
+        attacks = storage.list_attacks(conn, active_only=not history, since_s=window_s)
         now = int(time.time())
         for attack in attacks:
             attack["suggested_mitigation"] = flowspec.suggest_mitigation(attack["attack_type"], attack["dst_prefix"])
@@ -111,7 +113,7 @@ try:
             if not attack.get("ts_end"):
                 lookup_start = max(attack["ts_start"], now - 300)
                 attack["target_host"] = storage.attack_top_host(conn, attack["dst_prefix"], lookup_start, None)
-        print(json.dumps({"ok": True, "attacks": attacks, "history": history}))
+        print(json.dumps({"ok": True, "attacks": attacks, "history": history, "window": os.environ.get("WINDOW") or "24h"}))
 except Exception as exc:
     print(json.dumps({"ok": False, "error": str(exc)}))
 PYEOF

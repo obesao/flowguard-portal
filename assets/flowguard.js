@@ -30,6 +30,11 @@
       attacksSeverity: "",
       attacksPrefix: "",
     },
+    page: {
+      topPrefixes: 1,
+      flows: 1,
+      attacks: 1,
+    },
     chart: {
       window: "6h",
       prefix: null,
@@ -176,6 +181,60 @@
     return '<th data-sort-key="' + key + '" class="' + cls + '">' + escapeHtml(label) + "</th>";
   }
 
+  // --- paginação genérica (client-side, sobre a lista já filtrada/ordenada) --
+
+  var PAGE_SIZE = 15;
+
+  function paginate(rows, pageKey) {
+    var totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+    var page = Math.min(Math.max(1, state.page[pageKey] || 1), totalPages);
+    state.page[pageKey] = page;
+    var start = (page - 1) * PAGE_SIZE;
+    return { pageRows: rows.slice(start, start + PAGE_SIZE), page: page, totalPages: totalPages, total: rows.length };
+  }
+
+  function paginationHtml(pageKey, page, totalPages, total) {
+    if (total <= PAGE_SIZE) return "";
+    return (
+      '<div class="fg-pagination" data-page-key="' + pageKey + '">' +
+      '<button class="fg-btn" data-page-action="prev" ' + (page <= 1 ? "disabled" : "") + ">« Anterior</button>" +
+      "<span>página " + page + " de " + totalPages + " — " + total + " itens</span>" +
+      '<button class="fg-btn" data-page-action="next" ' + (page >= totalPages ? "disabled" : "") + ">Próxima »</button>" +
+      "</div>"
+    );
+  }
+
+  function initPaginationHandlers() {
+    document.addEventListener("click", function (ev) {
+      var btn = ev.target.closest("button[data-page-action]");
+      if (!btn) return;
+      var wrap = btn.closest("[data-page-key]");
+      if (!wrap) return;
+      var key = wrap.getAttribute("data-page-key");
+      var delta = btn.getAttribute("data-page-action") === "next" ? 1 : -1;
+      state.page[key] = (state.page[key] || 1) + delta;
+      if (key === "topPrefixes") renderTopPrefixesFiltered();
+      if (key === "flows") renderFlowsFiltered();
+      if (key === "attacks") renderAttacksFiltered();
+    });
+  }
+
+  // --- menus de ação (dropdown compacto) -------------------------------------
+
+  function initActionMenus() {
+    document.addEventListener("click", function (ev) {
+      var toggle = ev.target.closest("[data-menu-toggle]");
+      document.querySelectorAll(".fg-menu-list").forEach(function (list) {
+        if (!toggle || list !== toggle.nextElementSibling) list.hidden = true;
+      });
+      if (toggle) {
+        var list = toggle.nextElementSibling;
+        if (list) list.hidden = !list.hidden;
+        ev.stopPropagation();
+      }
+    });
+  }
+
   // --- tabs ---------------------------------------------------------------
 
   function initTabs() {
@@ -288,7 +347,8 @@
   function renderTopPrefixesTable(rows) {
     var el = document.getElementById("flowguard-top-prefixes");
     if (!el) return;
-    var bodyRows = rows
+    var p = paginate(rows, "topPrefixes");
+    var bodyRows = p.pageRows
       .map(function (p) {
         return "<tr><td>" + escapeHtml(p.dst_prefix) + "</td><td>" + fmtBps(p.bps) + "</td><td>" + p.pps + " pps</td></tr>";
       })
@@ -300,7 +360,8 @@
       sortableTh("Pacotes", "pps", state.sort.topPrefixes) +
       "</tr></thead><tbody>" +
       (bodyRows || '<tr><td colspan="3">Sem dados.</td></tr>') +
-      "</tbody></table>";
+      "</tbody></table>" +
+      paginationHtml("topPrefixes", p.page, p.totalPages, p.total);
   }
 
   function renderTopPrefixesFiltered() {
@@ -320,13 +381,15 @@
       return;
     }
 
-    var rows = attacks
+    var p = paginate(attacks, "attacks");
+    var rows = p.pageRows
       .map(function (a) {
         var sevClass = "fg-sev-" + a.severity;
         var suggestion = a.suggested_mitigation;
-        var suggestionHtml = suggestion
-          ? escapeHtml(suggestion.label) + '<br><button class="fg-btn" data-action="apply_suggestion">Aplicar sugestão</button>'
-          : "-";
+        var suggestionMenuItem = suggestion
+          ? '<span class="fg-menu-hint">' + escapeHtml(suggestion.label) + "</span>" +
+            '<button data-action="apply_suggestion">Aplicar sugestão</button>'
+          : "";
         return (
           '<tr data-attack-id="' + a.id + '" data-prefix="' + escapeHtml(a.dst_prefix) + '">' +
           "<td>" + fmtDateTime(a.ts_start) + "</td>" +
@@ -338,20 +401,25 @@
           "<td>" + fmtBps(a.bps_peak || 0) + "</td>" +
           "<td>" + (a.pps_peak || 0).toLocaleString("pt-BR") + " pps</td>" +
           "<td>" + (a.mitigated ? "sim" : "não") + "</td>" +
-          "<td>" + suggestionHtml + "</td>" +
-          '<td><button class="fg-btn" data-action="detail">Detalhes</button> ' +
-          '<button class="fg-btn" data-action="mitigate">Mitigar</button> ' +
-          '<button class="fg-btn" data-action="release">Liberar</button> ' +
-          '<button class="fg-btn" data-action="analyze">Detalhes IA</button></td></tr>'
+          '<td><div class="fg-menu">' +
+          '<button class="fg-btn" data-menu-toggle>Ações ▾</button>' +
+          '<div class="fg-menu-list" hidden>' +
+          '<button data-action="detail">Detalhes</button>' +
+          '<button data-action="analyze">Detalhes IA</button>' +
+          '<button data-action="mitigate">Mitigar</button>' +
+          '<button data-action="release">Liberar</button>' +
+          suggestionMenuItem +
+          "</div></div></td></tr>"
         );
       })
       .join("");
 
     el.innerHTML =
       "<table><thead><tr><th>Início</th><th>Duração</th><th>Alvo</th><th>Cliente</th><th>Tipo</th><th>Severidade</th>" +
-      "<th>Pico (bps)</th><th>Pico (pps)</th><th>Mitigado</th><th>Sugestão</th><th>Ações</th></tr></thead><tbody>" +
+      "<th>Pico (bps)</th><th>Pico (pps)</th><th>Mitigado</th><th>Ações</th></tr></thead><tbody>" +
       rows +
-      "</tbody></table>";
+      "</tbody></table>" +
+      paginationHtml("attacks", p.page, p.totalPages, p.total);
   }
 
   function renderAttacksFiltered() {
@@ -457,6 +525,7 @@
         var btn = ev.target.closest(".fg-toggle-btn");
         if (!btn) return;
         state.attacksView = btn.getAttribute("data-view");
+        state.page.attacks = 1;
         toggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { b.classList.toggle("active", b === btn); });
         loadAttacks();
       });
@@ -465,6 +534,7 @@
     if (sevFilter) {
       sevFilter.addEventListener("change", function () {
         state.filter.attacksSeverity = sevFilter.value;
+        state.page.attacks = 1;
         renderAttacksFiltered();
       });
     }
@@ -472,6 +542,7 @@
     if (prefixFilter) {
       prefixFilter.addEventListener("input", function () {
         state.filter.attacksPrefix = prefixFilter.value;
+        state.page.attacks = 1;
         renderAttacksFiltered();
       });
     }
@@ -482,7 +553,8 @@
   function renderFlowsTable(rows) {
     var el = document.getElementById("flowguard-flows");
     if (!el) return;
-    var bodyRows = rows
+    var p = paginate(rows, "flows");
+    var bodyRows = p.pageRows
       .map(function (f) {
         return (
           "<tr><td>" + escapeHtml(f.dst_prefix) + "</td><td>" + protoName(f.protocol) + "</td><td>" + f.dst_port +
@@ -499,7 +571,8 @@
       sortableTh("Pacotes", "pps", state.sort.flows) +
       "</tr></thead><tbody>" +
       (bodyRows || '<tr><td colspan="5">Sem flows na janela atual.</td></tr>') +
-      "</tbody></table>";
+      "</tbody></table>" +
+      paginationHtml("flows", p.page, p.totalPages, p.total);
   }
 
   function renderFlowsFiltered() {
@@ -1106,12 +1179,14 @@
     initTabs();
     initSortHandlers();
     initAttacksControls();
+    initPaginationHandlers();
+    initActionMenus();
 
     var topSearch = document.getElementById("fg-top-prefixes-search");
-    if (topSearch) topSearch.addEventListener("input", function () { state.filter.topPrefixes = topSearch.value; renderTopPrefixesFiltered(); });
+    if (topSearch) topSearch.addEventListener("input", function () { state.filter.topPrefixes = topSearch.value; state.page.topPrefixes = 1; renderTopPrefixesFiltered(); });
 
     var flowsSearch = document.getElementById("fg-flows-search");
-    if (flowsSearch) flowsSearch.addEventListener("input", function () { state.filter.flows = flowsSearch.value; renderFlowsFiltered(); });
+    if (flowsSearch) flowsSearch.addEventListener("input", function () { state.filter.flows = flowsSearch.value; state.page.flows = 1; renderFlowsFiltered(); });
 
     var attacksEl = document.getElementById("flowguard-attacks");
     if (attacksEl) attacksEl.addEventListener("click", onAttacksClick);

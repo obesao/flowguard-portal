@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <title>Portal POX Network</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: sans-serif; background: #0d1117; color: #c9d1d9; margin: 2rem; }
+    section, .fg-card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; }
+    h2 { margin-top: 0; }
+    h4 { margin: 1rem 0 0.5rem; }
+
+    #fg-token-bar { margin-bottom: 1.5rem; display: flex; gap: 0.5rem; align-items: center; max-width: 1100px; }
+    #fg-token-input { flex: 1; background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; padding: 0.4rem 0.6rem; }
+    #fg-token-status { font-size: 0.85rem; color: #8b949e; }
+
+    .fg-wrap { max-width: 1100px; }
+
+    .fg-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.8rem; margin-bottom: 1.2rem; }
+    .fg-card { padding: 0.9rem 1rem; }
+    .fg-card .fg-kpi-label { font-size: 0.78rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.03em; }
+    .fg-card .fg-kpi-value { font-size: 1.5rem; font-weight: bold; margin-top: 0.2rem; }
+    .fg-dot { display: inline-block; width: 0.55rem; height: 0.55rem; border-radius: 50%; margin-right: 0.4rem; }
+    .fg-dot-up { background: #3fb950; }
+    .fg-dot-down { background: #f85149; }
+    .fg-kpi-sub { font-size: 0.75rem; color: #8b949e; margin-top: 0.1rem; }
+
+    .fg-tabs { display: flex; gap: 0.3rem; margin-bottom: 1rem; border-bottom: 1px solid #30363d; }
+    .fg-tab-btn {
+      background: transparent; border: none; color: #8b949e; padding: 0.6rem 1rem; cursor: pointer;
+      font-size: 0.95rem; border-bottom: 2px solid transparent; display: flex; align-items: center; gap: 0.4rem;
+    }
+    .fg-tab-btn.active { color: #c9d1d9; border-bottom-color: #58a6ff; }
+    .fg-tab-btn:hover { color: #c9d1d9; }
+    .fg-badge { background: #f85149; color: white; font-size: 0.7rem; border-radius: 999px; padding: 0.05rem 0.45rem; }
+
+    .fg-tab-panel { display: none; }
+    .fg-tab-panel.active { display: block; }
+
+    section.fg-panel-section { padding: 1rem; margin-bottom: 1.2rem; }
+
+    .fg-toolbar { display: flex; gap: 0.6rem; align-items: center; margin-bottom: 0.8rem; flex-wrap: wrap; }
+    .fg-toolbar input[type="text"], .fg-toolbar select {
+      background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; padding: 0.35rem 0.6rem;
+    }
+    .fg-toggle-group { display: flex; gap: 0.3rem; }
+    .fg-toggle-btn { background: #21262d; color: #8b949e; border: 1px solid #30363d; border-radius: 6px; padding: 0.3rem 0.7rem; cursor: pointer; }
+    .fg-toggle-btn.active { background: #30363d; color: #c9d1d9; }
+
+    .fg-statusbar { display: flex; gap: 1.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+    .fg-statusbar span { background: #21262d; padding: 0.4rem 0.8rem; border-radius: 6px; }
+
+    table { width: 100%; border-collapse: collapse; }
+    table th, table td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #30363d; }
+    table th[data-sort-key] { cursor: pointer; user-select: none; }
+    table th[data-sort-key]:hover { color: #58a6ff; }
+    table th.fg-sorted::after { content: " ▾"; }
+    table th.fg-sorted.fg-sorted-asc::after { content: " ▴"; }
+
+    .fg-error { color: #f85149; }
+    .fg-ok { color: #3fb950; }
+    .fg-sev-critical { color: #f85149; font-weight: bold; }
+    .fg-sev-high { color: #ffa657; font-weight: bold; }
+    .fg-sev-medium { color: #d29922; }
+    .fg-sev-info { color: #8b949e; }
+
+    .fg-btn { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; padding: 0.2rem 0.6rem; cursor: pointer; }
+    .fg-btn:hover { background: #30363d; }
+
+    .fg-spark { display: inline-flex; align-items: center; gap: 0.5rem; background: #21262d; padding: 0.4rem 0.8rem; border-radius: 6px; margin: 0 0.5rem 0.5rem 0; }
+    .fg-spark-label { font-weight: bold; font-size: 0.8rem; }
+    .fg-spark-value { font-size: 0.8rem; color: #8b949e; }
+
+    .fg-ai-panel { background: #21262d; border-radius: 6px; padding: 0.8rem; margin-top: 0.8rem; }
+    .fg-ai-panel pre { white-space: pre-wrap; font-family: inherit; }
+
+    .fg-form { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; margin: 0.8rem 0 1.5rem; }
+    .fg-form input[type="text"], .fg-form input:not([type]), .fg-form input[type="number"] {
+      background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; padding: 0.3rem 0.5rem;
+    }
+    .fg-form label { font-size: 0.85rem; }
+
+    #fg-toast-container { position: fixed; bottom: 1.2rem; right: 1.2rem; display: flex; flex-direction: column; gap: 0.5rem; z-index: 999; }
+    .fg-toast {
+      background: #21262d; border: 1px solid #30363d; border-radius: 6px; padding: 0.6rem 1rem;
+      font-size: 0.85rem; max-width: 320px; box-shadow: 0 2px 8px rgba(0,0,0,0.4); opacity: 1; transition: opacity 0.3s;
+    }
+    .fg-toast-success { border-color: #3fb950; }
+    .fg-toast-error { border-color: #f85149; }
+    .fg-toast-out { opacity: 0; }
+
+    .fg-chart-box { margin-bottom: 1.5rem; }
+    .fg-chart-box canvas { width: 100%; height: auto; background: #0d1117; border-radius: 6px; }
+    .fg-legend { display: flex; gap: 1rem; margin-top: 0.5rem; flex-wrap: wrap; font-size: 0.8rem; }
+    .fg-legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
+    .fg-legend i { display: inline-block; width: 0.8rem; height: 0.4rem; border-radius: 2px; }
+  </style>
+</head>
+<body>
+  <div id="fg-token-bar">
+    <input type="text" id="fg-token-input" placeholder="cole o token de sessão aqui">
+    <button id="fg-token-save" class="fg-btn">Salvar token</button>
+    <span id="fg-token-status"></span>
+  </div>
+  <script>
+    (function () {
+      var m = location.search.match(/(?:^\?|&)token=([^&]+)/);
+      if (m) {
+        window.localStorage.setItem("portal_token", decodeURIComponent(m[1]));
+        history.replaceState(null, "", location.pathname);
+      }
+      var input = document.getElementById("fg-token-input");
+      var btn = document.getElementById("fg-token-save");
+      var status = document.getElementById("fg-token-status");
+      var saved = window.localStorage.getItem("portal_token");
+      if (saved) {
+        input.value = saved;
+        status.textContent = "token salvo";
+      }
+      btn.addEventListener("click", function () {
+        window.localStorage.setItem("portal_token", input.value.trim());
+        status.textContent = "token salvo — atualizando em até 5s...";
+      });
+    })();
+  </script>
+
+  <div class="fg-wrap">
+    <h1 style="font-size: 1.3rem;">FlowGuard — POX Network</h1>
+
+    <div id="fg-kpis" class="fg-kpis"></div>
+
+    <div class="fg-tabs" id="fg-tabs">
+      <button class="fg-tab-btn active" data-tab="overview">Visão Geral</button>
+      <button class="fg-tab-btn" data-tab="attacks">Ataques <span class="fg-badge" id="fg-attacks-badge" style="display:none;">0</span></button>
+      <button class="fg-tab-btn" data-tab="flows">Flows</button>
+      <button class="fg-tab-btn" data-tab="rules">Regras</button>
+      <button class="fg-tab-btn" data-tab="cfg">Configuração</button>
+      <button class="fg-tab-btn" data-tab="charts">Gráficos</button>
+    </div>
+
+    <div class="fg-tab-panel active" data-tab="overview">
+      <section class="fg-panel-section">
+        <h2>Tráfego em Tempo Real</h2>
+        <div id="flowguard-sparklines"></div>
+      </section>
+      <section class="fg-panel-section">
+        <h2>Top Prefixos</h2>
+        <div class="fg-toolbar">
+          <input type="text" id="fg-top-prefixes-search" placeholder="filtrar por prefixo...">
+        </div>
+        <div id="flowguard-top-prefixes">Carregando...</div>
+      </section>
+    </div>
+
+    <div class="fg-tab-panel" data-tab="attacks">
+      <section class="fg-panel-section">
+        <h2>Ataques</h2>
+        <div class="fg-toolbar">
+          <div class="fg-toggle-group" id="fg-attacks-view-toggle">
+            <button class="fg-toggle-btn active" data-view="active">Ativos</button>
+            <button class="fg-toggle-btn" data-view="history">Histórico (24h)</button>
+          </div>
+          <select id="fg-attacks-severity-filter">
+            <option value="">todas severidades</option>
+            <option value="critical">critical</option>
+            <option value="high">high</option>
+            <option value="medium">medium</option>
+            <option value="info">info</option>
+          </select>
+          <input type="text" id="fg-attacks-prefix-filter" placeholder="filtrar por prefixo/cliente...">
+        </div>
+        <div id="flowguard-attacks">Carregando...</div>
+      </section>
+    </div>
+
+    <div class="fg-tab-panel" data-tab="flows">
+      <section class="fg-panel-section">
+        <h2>Top Flows</h2>
+        <div class="fg-toolbar">
+          <input type="text" id="fg-flows-search" placeholder="filtrar por prefixo ou porta...">
+        </div>
+        <div id="flowguard-flows">Carregando...</div>
+      </section>
+    </div>
+
+    <div class="fg-tab-panel" data-tab="rules">
+      <section class="fg-panel-section">
+        <h2>Regras FlowSpec Ativas</h2>
+        <div id="flowguard-rules">Carregando...</div>
+      </section>
+    </div>
+
+    <div class="fg-tab-panel" data-tab="cfg">
+      <section class="fg-panel-section">
+        <h2>Configuração</h2>
+        <div id="flowguard-cfg">Carregando...</div>
+      </section>
+    </div>
+
+    <div class="fg-tab-panel" data-tab="charts">
+      <section class="fg-panel-section">
+        <h2>Gráficos</h2>
+        <div class="fg-toolbar">
+          <select id="fg-chart-prefix"></select>
+          <div class="fg-toggle-group" id="fg-chart-window">
+            <button class="fg-toggle-btn" data-window="1h">1h</button>
+            <button class="fg-toggle-btn active" data-window="6h">6h</button>
+            <button class="fg-toggle-btn" data-window="24h">24h</button>
+            <button class="fg-toggle-btn" data-window="7d">7d</button>
+          </div>
+        </div>
+
+        <h4>Tráfego do prefixo (com faixa de baseline)</h4>
+        <div class="fg-chart-box">
+          <canvas id="fg-chart-traffic" width="900" height="220"></canvas>
+          <div class="fg-legend">
+            <span><i style="background:#58a6ff"></i> tráfego real</span>
+            <span><i style="background:#8b949e"></i> baseline (média)</span>
+            <span><i style="background:rgba(88,166,255,0.25)"></i> faixa esperada</span>
+          </div>
+        </div>
+
+        <h4>Tráfego por protocolo (histórico)</h4>
+        <div class="fg-chart-box">
+          <canvas id="fg-chart-protocol" width="900" height="220"></canvas>
+          <div class="fg-legend">
+            <span><i style="background:#58a6ff"></i> TCP</span>
+            <span><i style="background:#3fb950"></i> UDP</span>
+            <span><i style="background:#d29922"></i> ICMP</span>
+            <span><i style="background:#8b949e"></i> Outro</span>
+          </div>
+        </div>
+
+        <h4>Linha do tempo de ataques</h4>
+        <div class="fg-chart-box">
+          <canvas id="fg-chart-timeline" width="900" height="140"></canvas>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div id="fg-toast-container"></div>
+
+  <script src="/assets/flowguard.js"></script>
+</body>
+</html>

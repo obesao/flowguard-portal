@@ -368,6 +368,7 @@
     if (!el) return;
     if (!resp.ok) {
       el.innerHTML = '<p class="fg-error">Detalhes (' + escapeHtml(prefix) + "): " + escapeHtml(resp.error) + "</p>";
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
     var byPort = resp.by_port || [];
@@ -388,6 +389,7 @@
       "<ul>" + sourceItems + "</ul>" +
       '<p class="fg-kpi-sub">Ocorrências = em quantos ciclos de agregação o IP apareceu entre os top 10 de origem daquele grupo — não é volume exato por IP.</p>' +
       "</div>";
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   function renderAiResult(prefix, resp) {
@@ -395,10 +397,12 @@
     if (!el) return;
     if (!resp.ok) {
       el.innerHTML = '<p class="fg-error">Análise IA (' + escapeHtml(prefix) + "): " + escapeHtml(resp.error) + "</p>";
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
     el.innerHTML =
       '<div class="fg-ai-panel"><h4>Análise IA — ' + escapeHtml(prefix) + "</h4><pre>" + escapeHtml(resp.analysis) + "</pre></div>";
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   function onAttacksClick(ev) {

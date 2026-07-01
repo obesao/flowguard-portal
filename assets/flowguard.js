@@ -73,6 +73,17 @@
     return bps + " bps";
   }
 
+  function fmtDateTime(ts) {
+    if (!ts) return "-";
+    var d = new Date(ts * 1000);
+    return pad2(d.getDate()) + "/" + pad2(d.getMonth() + 1) + " " + pad2(d.getHours()) + ":" + pad2(d.getMinutes()) + ":" + pad2(d.getSeconds());
+  }
+
+  function fmtAttackDuration(a) {
+    var end = a.ts_end || Math.floor(Date.now() / 1000);
+    return fmtUptime(end - a.ts_start);
+  }
+
   function fmtUptime(s) {
     s = Math.floor(s || 0);
     var h = Math.floor(s / 3600);
@@ -318,14 +329,18 @@
           : "-";
         return (
           '<tr data-attack-id="' + a.id + '" data-prefix="' + escapeHtml(a.dst_prefix) + '">' +
+          "<td>" + fmtDateTime(a.ts_start) + "</td>" +
+          "<td>" + fmtAttackDuration(a) + "</td>" +
           "<td>" + escapeHtml(a.dst_prefix) + "</td>" +
           "<td>" + escapeHtml(a.customer || "-") + "</td>" +
           "<td>" + escapeHtml(a.attack_type) + "</td>" +
           "<td class=\"" + sevClass + "\">" + escapeHtml(a.severity) + "</td>" +
           "<td>" + fmtBps(a.bps_peak || 0) + "</td>" +
+          "<td>" + (a.pps_peak || 0).toLocaleString("pt-BR") + " pps</td>" +
           "<td>" + (a.mitigated ? "sim" : "não") + "</td>" +
           "<td>" + suggestionHtml + "</td>" +
-          '<td><button class="fg-btn" data-action="mitigate">Mitigar</button> ' +
+          '<td><button class="fg-btn" data-action="detail">Detalhes</button> ' +
+          '<button class="fg-btn" data-action="mitigate">Mitigar</button> ' +
           '<button class="fg-btn" data-action="release">Liberar</button> ' +
           '<button class="fg-btn" data-action="analyze">Detalhes IA</button></td></tr>'
         );
@@ -333,9 +348,10 @@
       .join("");
 
     el.innerHTML =
-      "<table><thead><tr><th>Alvo</th><th>Cliente</th><th>Tipo</th><th>Severidade</th><th>Pico</th><th>Mitigado</th><th>Sugestão</th><th>Ações</th></tr></thead><tbody>" +
+      "<table><thead><tr><th>Início</th><th>Duração</th><th>Alvo</th><th>Cliente</th><th>Tipo</th><th>Severidade</th>" +
+      "<th>Pico (bps)</th><th>Pico (pps)</th><th>Mitigado</th><th>Sugestão</th><th>Ações</th></tr></thead><tbody>" +
       rows +
-      '</tbody></table><div id="flowguard-ai-result"></div>';
+      '</tbody></table><div id="flowguard-attack-detail"></div>';
   }
 
   function renderAttacksFiltered() {
@@ -347,8 +363,35 @@
     renderAttacks(rows);
   }
 
+  function renderAttackDetail(prefix, resp) {
+    var el = document.getElementById("flowguard-attack-detail");
+    if (!el) return;
+    if (!resp.ok) {
+      el.innerHTML = '<p class="fg-error">Detalhes (' + escapeHtml(prefix) + "): " + escapeHtml(resp.error) + "</p>";
+      return;
+    }
+    var byPort = resp.by_port || [];
+    var topSources = resp.top_sources || [];
+    var portRows = byPort.length
+      ? byPort.map(function (p) {
+          return "<tr><td>" + protoName(p.protocol) + "</td><td>" + p.dst_port + "</td><td>" + fmtBps(p.bps) + "</td><td>" + p.pps + " pps</td></tr>";
+        }).join("")
+      : '<tr><td colspan="4">sem dados de flow na janela do ataque</td></tr>';
+    var sourceItems = topSources.length
+      ? topSources.map(function (s) { return "<li>" + escapeHtml(s.ip) + " — " + s.occurrences + " ciclo(s)</li>"; }).join("")
+      : "<li>sem IPs de origem registrados na janela do ataque</li>";
+    el.innerHTML =
+      '<div class="fg-ai-panel"><h4>Detalhes — ' + escapeHtml(prefix) + "</h4>" +
+      "<h5>Tráfego por protocolo/porta</h5>" +
+      "<table><thead><tr><th>Protocolo</th><th>Porta</th><th>bps</th><th>pps</th></tr></thead><tbody>" + portRows + "</tbody></table>" +
+      "<h5>IPs de origem observados (top " + topSources.length + ")</h5>" +
+      "<ul>" + sourceItems + "</ul>" +
+      '<p class="fg-kpi-sub">Ocorrências = em quantos ciclos de agregação o IP apareceu entre os top 10 de origem daquele grupo — não é volume exato por IP.</p>' +
+      "</div>";
+  }
+
   function renderAiResult(prefix, resp) {
-    var el = document.getElementById("flowguard-ai-result");
+    var el = document.getElementById("flowguard-attack-detail");
     if (!el) return;
     if (!resp.ok) {
       el.innerHTML = '<p class="fg-error">Análise IA (' + escapeHtml(prefix) + "): " + escapeHtml(resp.error) + "</p>";
@@ -378,6 +421,14 @@
     if (action === "analyze") {
       postJson(AI_ENDPOINT, { attack_id: attackId }).then(function (resp) {
         renderAiResult(prefix, resp);
+        done();
+      }).catch(done);
+      return;
+    }
+
+    if (action === "detail") {
+      getJson(ATTACKS_ENDPOINT + "?detail=" + attackId).then(function (resp) {
+        renderAttackDetail(prefix, resp);
         done();
       }).catch(done);
       return;

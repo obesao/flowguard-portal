@@ -1,11 +1,14 @@
 #!/bin/sh
-# flowguard-attacks.sh — GET lista ataques (ou histórico via ?history=1);
+# flowguard-attacks.sh — GET lista ataques (ou histórico via ?history=1, ou
+# detalhe factual de um ataque via ?detail=<id>, sem IA — protocolo/porta e
+# IPs de origem observados, derivados de flow_aggs na janela do ataque);
 # POST aplica mitigação (RTBH via ban/unban no daemon) sobre o alvo de um ataque
 
 . "$(dirname -- "$0")/lib.sh"
 
 TOKEN=$(parse_param "token")
 HISTORY=$(parse_param "history")
+DETAIL=$(parse_param "detail")
 
 if ! check_session "$TOKEN"; then
   deny_unauthorized
@@ -64,7 +67,7 @@ PYEOF
 fi
 
 print_header 200
-HISTORY="$HISTORY" /root/flowguard/venv/bin/python3 <<'PYEOF'
+HISTORY="$HISTORY" DETAIL="$DETAIL" /root/flowguard/venv/bin/python3 <<'PYEOF'
 import json
 import os
 import sys
@@ -78,11 +81,20 @@ from collector import storage
 try:
     cfg = yaml.safe_load(open("/root/flowguard/config.yaml", encoding="utf-8"))
     conn = storage.connect(cfg["database"]["path"])
-    history = os.environ.get("HISTORY") in ("1", "true", "yes")
-    attacks = storage.list_attacks(conn, active_only=not history)
-    for attack in attacks:
-        attack["suggested_mitigation"] = flowspec.suggest_mitigation(attack["attack_type"], attack["dst_prefix"])
-    print(json.dumps({"ok": True, "attacks": attacks, "history": history}))
+    detail_id = os.environ.get("DETAIL")
+    if detail_id:
+        attack = storage.get_attack(conn, int(detail_id))
+        if not attack:
+            print(json.dumps({"ok": False, "error": "ataque não encontrado"}))
+        else:
+            detail = storage.attack_detail(conn, attack["dst_prefix"], attack["ts_start"], attack["ts_end"])
+            print(json.dumps({"ok": True, "attack": attack, "by_port": detail["by_port"], "top_sources": detail["top_sources"]}))
+    else:
+        history = os.environ.get("HISTORY") in ("1", "true", "yes")
+        attacks = storage.list_attacks(conn, active_only=not history)
+        for attack in attacks:
+            attack["suggested_mitigation"] = flowspec.suggest_mitigation(attack["attack_type"], attack["dst_prefix"])
+        print(json.dumps({"ok": True, "attacks": attacks, "history": history}))
 except Exception as exc:
     print(json.dumps({"ok": False, "error": str(exc)}))
 PYEOF

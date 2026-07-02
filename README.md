@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.4.0**
+**Versão atual: v1.5.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -47,12 +47,25 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `index.html` | Markup das abas/painéis |
 | `assets/flowguard.js` | Todo o JS do dashboard (um único módulo IIFE) |
 | `cgi-bin/flowguard-*.sh` | Backend do FlowGuard (status, ataques, flows, regras, config, IA, histórico) |
-| `cgi-bin/clientguard-*.sh` | Backend do ClientGuard (status, sinais suspeitos, config) |
+| `cgi-bin/clientguard-*.sh` | Backend do ClientGuard (status, top clientes, detalhe de cliente, sinais suspeitos, config) |
 | `cgi-bin/lib.sh` | Sessão/autenticação compartilhada por todos os CGI scripts |
 | `cgi-bin/flowguard-login.sh` / `flowguard-logout.sh` | Autenticação |
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.5.0 — 2026-07-01 — Top Clientes por Consumo de Dados
+- Seção "Top Clientes por Tráfego" da aba ClientGuard virou "Top Clientes por
+  Consumo de Dados": seletor de janela (1h/6h/24h/7d), mais colunas (pacotes,
+  flows), e botão "Detalhes" por linha.
+- Painel de detalhe por cliente: gráfico de tráfego ao longo do tempo
+  (reaproveita `drawLineChart`, o mesmo motor de canvas dos gráficos do
+  FlowGuard) e tabela de top destinos (dst_ip, protocolo, porta, ASN/país via
+  GeoIP, tráfego, pacotes).
+- CGI scripts novos: `clientguard-top.sh` (janela configurável) e
+  `clientguard-client-detail.sh` (série temporal + top destinos de um
+  cliente). `clientguard-status.sh` simplificado — não busca mais "top" junto
+  do status (isso virou responsabilidade do endpoint dedicado).
 
 ### v1.4.0 — 2026-07-01 — Gráficos interativos e correção de bug
 - Hover com crosshair + tooltip nos 3 gráficos de canvas (tráfego do prefixo,

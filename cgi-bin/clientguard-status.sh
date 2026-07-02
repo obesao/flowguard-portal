@@ -1,5 +1,6 @@
 #!/bin/sh
-# clientguard-status.sh — status geral do ClientGuard (flows/clientes/sinais na janela) + top clientes por tráfego
+# clientguard-status.sh — status geral do ClientGuard (flows/clientes/sinais na janela).
+# Top clientes tem endpoint próprio (clientguard-top.sh) com janela configurável.
 
 . "$(dirname -- "$0")/lib.sh"
 
@@ -22,13 +23,8 @@ import control
 
 try:
     cfg = yaml.safe_load(open("/root/clientguard/config.yaml", encoding="utf-8"))
-    sock_path = cfg["daemon"]["socket"]
-    status = control.send_command(sock_path, {"cmd": "status"}, timeout=3.0)
-    top = control.send_command(sock_path, {"cmd": "top", "limit": 10}, timeout=3.0)
-    print(json.dumps({
-        "ok": True, "status": status,
-        "top": top.get("top", []) if top.get("ok") else [],
-    }))
+    status = control.send_command(cfg["daemon"]["socket"], {"cmd": "status"}, timeout=3.0)
+    print(json.dumps({"ok": True, "status": status}))
 except Exception as exc:
     print(json.dumps({"ok": False, "error": str(exc)}))
 PYEOF

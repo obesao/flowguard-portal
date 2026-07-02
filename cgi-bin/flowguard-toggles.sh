@@ -1,6 +1,8 @@
 #!/bin/sh
 # flowguard-toggles.sh — GET lista o estado (habilitado/desabilitado) de cada tipo de
-# ataque detectado; POST { key, value } liga/desliga um deles via socket do daemon.
+# ataque detectado; POST { key, value } liga/desliga um só, ou
+# POST { toggles: {chave: valor, ...} } aplica vários de uma vez (1 requisição) — usado
+# pelo botão "Aplicar novas configurações" do portal.
 
 . "$(dirname -- "$0")/lib.sh"
 
@@ -26,14 +28,17 @@ from collector import control
 
 try:
     body = json.loads(os.environ.get("BODY") or "{}")
-    key = body.get("key")
-    value = body.get("value")
-    if not key:
-        print(json.dumps({"ok": False, "error": "key obrigatório"}))
+    cfg = yaml.safe_load(open("/root/flowguard/config.yaml", encoding="utf-8"))
+    toggles = body.get("toggles")
+    if isinstance(toggles, dict) and toggles:
+        resp = control.send_command(cfg["daemon"]["socket"], {"cmd": "set_toggles", "toggles": toggles})
+    elif body.get("key"):
+        resp = control.send_command(cfg["daemon"]["socket"], {
+            "cmd": "set_toggle", "key": body["key"], "value": bool(body.get("value")),
+        })
     else:
-        cfg = yaml.safe_load(open("/root/flowguard/config.yaml", encoding="utf-8"))
-        resp = control.send_command(cfg["daemon"]["socket"], {"cmd": "set_toggle", "key": key, "value": bool(value)})
-        print(json.dumps(resp))
+        resp = {"ok": False, "error": "key ou toggles (objeto não vazio) obrigatório"}
+    print(json.dumps(resp))
 except Exception as exc:
     print(json.dumps({"ok": False, "error": str(exc)}))
 PYEOF

@@ -73,9 +73,22 @@
     cgSuspiciousView: "open",
     cgSuspicious: [],
     cgTopWindow: 21600,
+    cgTogglesLoaded: {},
     cgTogglesPending: {},
+    fgTogglesLoaded: {},
     fgTogglesPending: {},
   };
+
+  // Compartilhado pelas telas de toggles do ClientGuard e do FlowGuard — mostra quantas
+  // mudanças estão pendentes (não aplicadas ainda) direto no rótulo do botão.
+  function updateTogglesApplyBtn(btnId, pendingCount) {
+    var btn = document.getElementById(btnId);
+    if (!btn) return;
+    btn.disabled = pendingCount === 0;
+    btn.textContent = pendingCount > 0
+      ? "Aplicar " + pendingCount + " " + (pendingCount === 1 ? "alteração" : "alterações")
+      : "Aplicar novas configurações";
+  }
 
   function getToken() {
     return window.localStorage.getItem("portal_token") || "";
@@ -1733,9 +1746,9 @@
         showError(document.getElementById("cg-toggles"), data.error || "erro desconhecido");
         return;
       }
+      state.cgTogglesLoaded = data.toggles;
       state.cgTogglesPending = {};
-      var applyBtn = document.getElementById("cg-toggles-apply-btn");
-      if (applyBtn) applyBtn.disabled = true;
+      updateTogglesApplyBtn("cg-toggles-apply-btn", 0);
       renderCgToggles(data.toggles);
     }).catch(function (err) {
       showError(document.getElementById("cg-toggles"), "falha ao consultar configurações do ClientGuard");
@@ -1745,7 +1758,9 @@
 
   // Checkbox só marca a mudança como pendente (feedback visual imediato) — o valor só
   // é enviado ao daemon quando o usuário clica em "Aplicar novas configurações", pra
-  // permitir mexer em várias funções de uma vez e confirmar tudo junto.
+  // permitir mexer em várias funções de uma vez e confirmar tudo junto. Se o usuário
+  // desmarcar e remarcar (voltar ao valor já salvo), a chave sai de "pendente" — evita
+  // mandar uma mudança que não é mudança nenhuma.
   function onCgTogglesChange(ev) {
     var checkbox = ev.target.closest("input[type='checkbox']");
     if (!checkbox) return;
@@ -1754,9 +1769,13 @@
     var key = item.getAttribute("data-key");
     var value = checkbox.checked;
     item.classList.toggle("disabled", !value);
-    state.cgTogglesPending[key] = value;
-    var applyBtn = document.getElementById("cg-toggles-apply-btn");
-    if (applyBtn) applyBtn.disabled = false;
+    var original = state.cgTogglesLoaded[key] !== false;
+    if (value === original) {
+      delete state.cgTogglesPending[key];
+    } else {
+      state.cgTogglesPending[key] = value;
+    }
+    updateTogglesApplyBtn("cg-toggles-apply-btn", Object.keys(state.cgTogglesPending).length);
   }
 
   function onCgTogglesApplyClick() {
@@ -1765,15 +1784,12 @@
     if (!keys.length) return;
     var btn = document.getElementById("cg-toggles-apply-btn");
     btn.disabled = true;
-    Promise.all(keys.map(function (key) {
-      return postJson(CG_TOGGLES_ENDPOINT, { key: key, value: pending[key] });
-    })).then(function (responses) {
-      var failed = responses.filter(function (r) { return !r || !r.ok; });
-      if (failed.length) {
-        showToast(failed.length + " de " + keys.length + " função(ões) falharam ao aplicar", "error");
-      } else {
-        showToast("Configurações aplicadas", "success");
-      }
+    // 1 requisição só com todas as mudanças (não 1 por checkbox) — o socket do
+    // ClientGuard atende em threads reais, N chamadas paralelas independentes
+    // poderiam intercalar leitura/escrita de toggles.yaml e perder uma mudança.
+    postJson(CG_TOGGLES_ENDPOINT, { toggles: pending }).then(function (resp) {
+      showToast(resp.ok ? "Configurações aplicadas" : (resp.error || "falha ao aplicar configurações"),
+                resp.ok ? "success" : "error");
       loadCgToggles(); // resincroniza com o estado real do daemon (limpa pendências)
     }).catch(function (err) {
       showToast("falha ao aplicar configurações", "error");
@@ -2654,9 +2670,9 @@
         showError(document.getElementById("fg-toggles"), data.error || "erro desconhecido");
         return;
       }
+      state.fgTogglesLoaded = data.toggles;
       state.fgTogglesPending = {};
-      var applyBtn = document.getElementById("fg-toggles-apply-btn");
-      if (applyBtn) applyBtn.disabled = true;
+      updateTogglesApplyBtn("fg-toggles-apply-btn", 0);
       renderFgToggles(data.toggles);
     }).catch(function (err) {
       showError(document.getElementById("fg-toggles"), "falha ao consultar funções de detecção");
@@ -2666,7 +2682,8 @@
 
   // Checkbox só marca a mudança como pendente (feedback visual imediato) — o valor só
   // é enviado ao daemon quando o usuário clica em "Aplicar novas configurações", pra
-  // permitir mexer em vários tipos de ataque de uma vez e confirmar tudo junto.
+  // permitir mexer em vários tipos de ataque de uma vez e confirmar tudo junto. Se o
+  // usuário desmarcar e remarcar (voltar ao valor já salvo), a chave sai de "pendente".
   function onFgTogglesChange(ev) {
     var checkbox = ev.target.closest("input[type='checkbox']");
     if (!checkbox) return;
@@ -2675,9 +2692,13 @@
     var key = item.getAttribute("data-key");
     var value = checkbox.checked;
     item.classList.toggle("disabled", !value);
-    state.fgTogglesPending[key] = value;
-    var applyBtn = document.getElementById("fg-toggles-apply-btn");
-    if (applyBtn) applyBtn.disabled = false;
+    var original = state.fgTogglesLoaded[key] !== false;
+    if (value === original) {
+      delete state.fgTogglesPending[key];
+    } else {
+      state.fgTogglesPending[key] = value;
+    }
+    updateTogglesApplyBtn("fg-toggles-apply-btn", Object.keys(state.fgTogglesPending).length);
   }
 
   function onFgTogglesApplyClick() {
@@ -2686,15 +2707,11 @@
     if (!keys.length) return;
     var btn = document.getElementById("fg-toggles-apply-btn");
     btn.disabled = true;
-    Promise.all(keys.map(function (key) {
-      return postJson(TOGGLES_ENDPOINT, { key: key, value: pending[key] });
-    })).then(function (responses) {
-      var failed = responses.filter(function (r) { return !r || !r.ok; });
-      if (failed.length) {
-        showToast(failed.length + " de " + keys.length + " função(ões) falharam ao aplicar", "error");
-      } else {
-        showToast("Configurações aplicadas", "success");
-      }
+    // 1 requisição só com todas as mudanças (não 1 por checkbox) — mais barato (1
+    // reload_config no daemon em vez de N) e atômico do lado do backend.
+    postJson(TOGGLES_ENDPOINT, { toggles: pending }).then(function (resp) {
+      showToast(resp.ok ? "Configurações aplicadas" : (resp.error || "falha ao aplicar configurações"),
+                resp.ok ? "success" : "error");
       loadFgToggles(); // resincroniza com o estado real do daemon (limpa pendências)
     }).catch(function (err) {
       showToast("falha ao aplicar configurações", "error");

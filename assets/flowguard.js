@@ -8,6 +8,7 @@
   var FLOWS_ENDPOINT = "/cgi-bin/flowguard-flows.sh";
   var RULES_ENDPOINT = "/cgi-bin/flowguard-rules.sh";
   var CFG_ENDPOINT = "/cgi-bin/flowguard-cfg.sh";
+  var TOGGLES_ENDPOINT = "/cgi-bin/flowguard-toggles.sh";
   var AI_ENDPOINT = "/cgi-bin/flowguard-ai.sh";
   var HISTORY_ENDPOINT = "/cgi-bin/flowguard-history.sh";
   var LOGIN_ENDPOINT = "/cgi-bin/flowguard-login.sh";
@@ -26,6 +27,18 @@
   var warmodeToken = null; // em memória só — some ao recarregar a página (relock)
 
   var PROTO_NAMES = { 6: "TCP", 17: "UDP", 1: "ICMP" };
+
+  // ordem fixa de exibição na aba Configuração > Funções de Detecção — mesmas chaves
+  // de configio.DEFAULT_FEATURE_TOGGLES no backend do FlowGuard
+  var FG_TOGGLE_META = [
+    { key: "ddos_volumetrico", label: "DDoS volumétrico", desc: "tráfego total (bps/pps) pra um prefixo protegido acima do limiar configurado." },
+    { key: "dns_amp", label: "Amplificação DNS", desc: "resposta UDP/53 em volume alto vinda de fora pro prefixo — reflexão via resolvers abertos." },
+    { key: "ntp_amp", label: "Amplificação NTP", desc: "resposta UDP/123 em volume alto — reflexão via servidores NTP abertos." },
+    { key: "ssdp_amp", label: "Amplificação SSDP", desc: "resposta UDP/1900 em volume alto — reflexão via dispositivos UPnP/SSDP expostos." },
+    { key: "memcached_amp", label: "Amplificação Memcached", desc: "resposta UDP/11211 em volume alto — reflexão via Memcached exposto (fator de amplificação altíssimo)." },
+    { key: "cldap_amp", label: "Amplificação CLDAP", desc: "resposta UDP/389 em volume alto — reflexão via serviços CLDAP (Active Directory) expostos." },
+    { key: "anomalia_baseline", label: "Anomalia de baseline", desc: "desvio estatístico (EWMA) do tráfego normal do prefixo — pega ataques pequenos demais pro limiar fixo global." },
+  ];
 
   var state = {
     topPrefixes: [],
@@ -2592,6 +2605,68 @@
     });
   }
 
+  // --- Funções de detecção (toggles) + limpar hosts suspeitos --------------
+
+  function renderFgToggles(toggles) {
+    var el = document.getElementById("fg-toggles");
+    if (!el) return;
+    el.innerHTML = FG_TOGGLE_META.map(function (meta) {
+      var enabled = toggles[meta.key] !== false; // ausente = habilitado, mesmo default do backend
+      var id = "fg-toggle-" + meta.key;
+      return (
+        '<div class="fg-toggle-item' + (enabled ? "" : " disabled") + '" data-key="' + meta.key + '">' +
+        '<input type="checkbox" id="' + id + '"' + (enabled ? " checked" : "") + ">" +
+        '<label for="' + id + '"><div class="fg-toggle-name">' + escapeHtml(meta.label) + "</div>" +
+        '<div class="fg-toggle-desc">' + escapeHtml(meta.desc) + "</div></label></div>"
+      );
+    }).join("");
+  }
+
+  function loadFgToggles() {
+    if (!getToken()) return;
+    getJson(TOGGLES_ENDPOINT).then(function (data) {
+      if (!data.ok) {
+        showError(document.getElementById("fg-toggles"), data.error || "erro desconhecido");
+        return;
+      }
+      renderFgToggles(data.toggles);
+    }).catch(function (err) {
+      showError(document.getElementById("fg-toggles"), "falha ao consultar funções de detecção");
+      console.error("flowguard.js:", err);
+    });
+  }
+
+  function onFgTogglesChange(ev) {
+    var checkbox = ev.target.closest("input[type='checkbox']");
+    if (!checkbox) return;
+    var item = checkbox.closest(".fg-toggle-item[data-key]");
+    if (!item) return;
+    var key = item.getAttribute("data-key");
+    var value = checkbox.checked;
+    checkbox.disabled = true;
+    postJson(TOGGLES_ENDPOINT, { key: key, value: value }).then(function (resp) {
+      if (resp.ok) {
+        item.classList.toggle("disabled", !value);
+        showToast(value ? "Função habilitada" : "Função desabilitada", "success");
+      } else {
+        checkbox.checked = !value; // reverte o checkbox visualmente se o backend recusou
+        showToast(resp.error || "falha ao alterar função", "error");
+      }
+    }).finally(function () { checkbox.disabled = false; });
+  }
+
+  function onClearSuspiciousClick() {
+    if (!window.confirm("Marcar TODOS os ataques ativos como dispensados? Eles somem da lista/contagem de Ativos (o histórico continua intacto). Isso não pode ser desfeito.")) {
+      return;
+    }
+    var btn = document.getElementById("fg-clear-suspicious-btn");
+    btn.disabled = true;
+    postJson(ATTACKS_ENDPOINT, { action: "dismiss_all" }).then(function (resp) {
+      showToast(resp.ok ? resp.cleared + " ataque(s) ativo(s) dispensado(s)" : resp.error, resp.ok ? "success" : "error");
+      loadAttacks();
+    }).finally(function () { btn.disabled = false; });
+  }
+
   function poll() {
     if (!getToken()) return;
     loadStatus();
@@ -2692,6 +2767,15 @@
       cfgEl.addEventListener("submit", onCfgSubmit);
       loadCfg();
     }
+
+    var fgTogglesEl = document.getElementById("fg-toggles");
+    if (fgTogglesEl) {
+      fgTogglesEl.addEventListener("change", onFgTogglesChange);
+      loadFgToggles();
+    }
+
+    var clearSuspiciousBtn = document.getElementById("fg-clear-suspicious-btn");
+    if (clearSuspiciousBtn) clearSuspiciousBtn.addEventListener("click", onClearSuspiciousClick);
 
     var cgTopEl = document.getElementById("cg-top");
     if (cgTopEl) cgTopEl.addEventListener("click", onCgTopClick);

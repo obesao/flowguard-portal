@@ -2,7 +2,8 @@
 # flowguard-attacks.sh — GET lista ataques (ou histórico via ?history=1, ou
 # detalhe factual de um ataque via ?detail=<id>, sem IA — protocolo/porta e
 # IPs de origem observados, derivados de flow_aggs na janela do ataque);
-# POST aplica mitigação (RTBH via ban/unban no daemon) sobre o alvo de um ataque
+# POST aplica mitigação (RTBH via ban/unban no daemon) sobre o alvo de um ataque,
+# ou dispensa (dismiss/dismiss_all) um ou todos os ataques ativos
 
 . "$(dirname -- "$0")/lib.sh"
 
@@ -34,10 +35,20 @@ try:
     body = json.loads(os.environ.get("BODY") or "{}")
     action = body.get("action")
     attack_id = body.get("attack_id")
-    if action not in ("mitigate", "release", "apply_suggestion") or not attack_id:
-        print(json.dumps({"ok": False, "error": "action ('mitigate'|'release'|'apply_suggestion') e attack_id são obrigatórios"}))
+    cfg = yaml.safe_load(open("/root/flowguard/config.yaml", encoding="utf-8"))
+
+    if action == "dismiss_all":
+        resp = control.send_command(cfg["daemon"]["socket"], {"cmd": "dismiss_all_attacks"})
+        print(json.dumps(resp))
+    elif action == "dismiss":
+        if not attack_id:
+            print(json.dumps({"ok": False, "error": "attack_id obrigatório"}))
+        else:
+            resp = control.send_command(cfg["daemon"]["socket"], {"cmd": "dismiss_attack", "attack_id": int(attack_id)})
+            print(json.dumps(resp))
+    elif action not in ("mitigate", "release", "apply_suggestion") or not attack_id:
+        print(json.dumps({"ok": False, "error": "action ('mitigate'|'release'|'apply_suggestion'|'dismiss'|'dismiss_all') e attack_id são obrigatórios"}))
     else:
-        cfg = yaml.safe_load(open("/root/flowguard/config.yaml", encoding="utf-8"))
         conn = storage.connect(cfg["database"]["path"])
         attack = storage.get_attack(conn, int(attack_id))
         if not attack:

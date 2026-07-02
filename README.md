@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.10.0**
+**Versão atual: v1.11.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -43,6 +43,10 @@ mesmo host, cada um com seu próprio socket Unix de controle:
    checkbox por detector/função (liga/desliga individualmente via
    `clientguard-toggles.sh`, novo) e um botão "Limpar hosts suspeitos" que
    marca todos os sinais abertos como resolvidos de uma vez (com confirmação).
+8. **Configurações do FlowGuard** — mesma ideia aplicada ao FlowGuard: seção
+   "Funções de Detecção" na aba Configuração (checkbox por tipo de ataque —
+   volumétrico, 5 amplificações, anomalia de baseline) e botão "Limpar hosts
+   suspeitos" na aba Ataques, que dispensa todos os ataques ativos de uma vez.
 
 ## Estrutura
 
@@ -50,13 +54,26 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 |---|---|
 | `index.html` | Markup das abas/painéis |
 | `assets/flowguard.js` | Todo o JS do dashboard (um único módulo IIFE) |
-| `cgi-bin/flowguard-*.sh` | Backend do FlowGuard (status, ataques, flows, regras, config, IA, histórico) |
+| `cgi-bin/flowguard-*.sh` | Backend do FlowGuard (status, ataques, flows, regras, config, toggles de funções, IA, histórico) |
 | `cgi-bin/clientguard-*.sh` | Backend do ClientGuard (status, top clientes, detalhe de cliente, sinais suspeitos, config, toggles de funções) |
 | `cgi-bin/lib.sh` | Sessão/autenticação compartilhada por todos os CGI scripts |
 | `cgi-bin/flowguard-login.sh` / `flowguard-logout.sh` | Autenticação |
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.11.0 — 2026-07-02 — Configurações do FlowGuard: liga/desliga tipos de ataque + limpar ativos
+- Nova seção "Funções de Detecção" na aba Configuração: um checkbox por tipo
+  de ataque (DDoS volumétrico, amplificação DNS/NTP/SSDP/Memcached/CLDAP,
+  anomalia de baseline) — chama `flowguard-toggles.sh` (novo) na hora.
+- Botão "Limpar hosts suspeitos" na aba Ataques — com confirmação, marca
+  todos os ataques ativos como dispensados via `flowguard-attacks.sh`
+  (`action: "dismiss_all"`, novo — reaproveita o endpoint de mitigação já
+  existente em vez de criar outro).
+- Validado com Playwright real contra o daemon em produção, e com um ataque
+  sintético de verdade (`tools/synth_netflow.py dns_amp`) pra confirmar que
+  desabilitar um tipo específico realmente impede aquele tipo de disparar
+  (sem afetar os outros — o mesmo tráfego ainda abriu `ddos_volumetrico`).
 
 ### v1.10.0 — 2026-07-02 — Configurações do ClientGuard: liga/desliga funções + limpar suspeitos
 - Nova seção "Configurações — Funções do ClientGuard" na aba ClientGuard: um

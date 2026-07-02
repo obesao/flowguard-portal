@@ -336,6 +336,7 @@
             <option value="info">info</option>
           </select>
           <input type="text" id="fg-attacks-prefix-filter" placeholder="filtrar por prefixo/cliente...">
+          <button class="fg-btn fg-btn-danger" id="fg-clear-suspicious-btn">Limpar hosts suspeitos</button>
         </div>
         <div id="flowguard-attacks">Carregando...</div>
         <div id="flowguard-attack-detail"></div>
@@ -374,6 +375,11 @@
     </div>
 
     <div class="fg-tab-panel" data-tab="cfg">
+      <section class="fg-panel-section">
+        <h2>Funções de Detecção</h2>
+        <p class="fg-kpi-sub">Liga/desliga cada tipo de ataque detectado individualmente. Desabilitar não fecha ataques já ativos, só para de abrir/atualizar novos a partir de agora.</p>
+        <div class="fg-toggle-list" id="fg-toggles">Carregando...</div>
+      </section>
       <section class="fg-panel-section">
         <h2>Configuração</h2>
         <div id="flowguard-cfg">Carregando...</div>

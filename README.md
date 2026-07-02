@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.6.0**
+**Versão atual: v1.7.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -53,6 +53,14 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.7.0 — 2026-07-02 — Bloqueio manual de IP (FlowGuard + ClientGuard)
+- Aba Regras: formulário "Bloquear IP manualmente" cria uma regra FlowSpec
+  discard por origem direto, sem precisar de um ataque associado.
+- Aba ClientGuard: mesmo formulário, pra bloquear cliente abusivo — mesma
+  regra/tabela de FlowSpec do FlowGuard por baixo (proxy via socket).
+- Tabela de Regras FlowSpec ganhou coluna "Origem" (antes só mostrava
+  Destino, escondendo bloqueios por origem).
 
 ### v1.6.0 — 2026-07-02 — Indicador de status BGP (Up/Down) na Visão Geral
 - Novo KPI "BGP (ExaBGP)" ao lado do KPI "Daemon": ponto verde "Up" com o IP

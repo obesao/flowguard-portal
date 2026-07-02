@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.16.0**
+**Versão atual: v1.17.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -47,6 +47,13 @@ mesmo host, cada um com seu próprio socket Unix de controle:
    "Funções de Detecção" na aba Configuração (checkbox por tipo de ataque —
    volumétrico, 5 amplificações, anomalia de baseline) e botão "Limpar hosts
    suspeitos" na aba Ataques, que dispensa todos os ataques ativos de uma vez.
+9. **Configuração do roteador de borda via templates** — botão "🔧 Config.
+   Roteador" (protegido pela mesma senha do Modo Guerra) permite editar a
+   config do roteador de borda por templates pré-validados (sem CLI livre):
+   exportação de NetFlow, rota estática, ACL simples por prefixo e
+   descrição/estado de interface. Fluxo obrigatório de preview → confirmação
+   → aplicação, com reversão automática se o operador não confirmar a mudança
+   dentro de alguns minutos.
 
 ## Estrutura
 
@@ -54,13 +61,35 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 |---|---|
 | `index.html` | Markup das abas/painéis |
 | `assets/flowguard.js` | Todo o JS do dashboard (um único módulo IIFE) |
-| `cgi-bin/flowguard-*.sh` | Backend do FlowGuard (status, ataques, flows, regras, config, toggles de funções, IA, histórico) |
+| `cgi-bin/flowguard-*.sh` | Backend do FlowGuard (status, ataques, flows, regras, config, toggles de funções, IA, histórico, config do roteador de borda) |
 | `cgi-bin/clientguard-*.sh` | Backend do ClientGuard (status, top clientes, detalhe de cliente, sinais suspeitos, config, toggles de funções) |
 | `cgi-bin/lib.sh` | Sessão/autenticação compartilhada por todos os CGI scripts |
 | `cgi-bin/flowguard-login.sh` / `flowguard-logout.sh` | Autenticação |
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.17.0 — 2026-07-02 — Configuração do roteador de borda via templates
+- Novo botão "🔧 Config. Roteador" no topo, protegido pela mesma senha/sessão
+  do Modo Guerra (`fg-routercfg-overlay`). Edição só por templates
+  pré-validados (exportação de NetFlow, rota estática, ACL simples por
+  prefixo, descrição/estado de interface) — sem campo de comando livre em
+  lugar nenhum da UI.
+- Fluxo: escolher template → preencher campos → "Pré-visualizar comandos"
+  (mostra o texto literal que será enviado, e a reversão correspondente,
+  antes de qualquer mudança real) → "Aplicar no roteador" com confirmação
+  explícita. Depois de aplicar, a mudança fica pendente até o operador clicar
+  em "Confirmar mudança" — se não confirmar dentro da janela (padrão 5min,
+  contador visível na tela), é revertida sozinha.
+- `cgi-bin/flowguard-routercfg.sh` (novo): fala com o novo módulo
+  `flowguard/routercfg/` via subprocess Python, mesmo padrão standalone do
+  `warmode.yaml`/`warmode/executor.py` (reaproveita as mesmas credenciais SSH
+  cadastradas na tela "⚙️ Modo Guerra" — não duplica um segundo arquivo de
+  senha do equipamento).
+- Validado com Playwright real (desbloqueio, lista de templates, preview
+  válido, rejeição de valor malicioso/malformado, tentativa de aplicação
+  contra equipamento ainda não configurado) — ver
+  [[feedback-verify-with-real-browser]].
 
 ### v1.16.0 — 2026-07-02 — Portal persistente via systemd
 - `init/flowguard-portal.service` (novo) — o `busybox httpd` que serve o portal

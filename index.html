@@ -107,6 +107,14 @@
     .fg-warmode-result.fail { border-color: #f85149; }
     .fg-warmode-result pre { white-space: pre-wrap; font-size: 0.78rem; margin: 0.4rem 0 0; max-height: 200px; overflow-y: auto; }
 
+    .fg-rc-job { margin-top: 0.6rem; padding: 0.6rem 0.8rem; border-radius: 6px; background: #0d1117; border: 1px solid #d29922; }
+    .fg-rc-job.status-confirmed, .fg-rc-job.status-reverted, .fg-rc-job.status-auto_reverted { border-color: #3fb950; }
+    .fg-rc-job pre { white-space: pre-wrap; font-size: 0.78rem; margin: 0.4rem 0; max-height: 160px; overflow-y: auto; }
+    .fg-rc-countdown { font-weight: bold; color: #d29922; }
+    .fg-rc-fields { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.6rem 0; }
+    .fg-rc-fields label { font-size: 0.82rem; color: #8b949e; display: flex; flex-direction: column; gap: 0.2rem; }
+    .fg-rc-fields input, .fg-rc-fields select { background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; padding: 0.35rem 0.5rem; }
+
     .fg-wm-device { background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 0.8rem; margin-bottom: 0.8rem; }
     .fg-wm-device-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
     .fg-wm-device-grid input { background: #161b22; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; padding: 0.3rem 0.5rem; width: 100%; }
@@ -199,6 +207,7 @@
       <div style="display:flex; gap:0.6rem; align-items:center;">
         <button id="fg-warmode-open-btn" class="fg-btn fg-btn-danger">🚨 Modo Guerra</button>
         <button id="fg-warmode-cfg-open-btn" class="fg-btn" title="Configurar equipamentos do Modo Guerra">⚙️ Modo Guerra</button>
+        <button id="fg-routercfg-open-btn" class="fg-btn" title="Editar configuração do roteador de borda via templates validados">🔧 Config. Roteador</button>
         <button id="fg-logout-btn" class="fg-btn">Sair</button>
       </div>
     </div>
@@ -291,6 +300,48 @@
 
         <div style="display:flex; gap:0.6rem; margin-top:1rem;">
           <button id="fg-warmode-cfg-close-btn" class="fg-btn">Fechar</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="fg-routercfg-overlay" class="fg-modal-overlay" hidden>
+      <div class="fg-modal">
+        <h2>🔧 Configuração do Roteador de Borda</h2>
+        <p class="fg-kpi-sub">Protegido pela mesma senha do Modo Guerra. Edição só por templates validados — sem CLI livre.</p>
+
+        <div id="fg-rc-needs-setup" hidden>
+          <p class="fg-error">Nenhuma senha do Modo Guerra configurada ainda. Defina uma em "⚙️ Modo Guerra" antes de usar esta tela.</p>
+        </div>
+
+        <div id="fg-rc-lock" hidden>
+          <div class="fg-form">
+            <input type="password" id="fg-rc-unlock-pass" placeholder="senha do Modo Guerra">
+            <button id="fg-rc-unlock-btn" class="fg-btn">Desbloquear</button>
+          </div>
+          <p id="fg-rc-unlock-status" class="fg-error"></p>
+        </div>
+
+        <div id="fg-rc-content" hidden>
+          <div id="fg-rc-active-job"></div>
+
+          <h3 style="margin-top:1rem;">Aplicar novo template</h3>
+          <div class="fg-form">
+            <select id="fg-rc-template-select"><option value="">selecione um template...</option></select>
+          </div>
+          <p id="fg-rc-device-status" class="fg-kpi-sub"></p>
+          <div id="fg-rc-fields" class="fg-rc-fields"></div>
+          <div class="fg-toolbar">
+            <button id="fg-rc-preview-btn" class="fg-btn" disabled>Pré-visualizar comandos</button>
+            <button id="fg-rc-apply-btn" class="fg-btn fg-btn-danger" disabled>Aplicar no roteador</button>
+          </div>
+          <div id="fg-rc-preview"></div>
+
+          <h3 style="margin-top:1.2rem;">Histórico</h3>
+          <div id="fg-rc-history">Carregando...</div>
+        </div>
+
+        <div style="display:flex; gap:0.6rem; margin-top:1rem;">
+          <button id="fg-rc-close-btn" class="fg-btn">Fechar</button>
         </div>
       </div>
     </div>

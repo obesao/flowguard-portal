@@ -24,9 +24,12 @@
   var WARMODE_ENDPOINT = "/cgi-bin/flowguard-warmode.sh";
   var WARMODE_AUTH_ENDPOINT = "/cgi-bin/flowguard-warmode-auth.sh";
   var WARMODE_CFG_ENDPOINT = "/cgi-bin/flowguard-warmode-cfg.sh";
+  var ROUTERCFG_ENDPOINT = "/cgi-bin/flowguard-routercfg.sh";
   var WHATSAPP_ENDPOINT = "/cgi-bin/flowguard-whatsapp.sh";
 
   var warmodeToken = null; // em memória só — some ao recarregar a página (relock)
+  var rcTemplates = [];
+  var rcCountdownTimer = null;
 
   var PROTO_NAMES = { 6: "TCP", 17: "UDP", 1: "ICMP" };
 
@@ -1168,6 +1171,301 @@
         console.error("flowguard.js:", err);
       })
       .finally(function () { btn.disabled = false; });
+  }
+
+  // --- config. roteador de borda: templates validados via SSH ------------
+  // reaproveita warmodeGetJson/warmodePostJson (mesma sessão do Modo Guerra)
+
+  function rcShowStep(step) {
+    ["needs-setup", "lock", "content"].forEach(function (s) {
+      document.getElementById("fg-rc-" + s).hidden = s !== step;
+    });
+  }
+
+  function rcFieldInputHtml(f) {
+    var id = "fg-rc-field-" + f.name;
+    if (f.type === "enum") {
+      var opts = (f.options || [])
+        .map(function (o) {
+          var sel = f.default === o ? " selected" : "";
+          return '<option value="' + escapeHtml(o) + '"' + sel + ">" + escapeHtml(o) + "</option>";
+        })
+        .join("");
+      return '<select id="' + id + '" data-field="' + escapeHtml(f.name) + '">' + opts + "</select>";
+    }
+    var placeholder = f.help || f.label;
+    var defaultVal = f.default != null ? ' value="' + escapeHtml(String(f.default)) + '"' : "";
+    return (
+      '<input type="text" id="' + id + '" data-field="' + escapeHtml(f.name) +
+      '" placeholder="' + escapeHtml(placeholder) + '"' + defaultVal + ">"
+    );
+  }
+
+  function renderRcFields(template) {
+    var el = document.getElementById("fg-rc-fields");
+    if (!template) {
+      el.innerHTML = "";
+      return;
+    }
+    el.innerHTML = template.fields
+      .map(function (f) {
+        return "<label>" + escapeHtml(f.label) + (f.required ? " *" : "") + rcFieldInputHtml(f) + "</label>";
+      })
+      .join("");
+  }
+
+  function rcSelectedTemplate() {
+    var id = document.getElementById("fg-rc-template-select").value;
+    return rcTemplates.filter(function (t) { return t.id === id; })[0] || null;
+  }
+
+  function collectRcValues(template) {
+    var values = {};
+    template.fields.forEach(function (f) {
+      var input = document.getElementById("fg-rc-field-" + f.name);
+      values[f.name] = input ? input.value : "";
+    });
+    return values;
+  }
+
+  function onRcTemplateChange() {
+    var template = rcSelectedTemplate();
+    renderRcFields(template);
+    document.getElementById("fg-rc-preview").innerHTML = "";
+    document.getElementById("fg-rc-apply-btn").disabled = true;
+    document.getElementById("fg-rc-preview-btn").disabled = !template;
+    var statusEl = document.getElementById("fg-rc-device-status");
+    if (template && !template.device_ready) {
+      statusEl.innerHTML = '<span class="fg-error">Equipamento "' + escapeHtml(template.device_name) +
+        '" ainda não está configurado em warmode.yaml (⚙️ Modo Guerra) — a aplicação vai falhar até isso ser preenchido.</span>';
+    } else {
+      statusEl.textContent = "";
+    }
+  }
+
+  function renderRcTemplateSelect(templates) {
+    rcTemplates = templates;
+    var select = document.getElementById("fg-rc-template-select");
+    select.innerHTML =
+      '<option value="">selecione um template...</option>' +
+      templates
+        .map(function (t) { return '<option value="' + escapeHtml(t.id) + '">' + escapeHtml(t.label) + "</option>"; })
+        .join("");
+  }
+
+  function onRcPreviewClick() {
+    var template = rcSelectedTemplate();
+    if (!template) return;
+    var values = collectRcValues(template);
+    var previewEl = document.getElementById("fg-rc-preview");
+    previewEl.innerHTML = '<p class="fg-kpi-sub">Validando...</p>';
+    warmodePostJson(ROUTERCFG_ENDPOINT, { warmode_token: warmodeToken, action: "preview", template_id: template.id, values: values })
+      .then(function (r) {
+        if (r.status === 401) { warmodeToken = null; rcShowStep("lock"); return; }
+        if (!r.data.ok) {
+          showError(previewEl, r.data.error || "erro de validação");
+          document.getElementById("fg-rc-apply-btn").disabled = true;
+          return;
+        }
+        var p = r.data.preview;
+        previewEl.innerHTML =
+          '<div class="fg-rc-job"><strong>Comandos a aplicar:</strong><pre>' + escapeHtml(p.commands.join("\n")) + "</pre>" +
+          '<strong>Reversão (se necessário):</strong><pre>' + escapeHtml(p.undo_commands.join("\n")) + "</pre></div>";
+        document.getElementById("fg-rc-apply-btn").disabled = false;
+      })
+      .catch(function (err) {
+        showError(previewEl, "falha ao consultar o preview");
+        console.error("flowguard.js:", err);
+      });
+  }
+
+  function rcStopCountdown() {
+    if (rcCountdownTimer) { clearInterval(rcCountdownTimer); rcCountdownTimer = null; }
+  }
+
+  function rcStartCountdown(job) {
+    rcStopCountdown();
+    var el = document.getElementById("fg-rc-active-job");
+    function tick() {
+      var remaining = Math.max(0, Math.round(job.expires_at - Date.now() / 1000));
+      var span = el.querySelector(".fg-rc-countdown");
+      if (!span) { rcStopCountdown(); return; }
+      if (remaining <= 0) {
+        span.textContent = "revertendo automaticamente...";
+        rcStopCountdown();
+        setTimeout(loadRouterCfgData, 3000);
+        return;
+      }
+      var m = Math.floor(remaining / 60), s = remaining % 60;
+      span.textContent = m + "m " + (s < 10 ? "0" : "") + s + "s";
+    }
+    tick();
+    rcCountdownTimer = setInterval(tick, 1000);
+  }
+
+  function renderActiveJob(job) {
+    var el = document.getElementById("fg-rc-active-job");
+    if (!job || job.status !== "pending_confirm") {
+      el.innerHTML = "";
+      rcStopCountdown();
+      return;
+    }
+    el.innerHTML =
+      '<div class="fg-rc-job status-' + escapeHtml(job.status) + '"><strong>⏳ Aguardando confirmação — ' + escapeHtml(job.label) +
+      '</strong><p class="fg-kpi-sub">Reverte automaticamente em <span class="fg-rc-countdown"></span> se não for confirmada.</p>' +
+      '<pre>' + escapeHtml(job.commands.join("\n")) + '</pre>' +
+      '<div class="fg-toolbar">' +
+      '<button class="fg-btn" data-rc-confirm="' + escapeHtml(job.id) + '">Confirmar mudança</button>' +
+      '<button class="fg-btn fg-btn-danger" data-rc-revert="' + escapeHtml(job.id) + '">Reverter agora</button>' +
+      "</div></div>";
+    rcStartCountdown(job);
+  }
+
+  function onRcApplyClick() {
+    var template = rcSelectedTemplate();
+    if (!template) return;
+    var values = collectRcValues(template);
+    if (!window.confirm('Isto vai aplicar "' + template.label + '" de verdade no roteador de borda agora. Confirma?')) return;
+    var btn = document.getElementById("fg-rc-apply-btn");
+    btn.disabled = true;
+    warmodePostJson(ROUTERCFG_ENDPOINT, { warmode_token: warmodeToken, action: "apply", template_id: template.id, values: values })
+      .then(function (r) {
+        if (r.status === 401) { warmodeToken = null; rcShowStep("lock"); return; }
+        if (!r.data.ok) {
+          showToast(r.data.error || "falha ao aplicar", "error");
+          btn.disabled = false;
+          return;
+        }
+        showToast("Aplicado — aguardando confirmação", "success");
+        document.getElementById("fg-rc-preview").innerHTML = "";
+        renderActiveJob(r.data.job);
+        loadRouterCfgHistory();
+      })
+      .catch(function (err) {
+        showToast("falha ao aplicar", "error");
+        console.error("flowguard.js:", err);
+        btn.disabled = false;
+      });
+  }
+
+  function onRcActiveJobClick(ev) {
+    var confirmBtn = ev.target.closest("[data-rc-confirm]");
+    var revertBtn = ev.target.closest("[data-rc-revert]");
+    if (confirmBtn) {
+      warmodePostJson(ROUTERCFG_ENDPOINT, { warmode_token: warmodeToken, action: "confirm", job_id: confirmBtn.getAttribute("data-rc-confirm") })
+        .then(function (r) {
+          if (r.status === 401) { warmodeToken = null; rcShowStep("lock"); return; }
+          showToast(r.data.ok ? "Confirmado" : (r.data.error || "erro"), r.data.ok ? "success" : "error");
+          if (r.data.ok) { renderActiveJob(null); loadRouterCfgHistory(); }
+        });
+    }
+    if (revertBtn) {
+      if (!window.confirm("Reverter esta mudança agora?")) return;
+      warmodePostJson(ROUTERCFG_ENDPOINT, { warmode_token: warmodeToken, action: "revert", job_id: revertBtn.getAttribute("data-rc-revert") })
+        .then(function (r) {
+          if (r.status === 401) { warmodeToken = null; rcShowStep("lock"); return; }
+          showToast(r.data.ok ? "Revertido" : (r.data.error || "erro"), r.data.ok ? "success" : "error");
+          if (r.data.ok) { renderActiveJob(null); loadRouterCfgHistory(); }
+        });
+    }
+  }
+
+  function renderRcHistory(jobs) {
+    var el = document.getElementById("fg-rc-history");
+    if (!jobs.length) {
+      el.innerHTML = '<p class="fg-kpi-sub">Nenhuma mudança registrada ainda.</p>';
+      return;
+    }
+    var statusLabel = {
+      pending_confirm: "aguardando confirmação", confirmed: "confirmada",
+      reverted: "revertida (manual)", auto_reverted: "revertida (automática)",
+    };
+    var rows = jobs
+      .map(function (j) {
+        var when = new Date(j.created_at * 1000).toLocaleString("pt-BR");
+        return (
+          "<tr><td>" + when + "</td><td>" + escapeHtml(j.label) + "</td><td>" +
+          escapeHtml(statusLabel[j.status] || j.status) + "</td></tr>"
+        );
+      })
+      .join("");
+    el.innerHTML = "<table><thead><tr><th>Quando</th><th>Template</th><th>Status</th></tr></thead><tbody>" + rows + "</tbody></table>";
+  }
+
+  function loadRouterCfgHistory() {
+    warmodeGetJson(ROUTERCFG_ENDPOINT + "?warmode_token=" + encodeURIComponent(warmodeToken)).then(function (r) {
+      if (r.status === 401 || !r.data.ok) return;
+      renderRcHistory(r.data.history || []);
+    });
+  }
+
+  function loadRouterCfgData() {
+    document.getElementById("fg-rc-history").textContent = "Carregando...";
+    warmodeGetJson(ROUTERCFG_ENDPOINT + "?warmode_token=" + encodeURIComponent(warmodeToken)).then(function (r) {
+      if (r.status === 401 || !r.data.ok) {
+        warmodeToken = null;
+        rcShowStep("lock");
+        document.getElementById("fg-rc-unlock-status").textContent = r.data.error || "sessão expirada, desbloqueie de novo";
+        return;
+      }
+      renderRcTemplateSelect(r.data.templates || []);
+      renderRcFields(null);
+      renderRcHistory(r.data.history || []);
+      var pending = (r.data.history || []).filter(function (j) { return j.status === "pending_confirm"; })[0];
+      renderActiveJob(pending || null);
+    });
+  }
+
+  function openRouterCfgModal() {
+    document.getElementById("fg-routercfg-overlay").hidden = false;
+    document.getElementById("fg-rc-unlock-status").textContent = "";
+    if (warmodeToken) {
+      rcShowStep("content");
+      loadRouterCfgData();
+      return;
+    }
+    warmodeGetJson(WARMODE_AUTH_ENDPOINT).then(function (r) {
+      if (!r.data.ok) {
+        showToast(r.data.error || "falha ao consultar configuração do Modo Guerra", "error");
+        return;
+      }
+      rcShowStep(r.data.configured ? "lock" : "needs-setup");
+    });
+  }
+
+  function onRcUnlockSubmit() {
+    var pass = document.getElementById("fg-rc-unlock-pass").value;
+    var status = document.getElementById("fg-rc-unlock-status");
+    warmodePostJson(WARMODE_AUTH_ENDPOINT, { action: "unlock", password: pass }).then(function (r) {
+      if (!r.data.ok) { status.textContent = r.data.error || "senha incorreta"; return; }
+      warmodeToken = r.data.warmode_token;
+      document.getElementById("fg-rc-unlock-pass").value = "";
+      status.textContent = "";
+      rcShowStep("content");
+      loadRouterCfgData();
+    });
+  }
+
+  function closeRouterCfgModal() {
+    document.getElementById("fg-routercfg-overlay").hidden = true;
+    rcStopCountdown();
+  }
+
+  function initRouterCfg() {
+    var openBtn = document.getElementById("fg-routercfg-open-btn");
+    if (openBtn) openBtn.addEventListener("click", openRouterCfgModal);
+    var closeBtn = document.getElementById("fg-rc-close-btn");
+    if (closeBtn) closeBtn.addEventListener("click", closeRouterCfgModal);
+    var unlockBtn = document.getElementById("fg-rc-unlock-btn");
+    if (unlockBtn) unlockBtn.addEventListener("click", onRcUnlockSubmit);
+    var templateSelect = document.getElementById("fg-rc-template-select");
+    if (templateSelect) templateSelect.addEventListener("change", onRcTemplateChange);
+    var previewBtn = document.getElementById("fg-rc-preview-btn");
+    if (previewBtn) previewBtn.addEventListener("click", onRcPreviewClick);
+    var applyBtn = document.getElementById("fg-rc-apply-btn");
+    if (applyBtn) applyBtn.addEventListener("click", onRcApplyClick);
+    var activeJobEl = document.getElementById("fg-rc-active-job");
+    if (activeJobEl) activeJobEl.addEventListener("click", onRcActiveJobClick);
   }
 
   // --- configuração: prefixos monitorados + whitelist --------------------
@@ -3062,6 +3360,7 @@
     initPaginationHandlers();
     initActionMenus();
     initWarmode();
+    initRouterCfg();
 
     var topSearch = document.getElementById("fg-top-prefixes-search");
     if (topSearch) topSearch.addEventListener("input", function () { state.filter.topPrefixes = topSearch.value; state.page.topPrefixes = 1; renderTopPrefixesFiltered(); });

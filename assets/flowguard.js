@@ -17,6 +17,7 @@
   var CG_CFG_ENDPOINT = "/cgi-bin/clientguard-cfg.sh";
   var CG_TOP_ENDPOINT = "/cgi-bin/clientguard-top.sh";
   var CG_CLIENT_DETAIL_ENDPOINT = "/cgi-bin/clientguard-client-detail.sh";
+  var CG_BLOCK_ENDPOINT = "/cgi-bin/clientguard-block.sh";
 
   var PROTO_NAMES = { 6: "TCP", 17: "UDP", 1: "ICMP" };
 
@@ -718,7 +719,8 @@
     var rows = data.rules
       .map(function (r) {
         return (
-          '<tr data-rule-id="' + r.id + '"><td>' + escapeHtml(r.dst_prefix || "-") + "</td><td>" +
+          '<tr data-rule-id="' + r.id + '"><td>' + escapeHtml(r.src_prefix || "-") + "</td><td>" +
+          escapeHtml(r.dst_prefix || "-") + "</td><td>" +
           escapeHtml(r.protocol || "-") + "</td><td>" + escapeHtml(r.action) + "</td><td>" +
           new Date(r.expires_at * 1000).toLocaleString() + '</td><td><button class="fg-btn" data-action="del">Remover</button></td></tr>'
         );
@@ -726,7 +728,7 @@
       .join("");
 
     el.innerHTML =
-      "<table><thead><tr><th>Destino</th><th>Protocolo</th><th>Ação</th><th>Expira</th><th></th></tr></thead><tbody>" +
+      "<table><thead><tr><th>Origem</th><th>Destino</th><th>Protocolo</th><th>Ação</th><th>Expira</th><th></th></tr></thead><tbody>" +
       rows +
       "</tbody></table>";
   }
@@ -742,6 +744,25 @@
       showToast(resp.ok ? "Regra removida" : resp.error, resp.ok ? "success" : "error");
       loadRules();
     });
+  }
+
+  function onBlockSubmit() {
+    var input = document.getElementById("fg-block-ip");
+    var ttlSelect = document.getElementById("fg-block-ttl");
+    var btn = document.getElementById("fg-block-submit");
+    var ip = (input.value || "").trim();
+    if (!ip) {
+      showToast("Informe um IP ou CIDR", "error");
+      return;
+    }
+    btn.disabled = true;
+    postJson(RULES_ENDPOINT, { src_prefix: ip, action: "discard", ttl_s: Number(ttlSelect.value) })
+      .then(function (resp) {
+        showToast(resp.ok ? "IP bloqueado: " + ip : resp.error, resp.ok ? "success" : "error");
+        if (resp.ok) input.value = "";
+        loadRules();
+      })
+      .finally(function () { btn.disabled = false; });
   }
 
   // --- configuração: prefixos monitorados + whitelist --------------------
@@ -1172,6 +1193,70 @@
     el.innerHTML = "<table><thead><tr><th>IP</th><th></th></tr></thead><tbody>" + rows + "</tbody></table>";
   }
 
+  function renderCgBlocks(data) {
+    var el = document.getElementById("cg-blocks");
+    if (!el) return;
+    if (!data.ok) {
+      showError(el, data.error || "erro desconhecido");
+      return;
+    }
+    if (!data.blocks.length) {
+      el.innerHTML = '<p class="fg-ok">Nenhum IP bloqueado no momento.</p>';
+      return;
+    }
+    var rows = data.blocks
+      .map(function (r) {
+        return (
+          '<tr data-rule-id="' + r.id + '"><td>' + escapeHtml(r.src_prefix) + "</td><td>" +
+          escapeHtml(r.action) + "</td><td>" + new Date(r.expires_at * 1000).toLocaleString() +
+          '</td><td><button class="fg-btn" data-action="del-block">Remover</button></td></tr>'
+        );
+      })
+      .join("");
+    el.innerHTML =
+      "<table><thead><tr><th>IP/rede bloqueado</th><th>Ação</th><th>Expira</th><th></th></tr></thead><tbody>" +
+      rows + "</tbody></table>";
+  }
+
+  function loadCgBlocks() {
+    if (!getToken()) return;
+    getJson(CG_BLOCK_ENDPOINT).then(renderCgBlocks).catch(function (err) {
+      showError(document.getElementById("cg-blocks"), "falha ao consultar bloqueios");
+      console.error("flowguard.js:", err);
+    });
+  }
+
+  function onCgBlocksClick(ev) {
+    var btn = ev.target.closest("button[data-action='del-block']");
+    if (!btn) return;
+    var row = btn.closest("tr[data-rule-id]");
+    if (!row) return;
+    btn.disabled = true;
+    postJson(CG_BLOCK_ENDPOINT, { id: Number(row.getAttribute("data-rule-id")) }).then(function (resp) {
+      showToast(resp.ok ? "Bloqueio removido" : resp.error, resp.ok ? "success" : "error");
+      loadCgBlocks();
+    });
+  }
+
+  function onCgBlockSubmit() {
+    var input = document.getElementById("cg-block-ip");
+    var ttlSelect = document.getElementById("cg-block-ttl");
+    var btn = document.getElementById("cg-block-submit");
+    var ip = (input.value || "").trim();
+    if (!ip) {
+      showToast("Informe um IP ou CIDR", "error");
+      return;
+    }
+    btn.disabled = true;
+    postJson(CG_BLOCK_ENDPOINT, { ip: ip, ttl_s: Number(ttlSelect.value) })
+      .then(function (resp) {
+        showToast(resp.ok ? "Cliente bloqueado: " + ip : resp.error, resp.ok ? "success" : "error");
+        if (resp.ok) input.value = "";
+        loadCgBlocks();
+      })
+      .finally(function () { btn.disabled = false; });
+  }
+
   function loadClientGuardCfg() {
     if (!getToken()) return;
     getJson(CG_CFG_ENDPOINT).then(function (data) {
@@ -1237,6 +1322,7 @@
     loadClientGuardStatus();
     loadCgTop();
     loadClientGuardSuspicious();
+    loadCgBlocks();
   }
 
   // --- gráficos (canvas, sem dependência externa) -------------------------
@@ -2026,6 +2112,9 @@
     var rulesEl = document.getElementById("flowguard-rules");
     if (rulesEl) rulesEl.addEventListener("click", onRulesClick);
 
+    var blockSubmitBtn = document.getElementById("fg-block-submit");
+    if (blockSubmitBtn) blockSubmitBtn.addEventListener("click", onBlockSubmit);
+
     var cfgEl = document.getElementById("flowguard-cfg");
     if (cfgEl) {
       cfgEl.addEventListener("click", onCfgClick);
@@ -2061,7 +2150,13 @@
     var cgWhitelistEl = document.getElementById("cg-whitelist");
     if (cgWhitelistEl) cgWhitelistEl.addEventListener("click", onCgCfgClick);
 
-    if (getToken()) loadClientGuardCfg();
+    var cgBlockSubmitBtn = document.getElementById("cg-block-submit");
+    if (cgBlockSubmitBtn) cgBlockSubmitBtn.addEventListener("click", onCgBlockSubmit);
+
+    var cgBlocksEl = document.getElementById("cg-blocks");
+    if (cgBlocksEl) cgBlocksEl.addEventListener("click", onCgBlocksClick);
+
+    if (getToken()) { loadClientGuardCfg(); loadCgBlocks(); }
 
     initChartControls();
 

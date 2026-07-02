@@ -222,6 +222,20 @@
 
     <div class="fg-tab-panel" data-tab="rules">
       <section class="fg-panel-section">
+        <h2>Bloquear IP manualmente</h2>
+        <p class="fg-kpi-sub">Bloqueia todo o tráfego de origem desse IP/rede via FlowSpec (BGP), em toda a rede — não precisa estar ligado a um ataque.</p>
+        <div class="fg-toolbar">
+          <input type="text" id="fg-block-ip" placeholder="IP ou CIDR a bloquear, ex: 203.0.113.7">
+          <select id="fg-block-ttl">
+            <option value="3600">1 hora</option>
+            <option value="21600">6 horas</option>
+            <option value="86400">24 horas</option>
+            <option value="2592000">Longa duração (30 dias)</option>
+          </select>
+          <button class="fg-btn" id="fg-block-submit">Bloquear</button>
+        </div>
+      </section>
+      <section class="fg-panel-section">
         <h2>Regras FlowSpec Ativas</h2>
         <div id="flowguard-rules">Carregando...</div>
       </section>
@@ -262,6 +276,21 @@
         </div>
         <div id="cg-suspicious">Carregando...</div>
         <div id="cg-suspicious-detail"></div>
+      </section>
+      <section class="fg-panel-section">
+        <h2>Bloquear IP manualmente</h2>
+        <p class="fg-kpi-sub">Bloqueia todo o tráfego de origem desse cliente via FlowSpec (BGP) — mesmo mecanismo do FlowGuard, pedido daqui pra facilitar quando o cliente é o problema.</p>
+        <div class="fg-toolbar">
+          <input type="text" id="cg-block-ip" placeholder="IP ou CIDR a bloquear, ex: 177.86.16.55">
+          <select id="cg-block-ttl">
+            <option value="3600">1 hora</option>
+            <option value="21600">6 horas</option>
+            <option value="86400">24 horas</option>
+            <option value="2592000">Longa duração (30 dias)</option>
+          </select>
+          <button class="fg-btn" id="cg-block-submit">Bloquear</button>
+        </div>
+        <div id="cg-blocks">Carregando...</div>
       </section>
       <section class="fg-panel-section">
         <h2>Redes de Clientes</h2>

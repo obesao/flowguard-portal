@@ -1,6 +1,6 @@
 #!/bin/sh
-# flowguard-rules.sh — GET lista regras FlowSpec ativas; POST remove uma regra
-# (proxied para o daemon via socket — mitigação BGP real chega na Fase 3)
+# flowguard-rules.sh — GET lista regras FlowSpec ativas; POST cria (src_prefix/dst_prefix)
+# ou remove (id) uma regra, proxied pro daemon via socket.
 
 . "$(dirname -- "$0")/lib.sh"
 
@@ -15,6 +15,7 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
   BODY=$(read_post_body)
   print_header 200
   BODY="$BODY" /root/flowguard/venv/bin/python3 <<'PYEOF'
+import ipaddress
 import json
 import os
 import sys
@@ -26,14 +27,29 @@ from collector import control
 
 try:
     body = json.loads(os.environ.get("BODY") or "{}")
+    cfg = yaml.safe_load(open("/root/flowguard/config.yaml", encoding="utf-8"))
+    sock_path = cfg["daemon"]["socket"]
     rule_id = body.get("id")
-    if not rule_id:
-        print(json.dumps({"ok": False, "error": "id da regra obrigatório"}))
-    else:
-        cfg = yaml.safe_load(open("/root/flowguard/config.yaml", encoding="utf-8"))
-        sock_path = cfg["daemon"]["socket"]
+    if rule_id:
         resp = control.send_command(sock_path, {"cmd": "flowspec_del", "rule_id": rule_id})
-        print(json.dumps(resp))
+    elif body.get("src_prefix") or body.get("dst_prefix"):
+        rule = {"action": body.get("action") or "discard"}
+        try:
+            if body.get("src_prefix"):
+                rule["src_prefix"] = str(ipaddress.ip_network(body["src_prefix"], strict=False))
+            if body.get("dst_prefix"):
+                rule["dst_prefix"] = str(ipaddress.ip_network(body["dst_prefix"], strict=False))
+        except ValueError as exc:
+            raise ValueError(f"IP/CIDR inválido: {exc}")
+        rule["label"] = "bloqueio manual via portal"
+        ttl_s = body.get("ttl_s")
+        payload = {"cmd": "flowspec_add", "rule": rule}
+        if ttl_s:
+            payload["ttl_s"] = int(ttl_s)
+        resp = control.send_command(sock_path, payload)
+    else:
+        resp = {"ok": False, "error": "informe id (remover) ou src_prefix/dst_prefix (criar)"}
+    print(json.dumps(resp))
 except Exception as exc:
     print(json.dumps({"ok": False, "error": str(exc)}))
 PYEOF

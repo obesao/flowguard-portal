@@ -15,6 +15,8 @@
   var CG_STATUS_ENDPOINT = "/cgi-bin/clientguard-status.sh";
   var CG_SUSPICIOUS_ENDPOINT = "/cgi-bin/clientguard-suspicious.sh";
   var CG_CFG_ENDPOINT = "/cgi-bin/clientguard-cfg.sh";
+  var CG_TOP_ENDPOINT = "/cgi-bin/clientguard-top.sh";
+  var CG_CLIENT_DETAIL_ENDPOINT = "/cgi-bin/clientguard-client-detail.sh";
 
   var PROTO_NAMES = { 6: "TCP", 17: "UDP", 1: "ICMP" };
 
@@ -43,9 +45,13 @@
       window: "6h",
       prefix: null,
       prefixesLoaded: false,
+      _requestSeq: 0,
+      _resolved: {},
     },
+    kpiHistory: { bps: [], pps: [] },
     cgSuspiciousView: "open",
     cgSuspicious: [],
+    cgTopWindow: 21600,
   };
 
   function getToken() {
@@ -278,12 +284,34 @@
 
   // --- KPIs ---------------------------------------------------------------
 
-  function kpiCard(label, valueHtml, sub) {
+  function kpiCard(label, valueHtml, sub, trendHtml) {
     return (
       '<div class="fg-card"><div class="fg-kpi-label">' + escapeHtml(label) + '</div>' +
       '<div class="fg-kpi-value">' + valueHtml + '</div>' +
-      '<div class="fg-kpi-sub">' + escapeHtml(sub || "") + '</div></div>'
+      '<div class="fg-kpi-sub">' + escapeHtml(sub || "") + (trendHtml || "") + '</div></div>'
     );
+  }
+
+  // seta de tendência comparando o valor atual com a média da primeira
+  // metade do minuto de histórico em memória (suaviza ruído de um poll só) —
+  // só aparece depois de ter buffer suficiente e quando a variação é notável
+  function kpiTrend(key, current) {
+    var buf = state.kpiHistory[key];
+    var html = "";
+    if (buf.length >= 6) {
+      var half = Math.floor(buf.length / 2);
+      var prevAvg = buf.slice(0, half).reduce(function (a, b) { return a + b; }, 0) / half;
+      if (prevAvg > 0) {
+        var deltaPct = ((current - prevAvg) / prevAvg) * 100;
+        if (Math.abs(deltaPct) >= 5) {
+          var arrow = deltaPct > 0 ? "▲" : "▼";
+          html = '<span class="fg-trend">' + arrow + " " + Math.abs(deltaPct).toFixed(0) + "% vs. último min.</span>";
+        }
+      }
+    }
+    buf.push(current);
+    if (buf.length > 12) buf.shift();
+    return html;
   }
 
   function renderKpis(data) {
@@ -302,10 +330,12 @@
       ? '<span class="fg-dot fg-dot-up"></span>ativo'
       : '<span class="fg-dot fg-dot-down"></span>indisponível';
     var daemonSub = daemon.alive ? "uptime " + fmtUptime(daemon.uptime_s) + " · pid " + daemon.pid : "socket não respondeu";
+    var bpsTrend = kpiTrend("bps", s.bps);
+    var ppsTrend = kpiTrend("pps", s.pps);
 
     el.innerHTML =
-      kpiCard("Tráfego", fmtBps(s.bps), s.flows + " flows/s") +
-      kpiCard("Pacotes/s", Number(s.pps).toLocaleString("pt-BR"), "") +
+      kpiCard("Tráfego", fmtBps(s.bps), s.flows + " flows/s", bpsTrend) +
+      kpiCard("Pacotes/s", Number(s.pps).toLocaleString("pt-BR"), "", ppsTrend) +
       kpiCard("Ataques Ativos", s.active_attacks, s.active_attacks > 0 ? "requer atenção" : "tudo normal") +
       kpiCard("Regras FlowSpec", s.active_rules, "") +
       kpiCard("Daemon", daemonHtml, daemonSub);
@@ -344,10 +374,13 @@
             return x.toFixed(1) + "," + y.toFixed(1);
           })
           .join(" ");
+        var areaPoints = points + " " + width + "," + height + " 0," + height;
         var last = series[series.length - 1][p.key];
         return (
           '<div class="fg-spark"><span class="fg-spark-label" style="color:' + p.color + '">' + p.label + "</span>" +
           '<svg width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + " " + height + '">' +
+          '<line x1="0" y1="' + height / 2 + '" x2="' + width + '" y2="' + height / 2 + '" stroke="#30363d" stroke-width="1" stroke-dasharray="2,2" />' +
+          '<polygon points="' + areaPoints + '" fill="' + p.color + '" fill-opacity="0.15" />' +
           '<polyline points="' + points + '" fill="none" stroke="' + p.color + '" stroke-width="1.5" /></svg>' +
           '<span class="fg-spark-value">' + fmtBps(last) + "</span></div>"
         );
@@ -501,7 +534,7 @@
       "</div>";
     var canvas = document.getElementById("fg-attack-detail-chart");
     if (canvas) {
-      drawLineChart(canvas, series, [{ key: "bps", color: "#58a6ff" }]);
+      drawLineChart(canvas, series, [{ key: "bps", color: "#58a6ff", label: "tráfego (bps)" }]);
     }
     el.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -856,39 +889,126 @@
       kpiCard("Daemon", '<span class="fg-dot fg-dot-up"></span>ativo', "uptime " + fmtUptime(status.uptime_s) + " · pid " + status.pid);
   }
 
+  function loadClientGuardStatus() {
+    getJson(CG_STATUS_ENDPOINT).then(function (data) {
+      renderCgKpis(data.ok ? data.status : null);
+    }).catch(function (err) {
+      showError(document.getElementById("cg-kpis"), "falha ao consultar status do ClientGuard");
+      console.error("flowguard.js:", err);
+    });
+  }
+
+  // --- ClientGuard: top clientes por consumo de dados ----------------------
+
   function renderCgTop(rows) {
     var el = document.getElementById("cg-top");
     if (!el) return;
     if (!rows.length) {
-      el.innerHTML = '<p class="fg-ok">Nenhum tráfego na janela atual.</p>';
+      el.innerHTML = '<p class="fg-ok">Nenhum tráfego na janela selecionada.</p>';
       return;
     }
     var body = rows
       .map(function (r) {
         return (
-          "<tr><td>" + escapeHtml(r.src_ip) + "</td><td>" + escapeHtml(r.customer_prefix || "-") + "</td><td>" +
-          fmtBytes(r.bytes) + "</td><td>" + (r.flows || 0).toLocaleString("pt-BR") + "</td></tr>"
+          '<tr data-src-ip="' + escapeHtml(r.src_ip) + '"><td>' + escapeHtml(r.src_ip) + "</td><td>" +
+          escapeHtml(r.customer_prefix || "-") + "</td><td>" + fmtBytes(r.bytes) + "</td><td>" +
+          (r.packets || 0).toLocaleString("pt-BR") + "</td><td>" + (r.flows || 0).toLocaleString("pt-BR") +
+          '</td><td><button class="fg-btn" data-action="detail">Detalhes</button></td></tr>'
         );
       })
       .join("");
     el.innerHTML =
-      "<table><thead><tr><th>src_ip</th><th>Cliente</th><th>Tráfego</th><th>Flows</th></tr></thead><tbody>" +
-      body + "</tbody></table>";
+      "<table><thead><tr><th>src_ip</th><th>Cliente</th><th>Tráfego</th><th>Pacotes</th><th>Flows</th>" +
+      "<th>Ações</th></tr></thead><tbody>" + body + "</tbody></table>";
   }
 
-  function loadClientGuardStatus() {
-    getJson(CG_STATUS_ENDPOINT).then(function (data) {
+  function loadCgTop() {
+    getJson(CG_TOP_ENDPOINT + "?window_s=" + state.cgTopWindow + "&limit=20").then(function (data) {
       if (!data.ok) {
-        renderCgKpis(null);
         showError(document.getElementById("cg-top"), data.error || "erro desconhecido");
         return;
       }
-      renderCgKpis(data.status);
       renderCgTop(data.top || []);
     }).catch(function (err) {
-      showError(document.getElementById("cg-kpis"), "falha ao consultar status do ClientGuard");
+      showError(document.getElementById("cg-top"), "falha ao consultar top clientes");
       console.error("flowguard.js:", err);
     });
+  }
+
+  function initCgTopWindowControls() {
+    var toggle = document.getElementById("cg-top-window");
+    if (!toggle) return;
+    toggle.addEventListener("click", function (ev) {
+      var btn = ev.target.closest(".fg-toggle-btn");
+      if (!btn) return;
+      state.cgTopWindow = Number(btn.getAttribute("data-window-s"));
+      toggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { b.classList.toggle("active", b === btn); });
+      loadCgTop();
+      var detailEl = document.getElementById("cg-client-detail");
+      if (detailEl) detailEl.innerHTML = "";
+    });
+  }
+
+  // --- ClientGuard: detalhe de um cliente (série temporal + top destinos) --
+
+  function renderClientDetail(srcIp, data) {
+    var el = document.getElementById("cg-client-detail");
+    if (!el) return;
+    if (!data.ok) {
+      el.innerHTML = '<p class="fg-error">Detalhes (' + escapeHtml(srcIp) + "): " + escapeHtml(data.error) + "</p>";
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    var destRows = (data.top_destinations || []).length
+      ? data.top_destinations.map(function (d) {
+          var geo = d.dst_asn ? "AS" + d.dst_asn + (d.dst_country ? " (" + escapeHtml(d.dst_country) + ")" : "") : "-";
+          return (
+            "<tr><td>" + escapeHtml(d.dst_ip) + "</td><td>" + protoName(d.protocol) + "</td><td>" + d.dst_port +
+            "</td><td>" + geo + "</td><td>" + fmtBytes(d.bytes) + "</td><td>" +
+            (d.packets || 0).toLocaleString("pt-BR") + "</td></tr>"
+          );
+        }).join("")
+      : '<tr><td colspan="6">sem destinos na janela selecionada</td></tr>';
+    el.innerHTML =
+      '<div class="fg-ai-panel"><div class="fg-panel-header"><h4>Consumo de dados — ' + escapeHtml(srcIp) + "</h4>" +
+      '<button class="fg-btn" data-action="close-detail">Fechar</button></div>' +
+      "<h5>Tráfego ao longo do tempo</h5>" +
+      '<canvas id="cg-client-detail-chart" width="760" height="160"></canvas>' +
+      "<h5>Top destinos (" + (data.top_destinations || []).length + ")</h5>" +
+      "<table><thead><tr><th>Destino</th><th>Protocolo</th><th>Porta</th><th>ASN/País</th>" +
+      "<th>Tráfego</th><th>Pacotes</th></tr></thead><tbody>" + destRows + "</tbody></table>" +
+      "</div>";
+    var canvas = document.getElementById("cg-client-detail-chart");
+    if (canvas) {
+      drawLineChart(canvas, data.timeseries || [], [{ key: "bps", color: "#58a6ff", label: "Tráfego" }]);
+    }
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function loadClientDetail(srcIp) {
+    var el = document.getElementById("cg-client-detail");
+    if (el) el.innerHTML = "<p>Carregando detalhes de " + escapeHtml(srcIp) + "...</p>";
+    getJson(CG_CLIENT_DETAIL_ENDPOINT + "?src_ip=" + encodeURIComponent(srcIp) + "&window_s=" + state.cgTopWindow)
+      .then(function (data) { renderClientDetail(srcIp, data); })
+      .catch(function (err) {
+        showError(el, "falha ao consultar detalhes do cliente");
+        console.error("flowguard.js:", err);
+      });
+  }
+
+  function onCgTopClick(ev) {
+    var btn = ev.target.closest("button[data-action='detail']");
+    if (!btn) return;
+    var row = btn.closest("tr[data-src-ip]");
+    if (!row) return;
+    loadClientDetail(row.getAttribute("data-src-ip"));
+  }
+
+  function onCgClientDetailClick(ev) {
+    var btn = ev.target.closest("button[data-action='close-detail']");
+    if (!btn) return;
+    var el = document.getElementById("cg-client-detail");
+    if (el) el.innerHTML = "";
   }
 
   // --- ClientGuard: sinais suspeitos ---------------------------------------
@@ -1104,6 +1224,7 @@
 
   function loadClientGuard() {
     loadClientGuardStatus();
+    loadCgTop();
     loadClientGuardSuspicious();
   }
 
@@ -1111,20 +1232,96 @@
 
   var SEV_COLORS = { critical: "#f85149", high: "#ffa657", medium: "#d29922", info: "#8b949e" };
   var SEV_ROWS = ["critical", "high", "medium", "info"];
+  var CHART_BG = "#0d1117";
 
+  // chartScale() desenha no espaço de pixels CSS (não nos atributos width/height
+  // fixos do <canvas>) e redimensiona o backing store pelo devicePixelRatio —
+  // sem isso o canvas de 900x220 fica borrado quando o CSS estica pra largura
+  // real do card (ex.: 1326px). Todo o resto do código de desenho continua
+  // trabalhando em coordenadas s.w/s.h normalmente, sem saber disso.
   function chartScale(canvas) {
+    var dpr = window.devicePixelRatio || 1;
+    var cssW = canvas.clientWidth || canvas.width;
+    var cssH = canvas.clientHeight || canvas.height;
+    var pixelW = Math.max(1, Math.round(cssW * dpr));
+    var pixelH = Math.max(1, Math.round(cssH * dpr));
+    if (canvas.width !== pixelW || canvas.height !== pixelH) {
+      canvas.width = pixelW;
+      canvas.height = pixelH;
+    }
     var ctx = canvas.getContext("2d");
-    var w = canvas.width;
-    var h = canvas.height;
-    ctx.clearRect(0, 0, w, h);
-    return { ctx: ctx, w: w, h: h, padding: { left: 55, right: 10, top: 10, bottom: 20 } };
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
+    return { ctx: ctx, w: cssW, h: cssH, padding: { left: 55, right: 10, top: 10, bottom: 20 } };
+  }
+
+  // --- tooltip compartilhado pelos 3 gráficos de canvas --------------------
+
+  var chartRegistry = {}; // canvasId -> { type, redraw(hoverIndex), hitTest(mouseX, mouseY) -> {index, tooltip} | null }
+
+  function showChartTooltip(clientX, clientY, html) {
+    var tt = document.getElementById("fg-chart-tooltip");
+    if (!tt) return;
+    tt.innerHTML = html;
+    tt.hidden = false;
+    var left = clientX + 14;
+    var top = clientY + 14;
+    var maxLeft = window.innerWidth - tt.offsetWidth - 8;
+    var maxTop = window.innerHeight - tt.offsetHeight - 8;
+    tt.style.left = Math.max(4, Math.min(left, maxLeft)) + "px";
+    tt.style.top = Math.max(4, Math.min(top, maxTop)) + "px";
+  }
+
+  function hideChartTooltip() {
+    var tt = document.getElementById("fg-chart-tooltip");
+    if (tt) tt.hidden = true;
+  }
+
+  function registerChartHover(canvas, entry) {
+    chartRegistry[canvas.id] = entry;
+    if (canvas._hoverBound) return;
+    canvas._hoverBound = true;
+    canvas.addEventListener("mousemove", function (ev) {
+      var reg = chartRegistry[canvas.id];
+      if (!reg) return;
+      var rect = canvas.getBoundingClientRect();
+      var mouseX = ev.clientX - rect.left;
+      var mouseY = ev.clientY - rect.top;
+      var hit = reg.hitTest(mouseX, mouseY);
+      if (hit) {
+        reg.redraw(hit.index);
+        showChartTooltip(ev.clientX, ev.clientY, hit.tooltip);
+        canvas.style.cursor = hit.pointer ? "pointer" : "crosshair";
+      } else {
+        reg.redraw(null);
+        hideChartTooltip();
+        canvas.style.cursor = "crosshair";
+      }
+    });
+    canvas.addEventListener("mouseleave", function () {
+      var reg = chartRegistry[canvas.id];
+      if (reg) reg.redraw(null);
+      hideChartTooltip();
+    });
+    if (canvas._clickBound) return;
+    canvas._clickBound = true;
+    canvas.addEventListener("click", function (ev) {
+      var reg = chartRegistry[canvas.id];
+      if (!reg || !reg.hitTest) return;
+      var rect = canvas.getBoundingClientRect();
+      var hit = reg.hitTest(ev.clientX - rect.left, ev.clientY - rect.top);
+      if (hit && hit.onClick) hit.onClick();
+    });
   }
 
   function drawEmpty(canvas, message) {
+    delete chartRegistry[canvas.id];
     var s = chartScale(canvas);
     s.ctx.fillStyle = "#8b949e";
     s.ctx.font = "12px sans-serif";
-    s.ctx.fillText(message, s.padding.left, s.h / 2);
+    s.ctx.textAlign = "center";
+    s.ctx.fillText(message, s.w / 2, s.h / 2);
+    s.ctx.textAlign = "left";
   }
 
   function pad2(n) {
@@ -1157,12 +1354,7 @@
     ctx.textAlign = "left";
   }
 
-  function drawLineChart(canvas, series, lines, band) {
-    if (!series || series.length < 2) {
-      drawEmpty(canvas, "Sem dados suficientes na janela selecionada.");
-      return;
-    }
-    var s = chartScale(canvas);
+  function drawLineChartCore(s, series, lines, band, hoverIndex) {
     var ctx = s.ctx;
     var plotW = s.w - s.padding.left - s.padding.right;
     var plotH = s.h - s.padding.top - s.padding.bottom;
@@ -1189,6 +1381,8 @@
       ctx.fillText(fmtBps(v), 2, yy + 3);
     }
 
+    // faixa esperada do baseline — preenchimento + contorno tracejado, senão
+    // some visualmente quando é bem menor que o pico do tráfego real
     if (band) {
       ctx.fillStyle = "rgba(88,166,255,0.18)";
       ctx.beginPath();
@@ -1198,6 +1392,37 @@
         else ctx.lineTo(x(i), yy);
       });
       for (var i = series.length - 1; i >= 0; i--) ctx.lineTo(x(i), y(0));
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "rgba(88,166,255,0.55)";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      series.forEach(function (pt, i) {
+        var yy = y(pt[band.upperKey] || 0);
+        if (i === 0) ctx.moveTo(x(i), yy);
+        else ctx.lineTo(x(i), yy);
+      });
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // preenchimento sob a primeira linha (normalmente "entrada") — dá noção
+    // de volume, não só de tendência
+    var mainLine = lines[0];
+    if (mainLine) {
+      var grad = ctx.createLinearGradient(0, s.padding.top, 0, s.padding.top + plotH);
+      grad.addColorStop(0, mainLine.color + "33");
+      grad.addColorStop(1, mainLine.color + "00");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      series.forEach(function (pt, i) {
+        var yy = y(pt[mainLine.key] || 0);
+        if (i === 0) ctx.moveTo(x(i), yy);
+        else ctx.lineTo(x(i), yy);
+      });
+      ctx.lineTo(x(series.length - 1), y(0));
+      ctx.lineTo(x(0), y(0));
       ctx.closePath();
       ctx.fill();
     }
@@ -1216,15 +1441,64 @@
     });
     ctx.setLineDash([]);
 
+    if (hoverIndex != null && series[hoverIndex]) {
+      var hx = x(hoverIndex);
+      ctx.strokeStyle = "rgba(201,209,217,0.4)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(hx, s.padding.top);
+      ctx.lineTo(hx, s.padding.top + plotH);
+      ctx.stroke();
+      lines.forEach(function (l) {
+        var hy = y(series[hoverIndex][l.key] || 0);
+        ctx.fillStyle = l.color;
+        ctx.beginPath();
+        ctx.arc(hx, hy, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = CHART_BG;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      });
+    }
+
     drawTimeAxis(s, series[0].ts, series[series.length - 1].ts);
   }
 
-  function drawStackedArea(canvas, series, keys, colors) {
+  function chartHitIndex(canvas, series, mouseX) {
+    var padding = { left: 55, right: 10 };
+    var w = canvas.clientWidth;
+    var plotW = w - padding.left - padding.right;
+    if (mouseX < padding.left - 4 || mouseX > w - padding.right + 4) return null;
+    var frac = (mouseX - padding.left) / plotW;
+    frac = Math.max(0, Math.min(1, frac));
+    return Math.round(frac * (series.length - 1));
+  }
+
+  function drawLineChart(canvas, series, lines, band) {
     if (!series || series.length < 2) {
       drawEmpty(canvas, "Sem dados suficientes na janela selecionada.");
       return;
     }
-    var s = chartScale(canvas);
+    function render(hoverIndex) {
+      drawLineChartCore(chartScale(canvas), series, lines, band, hoverIndex);
+    }
+    render(null);
+    registerChartHover(canvas, {
+      hitTest: function (mouseX) {
+        var idx = chartHitIndex(canvas, series, mouseX);
+        if (idx == null) return null;
+        var pt = series[idx];
+        var rows = lines.map(function (l) {
+          return '<div class="fg-tt-row"><span><i class="fg-tt-swatch" style="background:' + l.color + '"></i>' +
+            escapeHtml(l.label || l.key) + "</span><span>" + fmtBps(pt[l.key] || 0) + "</span></div>";
+        }).join("");
+        return { index: idx, tooltip: '<div class="fg-tt-title">' + fmtDateTime(pt.ts) + "</div>" + rows };
+      },
+      redraw: function (hoverIndex) { render(hoverIndex); },
+    });
+  }
+
+  function drawStackedAreaCore(s, series, keys, colors, hoverIndex) {
     var ctx = s.ctx;
     var plotW = s.w - s.padding.left - s.padding.right;
     var plotH = s.h - s.padding.top - s.padding.bottom;
@@ -1249,6 +1523,7 @@
     }
 
     var cumulative = series.map(function () { return 0; });
+    var boundaries = [];
     keys.forEach(function (key, ki) {
       ctx.fillStyle = colors[ki];
       ctx.beginPath();
@@ -1262,22 +1537,67 @@
       ctx.closePath();
       ctx.fill();
       series.forEach(function (pt, i) { cumulative[i] += pt[key] || 0; });
+      if (ki < keys.length - 1) boundaries.push(cumulative.slice());
     });
+
+    // gap de 2px entre segmentos empilhados — sem isso as cores colam sem
+    // separação visual, principalmente entre tons próximos
+    ctx.strokeStyle = CHART_BG;
+    ctx.lineWidth = 2;
+    boundaries.forEach(function (cum) {
+      ctx.beginPath();
+      cum.forEach(function (v, i) {
+        var yy = y(v);
+        if (i === 0) ctx.moveTo(x(i), yy);
+        else ctx.lineTo(x(i), yy);
+      });
+      ctx.stroke();
+    });
+
+    if (hoverIndex != null && series[hoverIndex]) {
+      var hx = x(hoverIndex);
+      ctx.strokeStyle = "rgba(201,209,217,0.4)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(hx, s.padding.top);
+      ctx.lineTo(hx, s.padding.top + plotH);
+      ctx.stroke();
+    }
 
     drawTimeAxis(s, series[0].ts, series[series.length - 1].ts);
   }
 
-  function drawTimeline(canvas, attacks, windowS) {
-    if (!attacks || !attacks.length) {
-      drawEmpty(canvas, "Nenhum ataque no período selecionado.");
+  function drawStackedArea(canvas, series, keys, colors, labels) {
+    if (!series || series.length < 2) {
+      drawEmpty(canvas, "Sem dados suficientes na janela selecionada.");
       return;
     }
-    var s = chartScale(canvas);
+    function render(hoverIndex) {
+      drawStackedAreaCore(chartScale(canvas), series, keys, colors, hoverIndex);
+    }
+    render(null);
+    registerChartHover(canvas, {
+      hitTest: function (mouseX) {
+        var idx = chartHitIndex(canvas, series, mouseX);
+        if (idx == null) return null;
+        var pt = series[idx];
+        var rows = keys.map(function (k, ki) {
+          return '<div class="fg-tt-row"><span><i class="fg-tt-swatch" style="background:' + colors[ki] + '"></i>' +
+            escapeHtml((labels && labels[ki]) || k.toUpperCase()) + "</span><span>" + fmtBps(pt[k] || 0) + "</span></div>";
+        }).join("");
+        return { index: idx, tooltip: '<div class="fg-tt-title">' + fmtDateTime(pt.ts) + "</div>" + rows };
+      },
+      redraw: function (hoverIndex) { render(hoverIndex); },
+    });
+  }
+
+  function drawTimelineCore(s, attacks, windowS, hoverId) {
     var ctx = s.ctx;
     var plotW = s.w - s.padding.left - s.padding.right;
     var rowH = (s.h - s.padding.top - s.padding.bottom) / SEV_ROWS.length;
     var now = Math.floor(Date.now() / 1000);
     var since = now - windowS;
+    var hitboxes = [];
 
     ctx.fillStyle = "#8b949e";
     ctx.font = "10px sans-serif";
@@ -1298,12 +1618,88 @@
       var end = a.ts_end || now;
       var x1 = s.padding.left + ((start - since) / windowS) * plotW;
       var x2 = s.padding.left + ((end - since) / windowS) * plotW;
-      var yy = s.padding.top + row * rowH + rowH * 0.25;
+      var barH = rowH * 0.6;
+      var yy = s.padding.top + row * rowH + (rowH - barH) / 2;
+      var w = Math.max(x2 - x1, 4);
+      var isHover = hoverId != null && a.id === hoverId;
+      ctx.globalAlpha = isHover ? 1 : 0.85;
       ctx.fillStyle = SEV_COLORS[a.severity] || "#8b949e";
-      ctx.fillRect(x1, yy, Math.max(x2 - x1, 2), rowH * 0.5);
+      ctx.fillRect(x1, yy, w, barH);
+      ctx.globalAlpha = 1;
+      if (isHover) {
+        ctx.strokeStyle = "#c9d1d9";
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(x1, yy, w, barH);
+      }
+      hitboxes.push({ x1: x1 - 2, x2: x1 + w + 2, y1: yy - 3, y2: yy + barH + 3, attack: a });
     });
 
     drawTimeAxis(s, since, now);
+    return hitboxes;
+  }
+
+  function drawTimeline(canvas, attacks, windowS) {
+    if (!attacks || !attacks.length) {
+      drawEmpty(canvas, "Nenhum ataque no período selecionado.");
+      return;
+    }
+    var hitboxes = [];
+    function render(hoverId) {
+      hitboxes = drawTimelineCore(chartScale(canvas), attacks, windowS, hoverId);
+    }
+    render(null);
+    registerChartHover(canvas, {
+      hitTest: function (mouseX, mouseY) {
+        for (var i = 0; i < hitboxes.length; i++) {
+          var h = hitboxes[i];
+          if (mouseX >= h.x1 && mouseX <= h.x2 && mouseY >= h.y1 && mouseY <= h.y2) {
+            var a = h.attack;
+            var dur = a.ts_end ? fmtUptime(a.ts_end - a.ts_start) : "em andamento";
+            var html =
+              '<div class="fg-tt-title">' + escapeHtml(a.dst_prefix || "-") +
+              (a.customer ? " — " + escapeHtml(a.customer) : "") + "</div>" +
+              '<div class="fg-tt-row"><span>severidade</span><span>' + escapeHtml(a.severity || "-") + "</span></div>" +
+              '<div class="fg-tt-row"><span>início</span><span>' + fmtDateTime(a.ts_start) + "</span></div>" +
+              '<div class="fg-tt-row"><span>duração</span><span>' + dur + "</span></div>" +
+              '<div class="fg-tt-row"><span style="color:#8b949e">clique para ver detalhes →</span></div>';
+            return { index: a.id, pointer: true, tooltip: html, onClick: function () { jumpToAttack(a); } };
+          }
+        }
+        return null;
+      },
+      redraw: function (hoverId) { render(hoverId); },
+    });
+  }
+
+  // pulado da timeline de ataques (Gráficos) direto pro histórico filtrado da
+  // aba Ataques — evita o usuário ter que trocar de aba e refazer o filtro manualmente
+  function jumpToAttack(attack) {
+    state.attacksView = "history";
+    state.attacksWindow = "7d";
+    state.filter.attacksPrefix = attack.dst_prefix || "";
+    document.querySelectorAll(".fg-tab-btn").forEach(function (b) {
+      b.classList.toggle("active", b.getAttribute("data-tab") === "attacks");
+    });
+    document.querySelectorAll(".fg-tab-panel").forEach(function (p) {
+      p.classList.toggle("active", p.getAttribute("data-tab") === "attacks");
+    });
+    var viewToggle = document.getElementById("fg-attacks-view-toggle");
+    if (viewToggle) {
+      viewToggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) {
+        b.classList.toggle("active", b.getAttribute("data-view") === "history");
+      });
+    }
+    var windowToggle = document.getElementById("fg-attacks-window");
+    if (windowToggle) {
+      windowToggle.hidden = false;
+      windowToggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) {
+        b.classList.toggle("active", b.getAttribute("data-window") === "7d");
+      });
+    }
+    var prefixFilter = document.getElementById("fg-attacks-prefix-filter");
+    if (prefixFilter) prefixFilter.value = attack.dst_prefix || "";
+    hideChartTooltip();
+    loadAttacks();
   }
 
   function populateChartPrefixSelect(prefixes) {
@@ -1318,12 +1714,41 @@
     }
   }
 
+  // marca um placeholder de "carregando" em cada gráfico assim que a aba é
+  // aberta/filtrada — sem isso, uma consulta lenta (histórico grande) deixa o
+  // canvas em branco por vários segundos e parece quebrado, não lento.
+  function chartLoadingPlaceholders(requestToken) {
+    ["fg-chart-traffic", "fg-chart-protocol", "fg-chart-timeline"].forEach(function (id) {
+      var c = document.getElementById(id);
+      if (c) drawEmpty(c, "Carregando…");
+    });
+    var topHostsEl = document.getElementById("flowguard-top-hosts");
+    if (topHostsEl) topHostsEl.innerHTML = "Carregando...";
+
+    setTimeout(function () {
+      if (state.chart._requestSeq !== requestToken) return; // outra chamada já substituiu essa
+      ["fg-chart-traffic", "fg-chart-protocol", "fg-chart-timeline"].forEach(function (id) {
+        if (state.chart._resolved[id]) return;
+        var c = document.getElementById(id);
+        if (c) drawEmpty(c, "Ainda carregando — o histórico é grande, pode levar até 1 minuto.");
+      });
+      if (!state.chart._resolved["flowguard-top-hosts"] && topHostsEl) {
+        topHostsEl.innerHTML = "Ainda carregando — o histórico é grande, pode levar até 1 minuto.";
+      }
+    }, 4000);
+  }
+
   function loadCharts() {
     if (!state.chart.prefix) return;
     var windowName = state.chart.window;
+    var requestToken = ++state.chart._requestSeq;
+    state.chart._resolved = {};
+    chartLoadingPlaceholders(requestToken);
 
     getJson(HISTORY_ENDPOINT + "?metric=prefix&prefix=" + encodeURIComponent(state.chart.prefix) + "&window=" + windowName)
       .then(function (data) {
+        if (state.chart._requestSeq !== requestToken) return;
+        state.chart._resolved["fg-chart-traffic"] = true;
         var canvas = document.getElementById("fg-chart-traffic");
         if (!canvas) return;
         if (!data.ok) { drawEmpty(canvas, data.error || "erro ao carregar"); return; }
@@ -1336,25 +1761,29 @@
           return withBaseline;
         });
         var lines = [
-          { key: "bps_in", color: "#58a6ff" },
-          { key: "bps_out", color: "#ffa657" },
+          { key: "bps_in", color: "#58a6ff", label: "entrada (in)" },
+          { key: "bps_out", color: "#ffa657", label: "saída (out)" },
         ];
         var band = null;
         if (data.baseline) {
-          lines.push({ key: "baseline_mean", color: "#8b949e", dashed: true });
+          lines.push({ key: "baseline_mean", color: "#8b949e", dashed: true, label: "baseline (média)" });
           band = { upperKey: "baseline_upper" };
         }
         drawLineChart(canvas, series, lines, band);
       });
 
     getJson(HISTORY_ENDPOINT + "?metric=protocol&window=" + windowName).then(function (data) {
+      if (state.chart._requestSeq !== requestToken) return;
+      state.chart._resolved["fg-chart-protocol"] = true;
       var canvas = document.getElementById("fg-chart-protocol");
       if (!canvas) return;
       if (!data.ok) { drawEmpty(canvas, data.error || "erro ao carregar"); return; }
-      drawStackedArea(canvas, data.series, ["tcp", "udp", "icmp", "other"], ["#58a6ff", "#3fb950", "#d29922", "#8b949e"]);
+      drawStackedArea(canvas, data.series, ["tcp", "udp", "icmp", "other"], ["#58a6ff", "#3fb950", "#d29922", "#8b949e"], ["TCP", "UDP", "ICMP", "Outro"]);
     });
 
     getJson(HISTORY_ENDPOINT + "?metric=attacks&window=" + windowName).then(function (data) {
+      if (state.chart._requestSeq !== requestToken) return;
+      state.chart._resolved["fg-chart-timeline"] = true;
       var canvas = document.getElementById("fg-chart-timeline");
       if (!canvas) return;
       if (!data.ok) { drawEmpty(canvas, data.error || "erro ao carregar"); return; }
@@ -1364,6 +1793,8 @@
 
     getJson(HISTORY_ENDPOINT + "?metric=hosts&prefix=" + encodeURIComponent(state.chart.prefix) + "&window=" + windowName)
       .then(function (data) {
+        if (state.chart._requestSeq !== requestToken) return;
+        state.chart._resolved["flowguard-top-hosts"] = true;
         var el = document.getElementById("flowguard-top-hosts");
         if (!el) return;
         if (!data.ok) { showError(el, data.error || "erro ao carregar"); return; }
@@ -1376,8 +1807,15 @@
       el.innerHTML = '<p class="fg-ok">Nenhum host individual identificado na janela selecionada.</p>';
       return;
     }
+    var max = hosts.reduce(function (m, h) { return Math.max(m, h.occurrences); }, 1);
     var rows = hosts
-      .map(function (h) { return "<tr><td>" + escapeHtml(h.ip) + "/32</td><td>" + h.occurrences + " ciclo(s)</td></tr>"; })
+      .map(function (h) {
+        var pct = Math.max(2, Math.round((h.occurrences / max) * 100));
+        return "<tr><td>" + escapeHtml(h.ip) + "/32</td><td>" +
+          '<div class="fg-hbar-wrap"><div class="fg-hbar" style="width:' + pct + '%"></div>' +
+          '<span class="fg-hbar-label">' + h.occurrences + " ciclo(s)</span></div>" +
+          "</td></tr>";
+      })
       .join("");
     el.innerHTML =
       "<table><thead><tr><th>Host</th><th>Presença na janela</th></tr></thead><tbody>" + rows + "</tbody></table>" +
@@ -1583,6 +2021,14 @@
       cfgEl.addEventListener("submit", onCfgSubmit);
       loadCfg();
     }
+
+    var cgTopEl = document.getElementById("cg-top");
+    if (cgTopEl) cgTopEl.addEventListener("click", onCgTopClick);
+
+    var cgClientDetailEl = document.getElementById("cg-client-detail");
+    if (cgClientDetailEl) cgClientDetailEl.addEventListener("click", onCgClientDetailClick);
+
+    initCgTopWindowControls();
 
     var cgSuspiciousEl = document.getElementById("cg-suspicious");
     if (cgSuspiciousEl) cgSuspiciousEl.addEventListener("click", onCgSuspiciousClick);

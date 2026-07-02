@@ -112,11 +112,29 @@
     .fg-toast-error { border-color: #f85149; }
     .fg-toast-out { opacity: 0; }
 
-    .fg-chart-box { margin-bottom: 1.5rem; }
-    .fg-chart-box canvas { width: 100%; height: auto; background: #0d1117; border-radius: 6px; }
+    .fg-chart-box { margin-bottom: 1.5rem; position: relative; }
+    .fg-chart-box canvas { display: block; width: 100%; background: #0d1117; border-radius: 6px; cursor: crosshair; }
+    .fg-chart-box canvas.fg-chart-lg { height: 260px; }
+    .fg-chart-box canvas.fg-chart-sm { height: 160px; }
     .fg-legend { display: flex; gap: 1rem; margin-top: 0.5rem; flex-wrap: wrap; font-size: 0.8rem; }
     .fg-legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
     .fg-legend i { display: inline-block; width: 0.8rem; height: 0.4rem; border-radius: 2px; }
+
+    .fg-chart-tooltip {
+      position: fixed; pointer-events: none; background: #21262d; border: 1px solid #30363d;
+      border-radius: 6px; padding: 0.5rem 0.7rem; font-size: 0.78rem; z-index: 1000;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.5); max-width: 280px; line-height: 1.5;
+    }
+    .fg-chart-tooltip[hidden] { display: none; }
+    .fg-chart-tooltip .fg-tt-title { font-weight: bold; margin-bottom: 0.2rem; color: #c9d1d9; }
+    .fg-chart-tooltip .fg-tt-row { display: flex; justify-content: space-between; gap: 0.8rem; white-space: nowrap; }
+    .fg-chart-tooltip .fg-tt-swatch { display: inline-block; width: 0.6rem; height: 0.6rem; border-radius: 2px; margin-right: 0.35rem; }
+
+    .fg-trend { font-size: 0.72rem; color: #8b949e; margin-left: 0.4rem; }
+
+    .fg-hbar-wrap { position: relative; background: #21262d; border-radius: 4px; height: 1.4rem; min-width: 160px; max-width: 320px; overflow: hidden; }
+    .fg-hbar { position: absolute; left: 0; top: 0; bottom: 0; background: #58a6ff; opacity: 0.35; border-radius: 4px 0 0 4px; }
+    .fg-hbar-label { position: relative; z-index: 1; font-size: 0.78rem; padding: 0 0.5rem; line-height: 1.4rem; }
   </style>
 </head>
 <body>
@@ -222,8 +240,17 @@
         <div class="fg-kpis" id="cg-kpis">Carregando...</div>
       </section>
       <section class="fg-panel-section">
-        <h2>Top Clientes por Tráfego</h2>
+        <h2>Top Clientes por Consumo de Dados</h2>
+        <div class="fg-toolbar">
+          <div class="fg-toggle-group" id="cg-top-window">
+            <button class="fg-toggle-btn" data-window-s="3600">1h</button>
+            <button class="fg-toggle-btn active" data-window-s="21600">6h</button>
+            <button class="fg-toggle-btn" data-window-s="86400">24h</button>
+            <button class="fg-toggle-btn" data-window-s="604800">7d</button>
+          </div>
+        </div>
         <div id="cg-top">Carregando...</div>
+        <div id="cg-client-detail"></div>
       </section>
       <section class="fg-panel-section">
         <h2>Sinais Suspeitos</h2>
@@ -271,7 +298,7 @@
 
         <h4>Tráfego do prefixo — entrada x saída (com faixa de baseline)</h4>
         <div class="fg-chart-box">
-          <canvas id="fg-chart-traffic" width="900" height="220"></canvas>
+          <canvas id="fg-chart-traffic" class="fg-chart-lg" width="900" height="220"></canvas>
           <div class="fg-legend">
             <span><i style="background:#58a6ff"></i> entrada (in)</span>
             <span><i style="background:#ffa657"></i> saída (out)</span>
@@ -285,7 +312,7 @@
 
         <h4>Tráfego por protocolo (histórico)</h4>
         <div class="fg-chart-box">
-          <canvas id="fg-chart-protocol" width="900" height="220"></canvas>
+          <canvas id="fg-chart-protocol" class="fg-chart-lg" width="900" height="220"></canvas>
           <div class="fg-legend">
             <span><i style="background:#58a6ff"></i> TCP</span>
             <span><i style="background:#3fb950"></i> UDP</span>
@@ -296,12 +323,13 @@
 
         <h4>Linha do tempo de ataques</h4>
         <div class="fg-chart-box">
-          <canvas id="fg-chart-timeline" width="900" height="140"></canvas>
+          <canvas id="fg-chart-timeline" class="fg-chart-sm" width="900" height="140"></canvas>
         </div>
       </section>
     </div>
   </div>
 
+  <div id="fg-chart-tooltip" class="fg-chart-tooltip" hidden></div>
   <div id="fg-toast-container"></div>
 
   <script src="/assets/flowguard.js"></script>

@@ -49,6 +49,13 @@ check_session() {
 }
 
 # print_header <http_status> — emite cabeçalho CGI (JSON) seguido de linha em branco
+#
+# "Connection: close" é essencial aqui: sem Content-Length (não dá pra
+# calcular de antemão em scripts que fazem streaming de saída) nem
+# Transfer-Encoding: chunked, um cliente HTTP/1.1 assumindo keep-alive não
+# tem como saber onde o corpo termina — o browser fica esperando o fechamento
+# da conexão, e pra respostas maiores isso já causou hangs de dezenas de
+# segundos até o timeout. Forçar o fechamento elimina a ambiguidade.
 print_header() {
   case "$1" in
     200) echo "Status: 200 OK" ;;
@@ -59,6 +66,7 @@ print_header() {
     *) echo "Status: $1" ;;
   esac
   echo "Content-Type: application/json"
+  echo "Connection: close"
   echo ""
 }
 

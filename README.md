@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.3.0**
+**Versão atual: v1.4.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -32,6 +32,13 @@ mesmo host, cada um com seu próprio socket Unix de controle:
    (`clientguard-status.sh`, `clientguard-suspicious.sh`, `clientguard-cfg.sh`)
    falam com o socket de controle do ClientGuard, mesmo padrão dos scripts do
    FlowGuard.
+6. **Gráficos interativos** — hover com crosshair/tooltip nos 3 gráficos de
+   canvas (tráfego, protocolo, timeline de ataques), preenchimento de área,
+   gap visual entre segmentos empilhados, canvas em alta resolução (HiDPI),
+   clique num ataque na timeline pula direto pro histórico filtrado da aba
+   Ataques, setas de tendência nos KPIs, barra de proporção na tabela de top
+   hosts, e correção de um bug real (header `Connection: close` ausente nas
+   respostas CGI, que deixava o gráfico de protocolo em branco).
 
 ## Estrutura
 
@@ -46,6 +53,29 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.4.0 — 2026-07-01 — Gráficos interativos e correção de bug
+- Hover com crosshair + tooltip nos 3 gráficos de canvas (tráfego do prefixo,
+  protocolo, timeline de ataques).
+- Preenchimento de área sob a linha "entrada" e sob a faixa de baseline
+  (contorno tracejado pra não sumir quando é bem menor que o pico real).
+- Gap de 2px entre segmentos do gráfico de protocolo (área empilhada).
+- Canvas em alta resolução (`devicePixelRatio`) — antes ficava borrado ao
+  esticar via CSS pra largura real do card.
+- Clique num ataque na timeline pula direto pro histórico filtrado da aba
+  Ataques (view, janela e filtro de prefixo já preenchidos).
+- Setas de tendência (▲/▼ vs. último minuto) nos KPIs de Tráfego e Pacotes/s.
+- Barra de proporção na tabela de "Top hosts no prefixo".
+- Sparklines da Visão Geral ganharam preenchimento de área e linha de
+  referência de escala.
+- Estado de "Carregando…" nos 3 gráficos, com aviso específico se a consulta
+  demorar (histórico grande pode levar até ~1 min).
+- **Bug corrigido**: `cgi-bin/lib.sh` não enviava `Connection: close` —
+  sob HTTP/1.1 sem `Content-Length`/chunked, o browser ficava esperando o
+  fechamento da conexão pra considerar o corpo completo. Não era a causa
+  principal do gráfico de protocolo ficar em branco (isso era uma consulta
+  SQL genuinamente lenta — ver nota no repositório `flowguard`), mas é uma
+  correção de HTTP correta e válida para todos os endpoints.
 
 ### v1.3.0 — 2026-07-01 — Aba ClientGuard
 - Nova aba: status, top clientes, sinais suspeitos com painel de detalhe/IA,

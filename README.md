@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.13.0**
+**Versão atual: v1.14.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -61,6 +61,17 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.14.0 — 2026-07-02 — Seção Mitigação na aba Configuração
+- Uma linha por tipo de ataque: select de estratégia (RTBH / Descartar via
+  FlowSpec / Limitar banda via FlowSpec), limiar de tamanho de pacote (só
+  `dns_amp`/`ntp_amp`) e limite de banda em Mbps. Botão "Salvar configurações
+  de mitigação" manda só os tipos realmente alterados numa única requisição
+  (mesmo padrão em lote do botão de toggles de Funções de Detecção).
+- `flowguard-attacks.sh` (novo import: `mitigation_profiles.yaml`) repassa o
+  perfil configurado pro `suggest_mitigation()`, tanto na coluna de sugestão
+  da listagem quanto no botão "Aplicar Sugestão". `flowguard-mitigation-cfg.sh`
+  (novo) expõe leitura/gravação via socket do daemon.
 
 ### v1.13.0 — 2026-07-02 — Otimiza "Aplicar novas configurações": 1 requisição em lote
 - Botão agora mostra quantas mudanças estão pendentes ("Aplicar 3

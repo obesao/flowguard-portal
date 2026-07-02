@@ -106,6 +106,13 @@
     .fg-warmode-result.fail { border-color: #f85149; }
     .fg-warmode-result pre { white-space: pre-wrap; font-size: 0.78rem; margin: 0.4rem 0 0; max-height: 200px; overflow-y: auto; }
 
+    .fg-wm-device { background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 0.8rem; margin-bottom: 0.8rem; }
+    .fg-wm-device-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+    .fg-wm-device-grid input { background: #161b22; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; padding: 0.3rem 0.5rem; width: 100%; }
+    .fg-wm-device textarea { width: 100%; background: #161b22; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; padding: 0.4rem 0.5rem; margin-top: 0.5rem; font-family: monospace; font-size: 0.82rem; min-height: 70px; }
+    .fg-wm-device label { font-size: 0.72rem; color: #8b949e; display: block; margin-bottom: 0.15rem; }
+    .fg-wm-device .fg-wm-row-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+
     .fg-spark { display: inline-flex; align-items: center; gap: 0.5rem; background: #21262d; padding: 0.4rem 0.8rem; border-radius: 6px; margin: 0 0.5rem 0.5rem 0; }
     .fg-spark-label { font-weight: bold; font-size: 0.8rem; }
     .fg-spark-value { font-size: 0.8rem; color: #8b949e; }
@@ -173,6 +180,7 @@
       <h1 style="font-size: 1.3rem; margin: 0;">FlowGuard — POX Network</h1>
       <div style="display:flex; gap:0.6rem; align-items:center;">
         <button id="fg-warmode-open-btn" class="fg-btn fg-btn-danger">🚨 Modo Guerra</button>
+        <button id="fg-warmode-cfg-open-btn" class="fg-btn" title="Configurar equipamentos do Modo Guerra">⚙️ Modo Guerra</button>
         <button id="fg-logout-btn" class="fg-btn">Sair</button>
       </div>
     </div>
@@ -186,6 +194,66 @@
         <div style="display:flex; gap:0.6rem; margin-top:1rem;">
           <button id="fg-warmode-confirm-btn" class="fg-btn fg-btn-danger">Confirmar e executar agora</button>
           <button id="fg-warmode-close-btn" class="fg-btn">Fechar</button>
+        </div>
+      </div>
+    </div>
+
+    <datalist id="fg-wm-device-types">
+      <option value="huawei_vrp">
+      <option value="a10">
+      <option value="cisco_ios">
+      <option value="cisco_xe">
+      <option value="cisco_nxos">
+      <option value="juniper_junos">
+      <option value="linux">
+    </datalist>
+
+    <div id="fg-warmode-cfg-overlay" class="fg-modal-overlay" hidden>
+      <div class="fg-modal">
+        <h2>⚙️ Configuração do Modo Guerra</h2>
+        <p class="fg-kpi-sub">Protegida por uma senha própria, separada do login do portal.</p>
+
+        <div id="fg-warmode-cfg-setup" hidden>
+          <p>Nenhuma senha configurada ainda para esta tela. Defina uma agora:</p>
+          <div class="fg-form">
+            <input type="password" id="fg-warmode-setup-pass" placeholder="nova senha (mín. 6 caracteres)">
+            <input type="password" id="fg-warmode-setup-pass2" placeholder="confirme a senha">
+            <button id="fg-warmode-setup-btn" class="fg-btn">Definir senha e continuar</button>
+          </div>
+          <p id="fg-warmode-setup-status" class="fg-error"></p>
+        </div>
+
+        <div id="fg-warmode-cfg-lock" hidden>
+          <div class="fg-form">
+            <input type="password" id="fg-warmode-unlock-pass" placeholder="senha do Modo Guerra">
+            <button id="fg-warmode-unlock-btn" class="fg-btn">Desbloquear</button>
+          </div>
+          <p id="fg-warmode-unlock-status" class="fg-error"></p>
+        </div>
+
+        <div id="fg-warmode-cfg-editor" hidden>
+          <div id="fg-warmode-cfg-devices"></div>
+          <button id="fg-warmode-add-device-btn" class="fg-btn">+ Adicionar equipamento</button>
+          <div style="display:flex; gap:0.6rem; margin-top:1rem; align-items:center;">
+            <button id="fg-warmode-save-btn" class="fg-btn fg-btn-danger">Salvar</button>
+            <button id="fg-warmode-changepass-toggle-btn" class="fg-btn">Trocar senha</button>
+            <button id="fg-warmode-lock-btn" class="fg-btn">Bloquear agora</button>
+            <span id="fg-warmode-save-status"></span>
+          </div>
+
+          <div id="fg-warmode-changepass-box" hidden style="margin-top:1rem; border-top:1px solid #30363d; padding-top:1rem;">
+            <div class="fg-form">
+              <input type="password" id="fg-warmode-old-pass" placeholder="senha atual">
+              <input type="password" id="fg-warmode-new-pass" placeholder="nova senha">
+              <input type="password" id="fg-warmode-new-pass2" placeholder="confirme a nova senha">
+              <button id="fg-warmode-changepass-btn" class="fg-btn">Trocar senha</button>
+            </div>
+            <p id="fg-warmode-changepass-status" class="fg-error"></p>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:0.6rem; margin-top:1rem;">
+          <button id="fg-warmode-cfg-close-btn" class="fg-btn">Fechar</button>
         </div>
       </div>
     </div>
@@ -359,18 +427,16 @@
           </div>
         </div>
 
-        <h4>Tráfego do prefixo — entrada x saída (com faixa de baseline)</h4>
+        <h4 id="fg-chart-traffic-title">Tráfego — entrada x saída (com faixa de baseline)</h4>
         <div class="fg-chart-box">
           <canvas id="fg-chart-traffic" class="fg-chart-lg" width="900" height="220"></canvas>
-          <div class="fg-legend">
-            <span><i style="background:#58a6ff"></i> entrada (in)</span>
-            <span><i style="background:#ffa657"></i> saída (out)</span>
-            <span><i style="background:#8b949e"></i> baseline (média, in)</span>
-            <span><i style="background:rgba(88,166,255,0.25)"></i> faixa esperada (in)</span>
-          </div>
+          <div class="fg-legend" id="fg-chart-traffic-legend"></div>
         </div>
 
-        <h4>Top hosts no prefixo (quem está consumindo mais)</h4>
+        <h4>Resumo por barramento</h4>
+        <div id="fg-chart-summary">Carregando...</div>
+
+        <h4 id="fg-chart-hosts-title">Top hosts no prefixo (quem está consumindo mais)</h4>
         <div id="flowguard-top-hosts">Carregando...</div>
 
         <h4>Tráfego por protocolo (histórico)</h4>

@@ -19,6 +19,10 @@
   var CG_CLIENT_DETAIL_ENDPOINT = "/cgi-bin/clientguard-client-detail.sh";
   var CG_BLOCK_ENDPOINT = "/cgi-bin/clientguard-block.sh";
   var WARMODE_ENDPOINT = "/cgi-bin/flowguard-warmode.sh";
+  var WARMODE_AUTH_ENDPOINT = "/cgi-bin/flowguard-warmode-auth.sh";
+  var WARMODE_CFG_ENDPOINT = "/cgi-bin/flowguard-warmode-cfg.sh";
+
+  var warmodeToken = null; // em memória só — some ao recarregar a página (relock)
 
   var PROTO_NAMES = { 6: "TCP", 17: "UDP", 1: "ICMP" };
 
@@ -46,6 +50,7 @@
     chart: {
       window: "6h",
       prefix: null,
+      prefixMeta: {},
       prefixesLoaded: false,
       _requestSeq: 0,
       _resolved: {},
@@ -835,6 +840,228 @@
     if (closeBtn) closeBtn.addEventListener("click", closeWarmodeModal);
     var confirmBtn = document.getElementById("fg-warmode-confirm-btn");
     if (confirmBtn) confirmBtn.addEventListener("click", onWarmodeConfirm);
+    initWarmodeCfg();
+  }
+
+  // --- modo guerra: configuração (protegida por senha própria) -----------
+
+  function warmodeGetJson(url) {
+    var token = encodeURIComponent(getToken());
+    var sep = url.indexOf("?") === -1 ? "?" : "&";
+    return fetch(url + sep + "token=" + token, { credentials: "same-origin" }).then(function (resp) {
+      return resp.json().then(function (data) { return { status: resp.status, data: data }; });
+    });
+  }
+
+  function warmodePostJson(url, body) {
+    var token = encodeURIComponent(getToken());
+    return fetch(url + "?token=" + token, {
+      method: "POST", credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then(function (resp) {
+      return resp.json().then(function (data) { return { status: resp.status, data: data }; });
+    });
+  }
+
+  function warmodeCfgShowStep(step) {
+    ["setup", "lock", "editor"].forEach(function (s) {
+      document.getElementById("fg-warmode-cfg-" + s).hidden = s !== step;
+    });
+  }
+
+  function openWarmodeCfgModal() {
+    document.getElementById("fg-warmode-cfg-overlay").hidden = false;
+    document.getElementById("fg-warmode-setup-status").textContent = "";
+    document.getElementById("fg-warmode-unlock-status").textContent = "";
+    document.getElementById("fg-warmode-save-status").textContent = "";
+    if (warmodeToken) {
+      loadWarmodeCfgDevices();
+      return;
+    }
+    warmodeGetJson(WARMODE_AUTH_ENDPOINT).then(function (r) {
+      if (!r.data.ok) {
+        showToast(r.data.error || "falha ao consultar configuração do Modo Guerra", "error");
+        return;
+      }
+      warmodeCfgShowStep(r.data.configured ? "lock" : "setup");
+    });
+  }
+
+  function closeWarmodeCfgModal() {
+    document.getElementById("fg-warmode-cfg-overlay").hidden = true;
+  }
+
+  function onWarmodeSetupSubmit() {
+    var p1 = document.getElementById("fg-warmode-setup-pass").value;
+    var p2 = document.getElementById("fg-warmode-setup-pass2").value;
+    var status = document.getElementById("fg-warmode-setup-status");
+    if (p1.length < 6) { status.textContent = "senha precisa de pelo menos 6 caracteres"; return; }
+    if (p1 !== p2) { status.textContent = "as senhas não coincidem"; return; }
+    warmodePostJson(WARMODE_AUTH_ENDPOINT, { action: "setup", password: p1 }).then(function (r) {
+      if (!r.data.ok) { status.textContent = r.data.error || "erro ao definir senha"; return; }
+      warmodeToken = r.data.warmode_token;
+      document.getElementById("fg-warmode-setup-pass").value = "";
+      document.getElementById("fg-warmode-setup-pass2").value = "";
+      loadWarmodeCfgDevices();
+    });
+  }
+
+  function onWarmodeUnlockSubmit() {
+    var pass = document.getElementById("fg-warmode-unlock-pass").value;
+    var status = document.getElementById("fg-warmode-unlock-status");
+    warmodePostJson(WARMODE_AUTH_ENDPOINT, { action: "unlock", password: pass }).then(function (r) {
+      if (!r.data.ok) { status.textContent = r.data.error || "senha incorreta"; return; }
+      warmodeToken = r.data.warmode_token;
+      document.getElementById("fg-warmode-unlock-pass").value = "";
+      status.textContent = "";
+      loadWarmodeCfgDevices();
+    });
+  }
+
+  function warmodeDeviceCardHtml(d) {
+    d = d || { name: "", host: "", port: 22, device_type: "", username: "", has_password: false, enable_mode: false, commands: [] };
+    return (
+      '<div class="fg-wm-device">' +
+      '<div class="fg-wm-row-top"><strong>' + (d.name ? escapeHtml(d.name) : "(novo equipamento)") +
+      '</strong><button class="fg-btn" data-action="remove-device">Remover</button></div>' +
+      '<div class="fg-wm-device-grid">' +
+      '<div><label>Nome</label><input type="text" class="fg-wm-name" value="' + escapeHtml(d.name) + '" placeholder="ex: NE8000 borda"></div>' +
+      '<div><label>Host</label><input type="text" class="fg-wm-host" value="' + escapeHtml(d.host) + '" placeholder="IP de gerência"></div>' +
+      '<div><label>Porta</label><input type="text" class="fg-wm-port" value="' + (d.port || 22) + '"></div>' +
+      '<div><label>Tipo (driver Netmiko)</label><input type="text" class="fg-wm-device-type" value="' + escapeHtml(d.device_type) +
+      '" placeholder="huawei_vrp, a10, cisco_ios..." list="fg-wm-device-types"></div>' +
+      '<div><label>Usuário</label><input type="text" class="fg-wm-username" value="' + escapeHtml(d.username) + '"></div>' +
+      '<div><label>Senha' + (d.has_password ? ' (já definida — deixe em branco pra manter)' : '') +
+      '</label><input type="password" class="fg-wm-password" placeholder="' + (d.has_password ? "••••••••" : "definir senha") + '"></div>' +
+      "</div>" +
+      '<label style="margin-top:0.5rem;"><input type="checkbox" class="fg-wm-enable-mode"' + (d.enable_mode ? " checked" : "") +
+      '> precisa de "enable" antes dos comandos</label>' +
+      '<label>Comandos (um por linha)</label>' +
+      '<textarea class="fg-wm-commands" placeholder="ex: display version">' + escapeHtml((d.commands || []).join("\n")) + "</textarea>" +
+      "</div>"
+    );
+  }
+
+  function renderWarmodeCfgDevices(devices) {
+    var el = document.getElementById("fg-warmode-cfg-devices");
+    el.innerHTML = devices.map(warmodeDeviceCardHtml).join("") ||
+      '<p class="fg-kpi-sub">Nenhum equipamento cadastrado ainda.</p>';
+  }
+
+  function loadWarmodeCfgDevices() {
+    warmodeGetJson(WARMODE_CFG_ENDPOINT + "&warmode_token=" + encodeURIComponent(warmodeToken)).then(function (r) {
+      if (r.status === 401 || !r.data.ok) {
+        warmodeToken = null;
+        warmodeCfgShowStep("lock");
+        document.getElementById("fg-warmode-unlock-status").textContent = r.data.error || "sessão expirada, desbloqueie de novo";
+        return;
+      }
+      renderWarmodeCfgDevices(r.data.devices);
+      warmodeCfgShowStep("editor");
+    });
+  }
+
+  function collectWarmodeCfgDevices() {
+    return Array.prototype.map.call(document.querySelectorAll("#fg-warmode-cfg-devices .fg-wm-device"), function (card) {
+      var commandsRaw = card.querySelector(".fg-wm-commands").value;
+      return {
+        name: card.querySelector(".fg-wm-name").value.trim(),
+        host: card.querySelector(".fg-wm-host").value.trim(),
+        port: Number(card.querySelector(".fg-wm-port").value) || 22,
+        device_type: card.querySelector(".fg-wm-device-type").value.trim(),
+        username: card.querySelector(".fg-wm-username").value.trim(),
+        password: card.querySelector(".fg-wm-password").value,
+        enable_mode: card.querySelector(".fg-wm-enable-mode").checked,
+        commands: commandsRaw.split("\n").map(function (c) { return c.trim(); }).filter(Boolean),
+      };
+    });
+  }
+
+  function onWarmodeAddDevice() {
+    document.getElementById("fg-warmode-cfg-devices").insertAdjacentHTML("beforeend", warmodeDeviceCardHtml(null));
+  }
+
+  function onWarmodeCfgDevicesClick(ev) {
+    var btn = ev.target.closest("button[data-action='remove-device']");
+    if (!btn) return;
+    btn.closest(".fg-wm-device").remove();
+  }
+
+  function onWarmodeSaveClick() {
+    var status = document.getElementById("fg-warmode-save-status");
+    var devices = collectWarmodeCfgDevices();
+    for (var i = 0; i < devices.length; i++) {
+      if (!devices[i].host || !devices[i].device_type) {
+        status.className = "fg-error";
+        status.textContent = "todo equipamento precisa de host e tipo (device_type)";
+        return;
+      }
+    }
+    warmodePostJson(WARMODE_CFG_ENDPOINT, { warmode_token: warmodeToken, devices: devices }).then(function (r) {
+      if (r.status === 401 || !r.data.ok) {
+        status.className = "fg-error";
+        status.textContent = r.data.error || "erro ao salvar";
+        if (r.status === 401) { warmodeToken = null; warmodeCfgShowStep("lock"); }
+        return;
+      }
+      status.className = "fg-ok";
+      status.textContent = "salvo.";
+      loadWarmodeCfgDevices();
+    });
+  }
+
+  function onWarmodeChangepassToggle() {
+    var box = document.getElementById("fg-warmode-changepass-box");
+    box.hidden = !box.hidden;
+  }
+
+  function onWarmodeChangepassSubmit() {
+    var oldPass = document.getElementById("fg-warmode-old-pass").value;
+    var newPass = document.getElementById("fg-warmode-new-pass").value;
+    var newPass2 = document.getElementById("fg-warmode-new-pass2").value;
+    var status = document.getElementById("fg-warmode-changepass-status");
+    if (newPass.length < 6) { status.textContent = "nova senha precisa de pelo menos 6 caracteres"; return; }
+    if (newPass !== newPass2) { status.textContent = "as senhas novas não coincidem"; return; }
+    warmodePostJson(WARMODE_AUTH_ENDPOINT, {
+      action: "change", warmode_token: warmodeToken, old_password: oldPass, new_password: newPass,
+    }).then(function (r) {
+      if (!r.data.ok) { status.textContent = r.data.error || "erro ao trocar senha"; return; }
+      status.textContent = "";
+      document.getElementById("fg-warmode-old-pass").value = "";
+      document.getElementById("fg-warmode-new-pass").value = "";
+      document.getElementById("fg-warmode-new-pass2").value = "";
+      document.getElementById("fg-warmode-changepass-box").hidden = true;
+      showToast("senha do Modo Guerra alterada", "success");
+    });
+  }
+
+  function onWarmodeLockNow() {
+    warmodeToken = null;
+    warmodeCfgShowStep("lock");
+  }
+
+  function initWarmodeCfg() {
+    var openBtn = document.getElementById("fg-warmode-cfg-open-btn");
+    if (openBtn) openBtn.addEventListener("click", openWarmodeCfgModal);
+    var closeBtn = document.getElementById("fg-warmode-cfg-close-btn");
+    if (closeBtn) closeBtn.addEventListener("click", closeWarmodeCfgModal);
+    var setupBtn = document.getElementById("fg-warmode-setup-btn");
+    if (setupBtn) setupBtn.addEventListener("click", onWarmodeSetupSubmit);
+    var unlockBtn = document.getElementById("fg-warmode-unlock-btn");
+    if (unlockBtn) unlockBtn.addEventListener("click", onWarmodeUnlockSubmit);
+    var addBtn = document.getElementById("fg-warmode-add-device-btn");
+    if (addBtn) addBtn.addEventListener("click", onWarmodeAddDevice);
+    var devicesEl = document.getElementById("fg-warmode-cfg-devices");
+    if (devicesEl) devicesEl.addEventListener("click", onWarmodeCfgDevicesClick);
+    var saveBtn = document.getElementById("fg-warmode-save-btn");
+    if (saveBtn) saveBtn.addEventListener("click", onWarmodeSaveClick);
+    var changepassToggleBtn = document.getElementById("fg-warmode-changepass-toggle-btn");
+    if (changepassToggleBtn) changepassToggleBtn.addEventListener("click", onWarmodeChangepassToggle);
+    var changepassBtn = document.getElementById("fg-warmode-changepass-btn");
+    if (changepassBtn) changepassBtn.addEventListener("click", onWarmodeChangepassSubmit);
+    var lockBtn = document.getElementById("fg-warmode-lock-btn");
+    if (lockBtn) lockBtn.addEventListener("click", onWarmodeLockNow);
   }
 
   function onWarmodeConfirm() {
@@ -1419,6 +1646,15 @@
   var SEV_ROWS = ["critical", "high", "medium", "info"];
   var CHART_BG = "#0d1117";
 
+  // paleta categórica das linhas de barramento no modo "Todos" — ordem fixa
+  // (não cosmética: é o que garante a distinção adjacente para daltonismo),
+  // validada com scripts/validate_palette.js do skill dataviz contra o
+  // surface real do app (#0d1117, modo dark): contraste >=3:1 em todas e
+  // pior ΔE adjacente de CVD 16.1 (acima do alvo de 12). Um 9º barramento
+  // nunca gera uma nova cor — cai em CHART_OTHER_COLOR ("Outros").
+  var CHART_PREFIX_COLORS = ["#58a6ff", "#ffa657", "#a371f7", "#3fb950", "#db61a2", "#39c5cf", "#d29922", "#79c0ff"];
+  var CHART_OTHER_COLOR = "#8b949e";
+
   // chartScale() desenha no espaço de pixels CSS (não nos atributos width/height
   // fixos do <canvas>) e redimensiona o backing store pelo devicePixelRatio —
   // sem isso o canvas de 900x220 fica borrado quando o CSS estica pra largura
@@ -1890,13 +2126,70 @@
   function populateChartPrefixSelect(prefixes) {
     var select = document.getElementById("fg-chart-prefix");
     if (!select || state.chart.prefixesLoaded) return;
-    select.innerHTML = prefixes
-      .map(function (p) { return '<option value="' + escapeHtml(p.prefix) + '">' + escapeHtml(p.prefix) + (p.customer ? " — " + escapeHtml(p.customer) : "") + "</option>"; })
-      .join("");
-    if (prefixes.length) {
+    var meta = {};
+    var options = prefixes.map(function (p) {
+      meta[p.prefix] = { customer: p.customer || "", capacity_mbps: p.capacity_mbps || 0 };
+      return '<option value="' + escapeHtml(p.prefix) + '">' + escapeHtml(p.prefix) + (p.customer ? " — " + escapeHtml(p.customer) : "") + "</option>";
+    });
+    select.innerHTML = '<option value="__all__">Todos os barramentos</option>' + options.join("");
+    state.chart.prefixMeta = meta;
+    // default continua sendo um prefixo individual (carrega rápido) — "Todos"
+    // fica disponível mas não é a visão inicial: em bases com tráfego pesado
+    // (ex.: prefixo sob simulação de ataque grande), a query agregada de todos
+    // os prefixos de uma vez pode levar bem mais que um prefixo isolado.
+    if (!state.chart.prefix && prefixes.length) {
       state.chart.prefix = prefixes[0].prefix;
-      state.chart.prefixesLoaded = true;
     }
+    select.value = state.chart.prefix;
+    state.chart.prefixesLoaded = true;
+  }
+
+  // legenda dos gráficos de linha é montada em JS (não estática no HTML) porque
+  // no modo "Todos" o número de itens e as cores dependem de quantos barramentos
+  // existem, e no modo individual ela ganha um item extra ("capacidade
+  // contratada") só quando o prefixo tem capacity_mbps configurado.
+  function renderChartLegend(el, items) {
+    el.innerHTML = items
+      .map(function (it) { return '<span><i style="background:' + it.color + '"></i> ' + escapeHtml(it.label) + "</span>"; })
+      .join("");
+  }
+
+  function computePeakAvg(series, key) {
+    var peak = 0, sum = 0, n = 0;
+    series.forEach(function (pt) {
+      var v = pt[key] || 0;
+      if (v > peak) peak = v;
+      sum += v;
+      n++;
+    });
+    return { peak: peak, avg: n ? sum / n : 0 };
+  }
+
+  // tabela-resumo (pico/média/% de utilização da capacidade contratada) por
+  // barramento — 1 linha no modo individual, N ordenadas por pico no modo
+  // "Todos". % usa a mesma fórmula já usada no flowguard-cli.py.
+  function renderChartSummary(el, rows) {
+    if (!rows.length) {
+      el.innerHTML = '<p class="fg-kpi-sub">Sem barramentos monitorados.</p>';
+      return;
+    }
+    rows = rows.slice().sort(function (a, b) { return b.peakBps - a.peakBps; });
+    var body = rows
+      .map(function (r) {
+        var pctStr = "—";
+        if (r.capacityMbps) {
+          var pct = (r.peakBps / 1e6 / r.capacityMbps) * 100;
+          pctStr = pct.toFixed(1) + "% de " + r.capacityMbps + " Mbps";
+        }
+        return (
+          "<tr><td>" + escapeHtml(r.prefix) + "</td><td>" + escapeHtml(r.customer || "-") + "</td><td>" +
+          fmtBps(r.peakBps) + "</td><td>" + fmtBps(r.avgBps) + "</td><td>" + pctStr + "</td></tr>"
+        );
+      })
+      .join("");
+    el.innerHTML =
+      "<table><thead><tr><th>Barramento</th><th>Cliente</th><th>Pico (in)</th><th>Média (in)</th><th>Utilização</th></tr></thead><tbody>" +
+      body + "</tbody></table>";
   }
 
   // marca um placeholder de "carregando" em cada gráfico assim que a aba é
@@ -1926,38 +2219,97 @@
   function loadCharts() {
     if (!state.chart.prefix) return;
     var windowName = state.chart.window;
+    var isAll = state.chart.prefix === "__all__";
     var requestToken = ++state.chart._requestSeq;
     state.chart._resolved = {};
     chartLoadingPlaceholders(requestToken);
+
+    var trafficTitle = document.getElementById("fg-chart-traffic-title");
+    if (trafficTitle) {
+      trafficTitle.textContent = isAll
+        ? "Tráfego de entrada por barramento — comparação"
+        : "Tráfego — entrada x saída (com faixa de baseline)";
+    }
+    var hostsTitle = document.getElementById("fg-chart-hosts-title");
+    if (hostsTitle) {
+      hostsTitle.textContent = isAll ? "Top hosts" : "Top hosts no prefixo (quem está consumindo mais)";
+    }
 
     getJson(HISTORY_ENDPOINT + "?metric=prefix&prefix=" + encodeURIComponent(state.chart.prefix) + "&window=" + windowName)
       .then(function (data) {
         if (state.chart._requestSeq !== requestToken) return;
         state.chart._resolved["fg-chart-traffic"] = true;
         var canvas = document.getElementById("fg-chart-traffic");
+        var legendEl = document.getElementById("fg-chart-traffic-legend");
+        var summaryEl = document.getElementById("fg-chart-summary");
         if (!canvas) return;
-        if (!data.ok) { drawEmpty(canvas, data.error || "erro ao carregar"); return; }
-        var series = data.series.map(function (pt) {
-          var withBaseline = { ts: pt.ts, bps_in: pt.bps_in, bps_out: pt.bps_out };
-          if (data.baseline) {
-            withBaseline.baseline_mean = data.baseline.bps_mean;
-            withBaseline.baseline_upper = data.baseline.bps_upper;
-          }
-          return withBaseline;
-        });
-        var lines = [
-          { key: "bps_in", color: "#58a6ff", label: "entrada (in)" },
-          { key: "bps_out", color: "#ffa657", label: "saída (out)" },
-        ];
-        var band = null;
-        if (data.baseline) {
-          lines.push({ key: "baseline_mean", color: "#8b949e", dashed: true, label: "baseline (média)" });
-          band = { upperKey: "baseline_upper" };
+        if (!data.ok) {
+          drawEmpty(canvas, data.error || "erro ao carregar");
+          if (legendEl) legendEl.innerHTML = "";
+          if (summaryEl) showError(summaryEl, data.error || "erro ao carregar");
+          return;
         }
-        drawLineChart(canvas, series, lines, band);
+
+        if (data.mode === "all") {
+          var prefixes = data.prefixes || [];
+          var lines = prefixes.map(function (p, i) {
+            var color = i < CHART_PREFIX_COLORS.length ? CHART_PREFIX_COLORS[i] : CHART_OTHER_COLOR;
+            return { key: p.prefix, color: color, label: p.prefix + (p.customer ? " — " + p.customer : "") };
+          });
+          drawLineChart(canvas, data.series, lines, null);
+          if (legendEl) renderChartLegend(legendEl, lines);
+          if (summaryEl) {
+            var rows = prefixes.map(function (p) {
+              var stats = computePeakAvg(data.series, p.prefix);
+              return { prefix: p.prefix, customer: p.customer, peakBps: stats.peak, avgBps: stats.avg, capacityMbps: p.capacity_mbps };
+            });
+            renderChartSummary(summaryEl, rows);
+          }
+        } else {
+          var series = data.series.map(function (pt) {
+            var withExtra = { ts: pt.ts, bps_in: pt.bps_in, bps_out: pt.bps_out };
+            if (data.baseline) {
+              withExtra.baseline_mean = data.baseline.bps_mean;
+              withExtra.baseline_upper = data.baseline.bps_upper;
+            }
+            if (data.capacity_mbps) withExtra.capacity_line = data.capacity_mbps * 1e6;
+            return withExtra;
+          });
+          var chartLines = [
+            { key: "bps_in", color: "#58a6ff", label: "entrada (in)" },
+            { key: "bps_out", color: "#ffa657", label: "saída (out)" },
+          ];
+          var legendItems = [
+            { color: "#58a6ff", label: "entrada (in)" },
+            { color: "#ffa657", label: "saída (out)" },
+          ];
+          var band = null;
+          if (data.baseline) {
+            chartLines.push({ key: "baseline_mean", color: "#8b949e", dashed: true, label: "baseline (média, in)" });
+            legendItems.push({ color: "#8b949e", label: "baseline (média, in)" });
+            band = { upperKey: "baseline_upper" };
+            legendItems.push({ color: "rgba(88,166,255,0.25)", label: "faixa esperada (in)" });
+          }
+          if (data.capacity_mbps) {
+            var capLabel = "capacidade contratada (" + data.capacity_mbps + " Mbps)";
+            chartLines.push({ key: "capacity_line", color: "#f85149", dashed: true, label: capLabel });
+            legendItems.push({ color: "#f85149", label: capLabel });
+          }
+          drawLineChart(canvas, series, chartLines, band);
+          if (legendEl) renderChartLegend(legendEl, legendItems);
+          if (summaryEl) {
+            var stats = computePeakAvg(series, "bps_in");
+            var meta = state.chart.prefixMeta[state.chart.prefix] || {};
+            renderChartSummary(summaryEl, [
+              { prefix: state.chart.prefix, customer: meta.customer, peakBps: stats.peak, avgBps: stats.avg, capacityMbps: data.capacity_mbps },
+            ]);
+          }
+        }
       });
 
-    getJson(HISTORY_ENDPOINT + "?metric=protocol&window=" + windowName).then(function (data) {
+    var prefixParam = isAll ? "" : "&prefix=" + encodeURIComponent(state.chart.prefix);
+
+    getJson(HISTORY_ENDPOINT + "?metric=protocol&window=" + windowName + prefixParam).then(function (data) {
       if (state.chart._requestSeq !== requestToken) return;
       state.chart._resolved["fg-chart-protocol"] = true;
       var canvas = document.getElementById("fg-chart-protocol");
@@ -1966,7 +2318,7 @@
       drawStackedArea(canvas, data.series, ["tcp", "udp", "icmp", "other"], ["#58a6ff", "#3fb950", "#d29922", "#8b949e"], ["TCP", "UDP", "ICMP", "Outro"]);
     });
 
-    getJson(HISTORY_ENDPOINT + "?metric=attacks&window=" + windowName).then(function (data) {
+    getJson(HISTORY_ENDPOINT + "?metric=attacks&window=" + windowName + prefixParam).then(function (data) {
       if (state.chart._requestSeq !== requestToken) return;
       state.chart._resolved["fg-chart-timeline"] = true;
       var canvas = document.getElementById("fg-chart-timeline");
@@ -1976,15 +2328,21 @@
       drawTimeline(canvas, data.attacks, windowSeconds);
     });
 
-    getJson(HISTORY_ENDPOINT + "?metric=hosts&prefix=" + encodeURIComponent(state.chart.prefix) + "&window=" + windowName)
-      .then(function (data) {
-        if (state.chart._requestSeq !== requestToken) return;
-        state.chart._resolved["flowguard-top-hosts"] = true;
-        var el = document.getElementById("flowguard-top-hosts");
-        if (!el) return;
-        if (!data.ok) { showError(el, data.error || "erro ao carregar"); return; }
-        renderTopHosts(el, data.hosts || []);
-      });
+    if (isAll) {
+      state.chart._resolved["flowguard-top-hosts"] = true;
+      var topHostsEl = document.getElementById("flowguard-top-hosts");
+      if (topHostsEl) topHostsEl.innerHTML = '<p class="fg-kpi-sub">Selecione um barramento específico para ver hosts individuais.</p>';
+    } else {
+      getJson(HISTORY_ENDPOINT + "?metric=hosts&prefix=" + encodeURIComponent(state.chart.prefix) + "&window=" + windowName)
+        .then(function (data) {
+          if (state.chart._requestSeq !== requestToken) return;
+          state.chart._resolved["flowguard-top-hosts"] = true;
+          var el = document.getElementById("flowguard-top-hosts");
+          if (!el) return;
+          if (!data.ok) { showError(el, data.error || "erro ao carregar"); return; }
+          renderTopHosts(el, data.hosts || []);
+        });
+    }
   }
 
   function renderTopHosts(el, hosts) {

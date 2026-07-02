@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.17.0**
+**Versão atual: v1.18.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -68,6 +68,32 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.18.0 — 2026-07-02 — ClientGuard: mitigação direta na borda (SSH/ACL) na aba do portal
+- Nova seção "Mitigação direta na borda (SSH/ACL)" na aba ClientGuard —
+  independente do bloqueio via FlowSpec (BGP) que já existia: reaproveita as
+  credenciais SSH já cadastradas em "⚙️ Modo Guerra" (mesmo padrão do template
+  de roteador acima, mas dirigido por sinal de detecção em vez de operador
+  escolhendo um template manualmente), sem depender da sessão BGP do FlowGuard
+  estar de pé.
+- Botão "Aplicar na borda" por linha na tabela de Sinais Suspeitos (só na view
+  "Abertos") — aplica um bloqueio de ACL pro `src_ip` daquele sinal
+  especificamente. Tabela própria de mitigações ativas/histórico com botão
+  "Reverter", e config de gatilho automático por detector (7 checkboxes,
+  desabilitados por padrão) + TTL padrão, no mesmo padrão visual/de "aplicar
+  em lote" já usado pelos toggles de detecção.
+- `cgi-bin/clientguard-edge.sh` (GET lista, POST aplica/reverte) e
+  `cgi-bin/clientguard-edge-cfg.sh` (GET/POST do gatilho automático) —
+  seguem exatamente o padrão de `clientguard-block.sh`/`clientguard-toggles.sh`
+  já existentes; só exigem a sessão normal do portal, sem a segunda senha do
+  Modo Guerra (ação mais cirúrgica, 1 IP por vez).
+- Achado real durante a validação: `client_flow_aggs` do ClientGuard já
+  acumula ~30M linhas — sob esse volume, qualquer comando de leitura pelo
+  socket (não só os novos) pode levar 10-20s pra responder quando concorre
+  com o ciclo de agregação/detecção pelo mesmo lock, estourando o timeout
+  padrão de 6s dos endpoints GET do portal. Pré-existente, mesma classe do
+  problema já corrigido no `flow_aggs` do FlowGuard (ver CHANGELOG de lá) —
+  não corrigido aqui, fora do escopo desta mudança.
 
 ### v1.17.0 — 2026-07-02 — Configuração do roteador de borda via templates
 - Novo botão "🔧 Config. Roteador" no topo, protegido pela mesma senha/sessão

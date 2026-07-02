@@ -525,6 +525,23 @@
         </div>
       </section>
       <section class="fg-panel-section">
+        <h2>Mitigação direta na borda (SSH/ACL)</h2>
+        <p class="fg-kpi-sub">Bloqueia o IP de origem direto no roteador via SSH/ACL — caminho independente do bloqueio por FlowSpec abaixo, não depende da sessão BGP com o FlowGuard estar de pé. Aplicar numa origem já mitigada só estende o TTL, não duplica regra.</p>
+        <h3 style="margin-top:0.6rem;">Gatilho automático por detector</h3>
+        <div class="fg-toggle-list" id="cg-edge-auto">Carregando...</div>
+        <div class="fg-toolbar">
+          <select id="cg-edge-default-ttl">
+            <option value="3600">TTL padrão: 1 hora</option>
+            <option value="21600">TTL padrão: 6 horas</option>
+            <option value="86400">TTL padrão: 24 horas</option>
+            <option value="2592000">TTL padrão: longa duração (30 dias)</option>
+          </select>
+          <button class="fg-btn" id="cg-edge-auto-apply-btn" disabled>Aplicar novas configurações</button>
+        </div>
+        <h3 style="margin-top:1rem;">Mitigações ativas / histórico</h3>
+        <div id="cg-edge-list">Carregando...</div>
+      </section>
+      <section class="fg-panel-section">
         <h2>Bloquear IP manualmente</h2>
         <p class="fg-kpi-sub">Bloqueia todo o tráfego de origem desse cliente via FlowSpec (BGP) — mesmo mecanismo do FlowGuard, pedido daqui pra facilitar quando o cliente é o problema.</p>
         <div class="fg-toolbar">

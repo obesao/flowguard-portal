@@ -21,6 +21,8 @@
   var CG_CLIENT_DETAIL_ENDPOINT = "/cgi-bin/clientguard-client-detail.sh";
   var CG_BLOCK_ENDPOINT = "/cgi-bin/clientguard-block.sh";
   var CG_TOGGLES_ENDPOINT = "/cgi-bin/clientguard-toggles.sh";
+  var CG_EDGE_ENDPOINT = "/cgi-bin/clientguard-edge.sh";
+  var CG_EDGE_CFG_ENDPOINT = "/cgi-bin/clientguard-edge-cfg.sh";
   var WARMODE_ENDPOINT = "/cgi-bin/flowguard-warmode.sh";
   var WARMODE_AUTH_ENDPOINT = "/cgi-bin/flowguard-warmode-auth.sh";
   var WARMODE_CFG_ENDPOINT = "/cgi-bin/flowguard-warmode-cfg.sh";
@@ -90,6 +92,8 @@
     cgTopWindow: 21600,
     cgTogglesLoaded: {},
     cgTogglesPending: {},
+    cgEdgeAutoLoaded: {},
+    cgEdgeAutoPending: {},
     fgTogglesLoaded: {},
     fgTogglesPending: {},
     fgMitigationLoaded: {},
@@ -1774,13 +1778,16 @@
         var resolveBtn = state.cgSuspiciousView === "open"
           ? '<button class="fg-btn" data-action="resolve">Resolver</button> '
           : "";
+        var edgeBtn = state.cgSuspiciousView === "open"
+          ? '<button class="fg-btn" data-action="edge-apply" title="Bloquear src_ip direto na borda via SSH/ACL">Aplicar na borda</button> '
+          : "";
         return (
-          '<tr data-signal-id="' + r.id + '">' +
+          '<tr data-signal-id="' + r.id + '" data-src-ip="' + escapeHtml(r.src_ip) + '">' +
           "<td>" + escapeHtml(r.src_ip) + "</td><td>" + escapeHtml(r.customer_prefix || "-") + "</td><td>" +
           escapeHtml(CG_SIGNAL_LABELS[r.signal_type] || r.signal_type) + "</td><td>" +
           Math.round((r.confidence || 0) * 100) + "%</td><td>" + fmtDateTime(r.ts_detected) + "</td><td>" +
           fmtDateTime(r.ts_last_seen) + "</td>" +
-          "<td>" + resolveBtn + '<button class="fg-btn" data-action="detail">Detalhes</button></td></tr>'
+          "<td>" + resolveBtn + edgeBtn + '<button class="fg-btn" data-action="detail">Detalhes</button></td></tr>'
         );
       })
       .join("");
@@ -1847,6 +1854,20 @@
         showToast(resp.ok ? "Sinal marcado como resolvido" : resp.error, resp.ok ? "success" : "error");
         loadClientGuardSuspicious();
       });
+    }
+
+    if (action === "edge-apply") {
+      var srcIp = row.getAttribute("data-src-ip");
+      if (!window.confirm("Bloquear " + srcIp + " direto na borda via SSH/ACL?")) return;
+      btn.disabled = true;
+      postJson(CG_EDGE_ENDPOINT, { ip: srcIp, signal_id: signalId })
+        .then(function (resp) {
+          showToast(resp.ok
+            ? (resp.already_active ? srcIp + " já tinha mitigação ativa (TTL renovado)" : srcIp + " bloqueado na borda")
+            : (resp.error || "falha ao aplicar mitigação"), resp.ok ? "success" : "error");
+          loadCgEdgeList();
+        })
+        .finally(function () { btn.disabled = false; });
     }
   }
 
@@ -2110,6 +2131,128 @@
     });
   }
 
+  // --- ClientGuard: mitigação direta na borda (SSH/ACL) --------------------
+
+  function renderCgEdgeAuto(autoMitigate) {
+    var el = document.getElementById("cg-edge-auto");
+    if (!el) return;
+    el.innerHTML = Object.keys(CG_SIGNAL_LABELS).map(function (key) {
+      var enabled = autoMitigate[key] === true; // ausente/false = desabilitado (opt-in, ao contrário dos toggles de detecção)
+      var id = "cg-edge-auto-" + key;
+      return (
+        '<div class="fg-toggle-item' + (enabled ? "" : " disabled") + '" data-key="' + key + '">' +
+        '<input type="checkbox" id="' + id + '"' + (enabled ? " checked" : "") + ">" +
+        '<label for="' + id + '"><div class="fg-toggle-name">' + escapeHtml(CG_SIGNAL_LABELS[key]) + "</div>" +
+        '<div class="fg-toggle-desc">dispara mitigação na borda sozinho, sem clique, a cada sinal novo desse tipo</div></label></div>'
+      );
+    }).join("");
+  }
+
+  function loadCgEdgeAuto() {
+    if (!getToken()) return;
+    getJson(CG_EDGE_CFG_ENDPOINT).then(function (data) {
+      if (!data.ok) {
+        showError(document.getElementById("cg-edge-auto"), data.error || "erro desconhecido");
+        return;
+      }
+      state.cgEdgeAutoLoaded = data.config.auto_mitigate || {};
+      state.cgEdgeAutoPending = {};
+      updateTogglesApplyBtn("cg-edge-auto-apply-btn", 0);
+      renderCgEdgeAuto(state.cgEdgeAutoLoaded);
+      var ttlSelect = document.getElementById("cg-edge-default-ttl");
+      if (ttlSelect && data.config.default_ttl_s) ttlSelect.value = String(data.config.default_ttl_s);
+    }).catch(function (err) {
+      showError(document.getElementById("cg-edge-auto"), "falha ao consultar configuração de mitigação na borda");
+      console.error("flowguard.js:", err);
+    });
+  }
+
+  function onCgEdgeAutoChange(ev) {
+    var checkbox = ev.target.closest("input[type='checkbox']");
+    if (!checkbox) return;
+    var item = checkbox.closest(".fg-toggle-item[data-key]");
+    if (!item) return;
+    var key = item.getAttribute("data-key");
+    var value = checkbox.checked;
+    item.classList.toggle("disabled", !value);
+    var original = state.cgEdgeAutoLoaded[key] === true;
+    if (value === original) {
+      delete state.cgEdgeAutoPending[key];
+    } else {
+      state.cgEdgeAutoPending[key] = value;
+    }
+    updateTogglesApplyBtn("cg-edge-auto-apply-btn", Object.keys(state.cgEdgeAutoPending).length);
+  }
+
+  function onCgEdgeAutoApplyClick() {
+    var pending = state.cgEdgeAutoPending;
+    if (!Object.keys(pending).length) return;
+    var btn = document.getElementById("cg-edge-auto-apply-btn");
+    btn.disabled = true;
+    var ttlSelect = document.getElementById("cg-edge-default-ttl");
+    postJson(CG_EDGE_CFG_ENDPOINT, { auto_mitigate: pending, default_ttl_s: Number(ttlSelect.value) })
+      .then(function (resp) {
+        showToast(resp.ok ? "Configurações aplicadas" : (resp.error || "falha ao aplicar configurações"),
+                  resp.ok ? "success" : "error");
+        loadCgEdgeAuto();
+      })
+      .catch(function (err) {
+        showToast("falha ao aplicar configurações", "error");
+        console.error("flowguard.js:", err);
+        btn.disabled = false;
+      });
+  }
+
+  function renderCgEdgeList(data) {
+    var el = document.getElementById("cg-edge-list");
+    if (!el) return;
+    if (!data.ok) {
+      showError(el, data.error || "erro desconhecido");
+      return;
+    }
+    if (!data.mitigations.length) {
+      el.innerHTML = '<p class="fg-ok">Nenhuma mitigação de borda registrada.</p>';
+      return;
+    }
+    var statusLabels = { active: "ativa", reverted: "revertida", failed: "falhou" };
+    var rows = data.mitigations
+      .map(function (m) {
+        var revertBtn = m.status === "active"
+          ? '<button class="fg-btn" data-action="edge-revert">Reverter</button>'
+          : "-";
+        var expira = m.status === "active" && m.ts_expires ? new Date(m.ts_expires * 1000).toLocaleString() : "-";
+        return (
+          '<tr data-mitigation-id="' + m.id + '"><td>' + escapeHtml(m.src_ip) + "</td><td>" +
+          (statusLabels[m.status] || m.status) + "</td><td>" + (m.trigger_type === "auto" ? "automático" : "manual") +
+          "</td><td>" + fmtDateTime(m.ts_applied) + "</td><td>" + expira + "</td><td>" + revertBtn + "</td></tr>"
+        );
+      })
+      .join("");
+    el.innerHTML =
+      "<table><thead><tr><th>src_ip</th><th>Status</th><th>Gatilho</th><th>Aplicada em</th><th>Expira</th>" +
+      "<th></th></tr></thead><tbody>" + rows + "</tbody></table>";
+  }
+
+  function loadCgEdgeList() {
+    if (!getToken()) return;
+    getJson(CG_EDGE_ENDPOINT).then(renderCgEdgeList).catch(function (err) {
+      showError(document.getElementById("cg-edge-list"), "falha ao consultar mitigações de borda");
+      console.error("flowguard.js:", err);
+    });
+  }
+
+  function onCgEdgeListClick(ev) {
+    var btn = ev.target.closest("button[data-action='edge-revert']");
+    if (!btn) return;
+    var row = btn.closest("tr[data-mitigation-id]");
+    if (!row) return;
+    btn.disabled = true;
+    postJson(CG_EDGE_ENDPOINT, { id: Number(row.getAttribute("data-mitigation-id")) }).then(function (resp) {
+      showToast(resp.ok ? "Mitigação revertida" : resp.error, resp.ok ? "success" : "error");
+      loadCgEdgeList();
+    });
+  }
+
   function onCgClearSuspiciousClick() {
     if (!window.confirm("Marcar TODOS os sinais suspeitos abertos como resolvidos? Isso não pode ser desfeito (histórico continua na aba Resolvidos).")) {
       return;
@@ -2128,6 +2271,8 @@
     loadClientGuardSuspicious();
     loadCgBlocks();
     loadCgToggles();
+    loadCgEdgeAuto();
+    loadCgEdgeList();
   }
 
   // --- gráficos (canvas, sem dependência externa) -------------------------
@@ -3473,7 +3618,16 @@
     var cgClearSuspiciousBtn = document.getElementById("cg-clear-suspicious-btn");
     if (cgClearSuspiciousBtn) cgClearSuspiciousBtn.addEventListener("click", onCgClearSuspiciousClick);
 
-    if (getToken()) { loadClientGuardCfg(); loadCgBlocks(); }
+    var cgEdgeAutoEl = document.getElementById("cg-edge-auto");
+    if (cgEdgeAutoEl) cgEdgeAutoEl.addEventListener("change", onCgEdgeAutoChange);
+
+    var cgEdgeAutoApplyBtn = document.getElementById("cg-edge-auto-apply-btn");
+    if (cgEdgeAutoApplyBtn) cgEdgeAutoApplyBtn.addEventListener("click", onCgEdgeAutoApplyClick);
+
+    var cgEdgeListEl = document.getElementById("cg-edge-list");
+    if (cgEdgeListEl) cgEdgeListEl.addEventListener("click", onCgEdgeListClick);
+
+    if (getToken()) { loadClientGuardCfg(); loadCgBlocks(); loadCgEdgeAuto(); loadCgEdgeList(); }
 
     initChartControls();
 

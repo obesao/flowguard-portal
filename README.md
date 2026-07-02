@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.5.0**
+**Versão atual: v1.6.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -53,6 +53,11 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.6.0 — 2026-07-02 — Indicador de status BGP (Up/Down) na Visão Geral
+- Novo KPI "BGP (ExaBGP)" ao lado do KPI "Daemon": ponto verde "Up" com o IP
+  do peer, ou vermelho "Down/Idle" com o motivo — `flowguard-status.sh` passa
+  a consultar o comando `bgp_status` do daemon.
 
 ### v1.5.0 — 2026-07-01 — Top Clientes por Consumo de Dados
 - Seção "Top Clientes por Tráfego" da aba ClientGuard virou "Top Clientes por

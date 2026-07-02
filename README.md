@@ -1,8 +1,8 @@
-# Portal POX Network
+# Portal do Provedor
 
 **Versão atual: v1.3.0**
 
-Dashboard web para operação de rede da POX Network — login único, servido via
+Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
 Hoje integra dois sistemas de detecção que rodam como daemons independentes no
 mesmo host, cada um com seu próprio socket Unix de controle:

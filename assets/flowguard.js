@@ -799,14 +799,53 @@
     confirmBtn.disabled = withoutCommands.length === data.devices.length;
   }
 
-  function openWarmodeModal() {
-    var overlay = document.getElementById("fg-warmode-overlay");
+  function warmodeExecShowStep(step) {
+    ["needs-setup", "lock", "content"].forEach(function (s) {
+      document.getElementById("fg-warmode-exec-" + s).hidden = s !== step;
+    });
+  }
+
+  function loadWarmodeExecDevices() {
     document.getElementById("fg-warmode-results").innerHTML = "";
     document.getElementById("fg-warmode-devices").textContent = "Carregando...";
-    overlay.hidden = false;
-    getJson(WARMODE_ENDPOINT).then(renderWarmodeDevices).catch(function (err) {
-      showError(document.getElementById("fg-warmode-devices"), "falha ao consultar equipamentos");
-      console.error("flowguard.js:", err);
+    warmodeGetJson(WARMODE_ENDPOINT + "?warmode_token=" + encodeURIComponent(warmodeToken)).then(function (r) {
+      if (r.status === 401 || !r.data.ok) {
+        warmodeToken = null;
+        warmodeExecShowStep("lock");
+        document.getElementById("fg-warmode-exec-unlock-status").textContent = r.data.error || "sessão expirada, desbloqueie de novo";
+        return;
+      }
+      renderWarmodeDevices(r.data);
+    });
+  }
+
+  function openWarmodeModal() {
+    document.getElementById("fg-warmode-overlay").hidden = false;
+    document.getElementById("fg-warmode-exec-unlock-status").textContent = "";
+    if (warmodeToken) {
+      warmodeExecShowStep("content");
+      loadWarmodeExecDevices();
+      return;
+    }
+    warmodeGetJson(WARMODE_AUTH_ENDPOINT).then(function (r) {
+      if (!r.data.ok) {
+        showToast(r.data.error || "falha ao consultar configuração do Modo Guerra", "error");
+        return;
+      }
+      warmodeExecShowStep(r.data.configured ? "lock" : "needs-setup");
+    });
+  }
+
+  function onWarmodeExecUnlockSubmit() {
+    var pass = document.getElementById("fg-warmode-exec-unlock-pass").value;
+    var status = document.getElementById("fg-warmode-exec-unlock-status");
+    warmodePostJson(WARMODE_AUTH_ENDPOINT, { action: "unlock", password: pass }).then(function (r) {
+      if (!r.data.ok) { status.textContent = r.data.error || "senha incorreta"; return; }
+      warmodeToken = r.data.warmode_token;
+      document.getElementById("fg-warmode-exec-unlock-pass").value = "";
+      status.textContent = "";
+      warmodeExecShowStep("content");
+      loadWarmodeExecDevices();
     });
   }
 
@@ -840,6 +879,8 @@
     if (closeBtn) closeBtn.addEventListener("click", closeWarmodeModal);
     var confirmBtn = document.getElementById("fg-warmode-confirm-btn");
     if (confirmBtn) confirmBtn.addEventListener("click", onWarmodeConfirm);
+    var execUnlockBtn = document.getElementById("fg-warmode-exec-unlock-btn");
+    if (execUnlockBtn) execUnlockBtn.addEventListener("click", onWarmodeExecUnlockSubmit);
     initWarmodeCfg();
   }
 
@@ -1068,10 +1109,16 @@
     var btn = document.getElementById("fg-warmode-confirm-btn");
     btn.disabled = true;
     document.getElementById("fg-warmode-results").innerHTML = '<p class="fg-kpi-sub">Executando em paralelo em todos os equipamentos...</p>';
-    postJson(WARMODE_ENDPOINT, {})
-      .then(function (resp) {
-        renderWarmodeResults(resp);
-        showToast(resp.ok ? "Modo Guerra executado" : resp.error, resp.ok ? "success" : "error");
+    warmodePostJson(WARMODE_ENDPOINT, { warmode_token: warmodeToken })
+      .then(function (r) {
+        if (r.status === 401) {
+          warmodeToken = null;
+          warmodeExecShowStep("lock");
+          document.getElementById("fg-warmode-exec-unlock-status").textContent = r.data.error || "sessão expirada, desbloqueie de novo";
+          return;
+        }
+        renderWarmodeResults(r.data);
+        showToast(r.data.ok ? "Modo Guerra executado" : r.data.error, r.data.ok ? "success" : "error");
       })
       .catch(function (err) {
         showError(document.getElementById("fg-warmode-results"), "falha ao executar");

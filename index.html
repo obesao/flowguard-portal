@@ -188,11 +188,30 @@
     <div id="fg-warmode-overlay" class="fg-modal-overlay" hidden>
       <div class="fg-modal">
         <h2 style="color:#f85149;">🚨 Modo Guerra</h2>
-        <p class="fg-kpi-sub">Executa os comandos configurados via SSH, em paralelo, em todos os equipamentos abaixo — reais, agora, sem confirmação adicional depois do próximo clique.</p>
-        <div id="fg-warmode-devices">Carregando...</div>
-        <div id="fg-warmode-results"></div>
+        <p class="fg-kpi-sub">Protegido pela mesma senha da configuração do Modo Guerra.</p>
+
+        <div id="fg-warmode-exec-needs-setup" hidden>
+          <p class="fg-error">Nenhuma senha do Modo Guerra configurada ainda. Defina uma em "⚙️ Modo Guerra" antes de executar.</p>
+        </div>
+
+        <div id="fg-warmode-exec-lock" hidden>
+          <div class="fg-form">
+            <input type="password" id="fg-warmode-exec-unlock-pass" placeholder="senha do Modo Guerra">
+            <button id="fg-warmode-exec-unlock-btn" class="fg-btn">Desbloquear</button>
+          </div>
+          <p id="fg-warmode-exec-unlock-status" class="fg-error"></p>
+        </div>
+
+        <div id="fg-warmode-exec-content" hidden>
+          <p class="fg-kpi-sub">Executa os comandos configurados via SSH, em paralelo, em todos os equipamentos abaixo — reais, agora, sem confirmação adicional depois do próximo clique.</p>
+          <div id="fg-warmode-devices">Carregando...</div>
+          <div id="fg-warmode-results"></div>
+          <div style="display:flex; gap:0.6rem; margin-top:1rem;">
+            <button id="fg-warmode-confirm-btn" class="fg-btn fg-btn-danger">Confirmar e executar agora</button>
+          </div>
+        </div>
+
         <div style="display:flex; gap:0.6rem; margin-top:1rem;">
-          <button id="fg-warmode-confirm-btn" class="fg-btn fg-btn-danger">Confirmar e executar agora</button>
           <button id="fg-warmode-close-btn" class="fg-btn">Fechar</button>
         </div>
       </div>

@@ -330,6 +330,16 @@
       ? '<span class="fg-dot fg-dot-up"></span>ativo'
       : '<span class="fg-dot fg-dot-down"></span>indisponível';
     var daemonSub = daemon.alive ? "uptime " + fmtUptime(daemon.uptime_s) + " · pid " + daemon.pid : "socket não respondeu";
+
+    var bgp = data.bgp || {};
+    var bgpUp = bgp.peer_state === "up";
+    var bgpHtml = bgpUp
+      ? '<span class="fg-dot fg-dot-up"></span>Up'
+      : '<span class="fg-dot fg-dot-down"></span>Down/Idle';
+    var bgpSub = bgp.peer_ip
+      ? (bgpUp ? "peer " + bgp.peer_ip : (bgp.detail || bgp.reason || "peer " + bgp.peer_ip))
+      : "";
+
     var bpsTrend = kpiTrend("bps", s.bps);
     var ppsTrend = kpiTrend("pps", s.pps);
 
@@ -338,6 +348,7 @@
       kpiCard("Pacotes/s", Number(s.pps).toLocaleString("pt-BR"), "", ppsTrend) +
       kpiCard("Ataques Ativos", s.active_attacks, s.active_attacks > 0 ? "requer atenção" : "tudo normal") +
       kpiCard("Regras FlowSpec", s.active_rules, "") +
+      kpiCard("BGP (ExaBGP)", bgpHtml, bgpSub) +
       kpiCard("Daemon", daemonHtml, daemonSub);
 
     updateAttacksBadge(s.active_attacks);

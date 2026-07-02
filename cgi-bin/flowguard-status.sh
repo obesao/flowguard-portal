@@ -43,9 +43,12 @@ try:
     ping = control.send_command(cfg["daemon"]["socket"], {"cmd": "status"}, timeout=1.5)
     daemon = {"alive": bool(ping.get("ok")), "pid": ping.get("pid"), "uptime_s": ping.get("uptime_s")}
 
+    bgp_resp = control.send_command(cfg["daemon"]["socket"], {"cmd": "bgp_status"}, timeout=1.5)
+    bgp = bgp_resp if bgp_resp.get("ok") else {"ok": False, "peer_state": "down", "detail": bgp_resp.get("error")}
+
     print(json.dumps({
         "ok": True, "stats": stats, "top_prefixes": top,
-        "protocol_series": protocol_series, "daemon": daemon,
+        "protocol_series": protocol_series, "daemon": daemon, "bgp": bgp,
     }))
 except Exception as exc:
     print(json.dumps({"ok": False, "error": str(exc)}))

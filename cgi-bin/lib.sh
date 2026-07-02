@@ -7,6 +7,13 @@ SESSIONS_DIR="$PORTAL_ROOT/.sessions"
 mkdir -p "$SESSIONS_DIR"
 chmod 700 "$SESSIONS_DIR"
 
+# segunda camada de sessão, só pra desbloquear a config do Modo Guerra (senha
+# própria, separada do login do portal) — mesmo mecanismo de arquivo-por-hash,
+# diretório e TTL próprios (bem mais curto, ver flowguard-warmode-auth.sh)
+WARMODE_SESSIONS_DIR="$PORTAL_ROOT/.warmode_sessions"
+mkdir -p "$WARMODE_SESSIONS_DIR"
+chmod 700 "$WARMODE_SESSIONS_DIR"
+
 # urldecode <string> — sob dash (o /bin/sh real usado pelo httpd), printf '%b'
 # não decodifica \xHH (é extensão do bash, não POSIX) — silenciosamente devolvia
 # o valor cru sempre que um parâmetro tinha "%XX" (ex: "/" em prefix=X%2F24).
@@ -32,12 +39,14 @@ read_post_body() {
   fi
 }
 
-# check_session <token> — valida sessão por hash de arquivo em $SESSIONS_DIR
-check_session() {
-  token="$1"
+# check_session_in <dir> <token> — valida sessão por hash de arquivo em <dir>
+# (usada por check_session e check_warmode_session, cada uma com seu diretório)
+check_session_in() {
+  dir="$1"
+  token="$2"
   [ -n "$token" ] || return 1
   hash=$(printf '%s' "$token" | sha256sum | cut -d' ' -f1)
-  session_file="$SESSIONS_DIR/$hash"
+  session_file="$dir/$hash"
   [ -f "$session_file" ] || return 1
   expiry=$(cat "$session_file")
   now=$(date +%s)
@@ -46,6 +55,28 @@ check_session() {
     return 1
   fi
   return 0
+}
+
+# check_session <token> — sessão normal do portal (login usuário/senha)
+check_session() {
+  check_session_in "$SESSIONS_DIR" "$1"
+}
+
+# check_warmode_session <token> — segunda camada, só pra config do Modo Guerra
+check_warmode_session() {
+  check_session_in "$WARMODE_SESSIONS_DIR" "$1"
+}
+
+# issue_session_in <dir> <ttl_seconds> — cria uma sessão nova em <dir>, ecoa o token
+issue_session_in() {
+  dir="$1"
+  ttl="$2"
+  token=$(head -c 32 /dev/urandom | sha256sum | cut -d' ' -f1)
+  hash=$(printf '%s' "$token" | sha256sum | cut -d' ' -f1)
+  expiry=$(($(date +%s) + ttl))
+  echo "$expiry" > "$dir/$hash"
+  chmod 600 "$dir/$hash"
+  printf '%s' "$token"
 }
 
 # print_header <http_status> — emite cabeçalho CGI (JSON) seguido de linha em branco

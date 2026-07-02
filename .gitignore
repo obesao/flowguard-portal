@@ -1,2 +1,4 @@
 cgi-bin/.sessions/
 cgi-bin/.credentials
+cgi-bin/.warmode_sessions/
+cgi-bin/.warmode_credentials

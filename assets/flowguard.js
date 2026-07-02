@@ -950,7 +950,7 @@
   }
 
   function loadWarmodeCfgDevices() {
-    warmodeGetJson(WARMODE_CFG_ENDPOINT + "&warmode_token=" + encodeURIComponent(warmodeToken)).then(function (r) {
+    warmodeGetJson(WARMODE_CFG_ENDPOINT + "?warmode_token=" + encodeURIComponent(warmodeToken)).then(function (r) {
       if (r.status === 401 || !r.data.ok) {
         warmodeToken = null;
         warmodeCfgShowStep("lock");

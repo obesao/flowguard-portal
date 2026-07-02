@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.8.0**
+**Versão atual: v1.9.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -53,6 +53,16 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.9.0 — 2026-07-02 — Configuração do Modo Guerra protegida por senha própria
+- Botão "⚙️ Modo Guerra" abre um editor de equipamentos (host, porta, tipo,
+  usuário, senha, comandos) — mas atrás de uma segunda senha, separada do
+  login do portal: primeiro acesso pede pra definir; depois disso, sempre
+  pede a senha antes de mostrar qualquer coisa. Sessão desse desbloqueio
+  dura 15min e some se recarregar a página; dá pra trocar a senha (com a
+  atual) e bloquear manualmente a qualquer momento.
+- Senha nunca é reexibida — editar um equipamento sem mexer no campo senha
+  mantém a já salva.
 
 ### v1.8.0 — 2026-07-02 — Botão "Modo Guerra"
 - Botão vermelho fixo no topo (qualquer aba) abre um modal listando os

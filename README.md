@@ -1,5 +1,7 @@
 # Portal POX Network
 
+**Versão atual: v1.3.0**
+
 Dashboard web para operação de rede da POX Network — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
 Hoje integra dois sistemas de detecção que rodam como daemons independentes no
@@ -45,12 +47,12 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 
 ## Changelog
 
-### 2026-07-01 — Aba ClientGuard
+### v1.3.0 — 2026-07-01 — Aba ClientGuard
 - Nova aba: status, top clientes, sinais suspeitos com painel de detalhe/IA,
   CRUD de redes de clientes e whitelist.
 - Publicado no GitHub.
 
-### 2026-07-01 — Refinamentos de Ataques/Gráficos
+### v1.2.0 — 2026-07-01 — Refinamentos de Ataques/Gráficos
 - Janela de tempo selecionável no histórico de ataques.
 - Detalhe de ataque: resumo, métricas por porta, linha do tempo.
 - Botão Fechar nos painéis de detalhe; correção do painel sendo apagado pelo
@@ -60,6 +62,6 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 - Mostra host `/32` atacado/consumindo, não só o `/24`; correção de urldecode.
 - Login com usuário/senha no lugar do token colado manualmente.
 
-### 2026-06-30 — Snapshot inicial
+### v1.0.0 — 2026-06-30 — Snapshot inicial
 - Dashboard com abas, KPIs, histórico de ataques, gráficos, CRUD de config e
   integração com o socket de controle do FlowGuard.

@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.11.0**
+**Versão atual: v1.13.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -61,6 +61,25 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.13.0 — 2026-07-02 — Otimiza "Aplicar novas configurações": 1 requisição em lote
+- Botão agora mostra quantas mudanças estão pendentes ("Aplicar 3
+  alterações") e some/reaparece corretamente se o usuário desmarcar e
+  remarcar de volta ao valor já salvo (a chave sai da lista de pendências —
+  evita mandar uma "mudança" que não muda nada).
+- Aplicar manda 1 requisição `{ toggles: {...} }` com todas as mudanças de
+  uma vez, em vez de 1 requisição por checkbox em paralelo. Corrige uma race
+  condition real do lado do ClientGuard (socket atende em threads de
+  verdade — duas requisições concorrentes podiam intercalar leitura/escrita
+  de `toggles.yaml` e perder uma mudança) e reduz custo do lado do FlowGuard.
+  `clientguard-toggles.sh`/`flowguard-toggles.sh` aceitam o novo formato em
+  lote além do `{ key, value }` de antes.
+
+### v1.12.0 — 2026-07-02 — Botão "Aplicar novas configurações" nos toggles
+- Checkbox de função/detector deixou de aplicar na hora — agora só marca a
+  mudança como pendente (feedback visual imediato) até o usuário clicar em
+  "Aplicar novas configurações", nas duas telas (ClientGuard e FlowGuard).
+  Permite mexer em várias funções de uma vez e confirmar tudo junto.
 
 ### v1.11.0 — 2026-07-02 — Configurações do FlowGuard: liga/desliga tipos de ataque + limpar ativos
 - Nova seção "Funções de Detecção" na aba Configuração: um checkbox por tipo

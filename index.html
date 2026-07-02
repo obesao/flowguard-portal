@@ -86,6 +86,7 @@
     .fg-sev-info { color: #8b949e; }
 
     .fg-btn { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; padding: 0.2rem 0.6rem; cursor: pointer; }
+    .fg-btn:disabled { opacity: 0.5; cursor: default; }
     .fg-btn:hover { background: #30363d; }
     .fg-btn-danger { background: #f85149; color: #0d1117; border-color: #f85149; font-weight: bold; }
     .fg-btn-danger:hover { background: #ff7b72; }
@@ -379,6 +380,9 @@
         <h2>Funções de Detecção</h2>
         <p class="fg-kpi-sub">Liga/desliga cada tipo de ataque detectado individualmente. Desabilitar não fecha ataques já ativos, só para de abrir/atualizar novos a partir de agora.</p>
         <div class="fg-toggle-list" id="fg-toggles">Carregando...</div>
+        <div class="fg-toolbar">
+          <button class="fg-btn" id="fg-toggles-apply-btn" disabled>Aplicar novas configurações</button>
+        </div>
       </section>
       <section class="fg-panel-section">
         <h2>Configuração</h2>
@@ -420,6 +424,9 @@
         <h2>Configurações — Funções do ClientGuard</h2>
         <p class="fg-kpi-sub">Liga/desliga cada detector e a explicação por IA individualmente. Desabilitar não apaga sinais já abertos, só para de gerar novos a partir de agora.</p>
         <div class="fg-toggle-list" id="cg-toggles">Carregando...</div>
+        <div class="fg-toolbar">
+          <button class="fg-btn" id="cg-toggles-apply-btn" disabled>Aplicar novas configurações</button>
+        </div>
       </section>
       <section class="fg-panel-section">
         <h2>Bloquear IP manualmente</h2>

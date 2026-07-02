@@ -73,6 +73,8 @@
     cgSuspiciousView: "open",
     cgSuspicious: [],
     cgTopWindow: 21600,
+    cgTogglesPending: {},
+    fgTogglesPending: {},
   };
 
   function getToken() {
@@ -1731,6 +1733,9 @@
         showError(document.getElementById("cg-toggles"), data.error || "erro desconhecido");
         return;
       }
+      state.cgTogglesPending = {};
+      var applyBtn = document.getElementById("cg-toggles-apply-btn");
+      if (applyBtn) applyBtn.disabled = true;
       renderCgToggles(data.toggles);
     }).catch(function (err) {
       showError(document.getElementById("cg-toggles"), "falha ao consultar configurações do ClientGuard");
@@ -1738,6 +1743,9 @@
     });
   }
 
+  // Checkbox só marca a mudança como pendente (feedback visual imediato) — o valor só
+  // é enviado ao daemon quando o usuário clica em "Aplicar novas configurações", pra
+  // permitir mexer em várias funções de uma vez e confirmar tudo junto.
   function onCgTogglesChange(ev) {
     var checkbox = ev.target.closest("input[type='checkbox']");
     if (!checkbox) return;
@@ -1745,16 +1753,33 @@
     if (!item) return;
     var key = item.getAttribute("data-key");
     var value = checkbox.checked;
-    checkbox.disabled = true;
-    postJson(CG_TOGGLES_ENDPOINT, { key: key, value: value }).then(function (resp) {
-      if (resp.ok) {
-        item.classList.toggle("disabled", !value);
-        showToast(value ? "Função habilitada" : "Função desabilitada", "success");
+    item.classList.toggle("disabled", !value);
+    state.cgTogglesPending[key] = value;
+    var applyBtn = document.getElementById("cg-toggles-apply-btn");
+    if (applyBtn) applyBtn.disabled = false;
+  }
+
+  function onCgTogglesApplyClick() {
+    var pending = state.cgTogglesPending;
+    var keys = Object.keys(pending);
+    if (!keys.length) return;
+    var btn = document.getElementById("cg-toggles-apply-btn");
+    btn.disabled = true;
+    Promise.all(keys.map(function (key) {
+      return postJson(CG_TOGGLES_ENDPOINT, { key: key, value: pending[key] });
+    })).then(function (responses) {
+      var failed = responses.filter(function (r) { return !r || !r.ok; });
+      if (failed.length) {
+        showToast(failed.length + " de " + keys.length + " função(ões) falharam ao aplicar", "error");
       } else {
-        checkbox.checked = !value; // reverte o checkbox visualmente se o backend recusou
-        showToast(resp.error || "falha ao alterar função", "error");
+        showToast("Configurações aplicadas", "success");
       }
-    }).finally(function () { checkbox.disabled = false; });
+      loadCgToggles(); // resincroniza com o estado real do daemon (limpa pendências)
+    }).catch(function (err) {
+      showToast("falha ao aplicar configurações", "error");
+      console.error("flowguard.js:", err);
+      btn.disabled = false;
+    });
   }
 
   function onCgClearSuspiciousClick() {
@@ -2629,6 +2654,9 @@
         showError(document.getElementById("fg-toggles"), data.error || "erro desconhecido");
         return;
       }
+      state.fgTogglesPending = {};
+      var applyBtn = document.getElementById("fg-toggles-apply-btn");
+      if (applyBtn) applyBtn.disabled = true;
       renderFgToggles(data.toggles);
     }).catch(function (err) {
       showError(document.getElementById("fg-toggles"), "falha ao consultar funções de detecção");
@@ -2636,6 +2664,9 @@
     });
   }
 
+  // Checkbox só marca a mudança como pendente (feedback visual imediato) — o valor só
+  // é enviado ao daemon quando o usuário clica em "Aplicar novas configurações", pra
+  // permitir mexer em vários tipos de ataque de uma vez e confirmar tudo junto.
   function onFgTogglesChange(ev) {
     var checkbox = ev.target.closest("input[type='checkbox']");
     if (!checkbox) return;
@@ -2643,16 +2674,33 @@
     if (!item) return;
     var key = item.getAttribute("data-key");
     var value = checkbox.checked;
-    checkbox.disabled = true;
-    postJson(TOGGLES_ENDPOINT, { key: key, value: value }).then(function (resp) {
-      if (resp.ok) {
-        item.classList.toggle("disabled", !value);
-        showToast(value ? "Função habilitada" : "Função desabilitada", "success");
+    item.classList.toggle("disabled", !value);
+    state.fgTogglesPending[key] = value;
+    var applyBtn = document.getElementById("fg-toggles-apply-btn");
+    if (applyBtn) applyBtn.disabled = false;
+  }
+
+  function onFgTogglesApplyClick() {
+    var pending = state.fgTogglesPending;
+    var keys = Object.keys(pending);
+    if (!keys.length) return;
+    var btn = document.getElementById("fg-toggles-apply-btn");
+    btn.disabled = true;
+    Promise.all(keys.map(function (key) {
+      return postJson(TOGGLES_ENDPOINT, { key: key, value: pending[key] });
+    })).then(function (responses) {
+      var failed = responses.filter(function (r) { return !r || !r.ok; });
+      if (failed.length) {
+        showToast(failed.length + " de " + keys.length + " função(ões) falharam ao aplicar", "error");
       } else {
-        checkbox.checked = !value; // reverte o checkbox visualmente se o backend recusou
-        showToast(resp.error || "falha ao alterar função", "error");
+        showToast("Configurações aplicadas", "success");
       }
-    }).finally(function () { checkbox.disabled = false; });
+      loadFgToggles(); // resincroniza com o estado real do daemon (limpa pendências)
+    }).catch(function (err) {
+      showToast("falha ao aplicar configurações", "error");
+      console.error("flowguard.js:", err);
+      btn.disabled = false;
+    });
   }
 
   function onClearSuspiciousClick() {
@@ -2774,6 +2822,9 @@
       loadFgToggles();
     }
 
+    var fgTogglesApplyBtn = document.getElementById("fg-toggles-apply-btn");
+    if (fgTogglesApplyBtn) fgTogglesApplyBtn.addEventListener("click", onFgTogglesApplyClick);
+
     var clearSuspiciousBtn = document.getElementById("fg-clear-suspicious-btn");
     if (clearSuspiciousBtn) clearSuspiciousBtn.addEventListener("click", onClearSuspiciousClick);
 
@@ -2813,6 +2864,9 @@
 
     var cgTogglesEl = document.getElementById("cg-toggles");
     if (cgTogglesEl) cgTogglesEl.addEventListener("change", onCgTogglesChange);
+
+    var cgTogglesApplyBtn = document.getElementById("cg-toggles-apply-btn");
+    if (cgTogglesApplyBtn) cgTogglesApplyBtn.addEventListener("click", onCgTogglesApplyClick);
 
     var cgClearSuspiciousBtn = document.getElementById("cg-clear-suspicious-btn");
     if (cgClearSuspiciousBtn) cgClearSuspiciousBtn.addEventListener("click", onCgClearSuspiciousClick);

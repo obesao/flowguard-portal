@@ -29,7 +29,7 @@ sys.path.insert(0, "/root/flowguard")
 
 import yaml
 from bgp import flowspec
-from collector import control, storage
+from collector import configio, control, storage
 
 try:
     body = json.loads(os.environ.get("BODY") or "{}")
@@ -62,7 +62,9 @@ try:
             })
             print(json.dumps(resp))
         else:  # apply_suggestion
-            suggestion = flowspec.suggest_mitigation(attack["attack_type"], attack["dst_prefix"])
+            mp_path = cfg.get("mitigation_profiles_file", configio.DEFAULT_MITIGATION_PROFILES_FILE)
+            profiles = configio.load_mitigation_profiles(mp_path)
+            suggestion = flowspec.suggest_mitigation(attack["attack_type"], attack["dst_prefix"], profiles)
             if suggestion["kind"] == "rtbh":
                 resp = control.send_command(cfg["daemon"]["socket"], {
                     "cmd": "ban", "target": attack["dst_prefix"], "attack_id": attack["id"],
@@ -89,11 +91,13 @@ sys.path.insert(0, "/root/flowguard")
 
 import yaml
 from bgp import flowspec
-from collector import storage
+from collector import configio, storage
 
 try:
     cfg = yaml.safe_load(open("/root/flowguard/config.yaml", encoding="utf-8"))
     conn = storage.connect(cfg["database"]["path"])
+    mp_path = cfg.get("mitigation_profiles_file", configio.DEFAULT_MITIGATION_PROFILES_FILE)
+    mitigation_profiles = configio.load_mitigation_profiles(mp_path)
     detail_id = os.environ.get("DETAIL")
     if detail_id:
         attack = storage.get_attack(conn, int(detail_id))
@@ -116,7 +120,9 @@ try:
         attacks = storage.list_attacks(conn, active_only=not history, since_s=window_s)
         now = int(time.time())
         for attack in attacks:
-            attack["suggested_mitigation"] = flowspec.suggest_mitigation(attack["attack_type"], attack["dst_prefix"])
+            attack["suggested_mitigation"] = flowspec.suggest_mitigation(
+                attack["attack_type"], attack["dst_prefix"], mitigation_profiles,
+            )
             # ataques encerrados já têm target_host persistido no fechamento
             # (ver storage.apply_attack_changes) — só ataques ainda ativos precisam
             # de lookup ao vivo aqui, e só sobre os últimos 5min (não a duração toda,

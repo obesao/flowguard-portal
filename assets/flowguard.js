@@ -9,6 +9,7 @@
   var RULES_ENDPOINT = "/cgi-bin/flowguard-rules.sh";
   var CFG_ENDPOINT = "/cgi-bin/flowguard-cfg.sh";
   var TOGGLES_ENDPOINT = "/cgi-bin/flowguard-toggles.sh";
+  var MITIGATION_CFG_ENDPOINT = "/cgi-bin/flowguard-mitigation-cfg.sh";
   var AI_ENDPOINT = "/cgi-bin/flowguard-ai.sh";
   var HISTORY_ENDPOINT = "/cgi-bin/flowguard-history.sh";
   var LOGIN_ENDPOINT = "/cgi-bin/flowguard-login.sh";
@@ -23,6 +24,7 @@
   var WARMODE_ENDPOINT = "/cgi-bin/flowguard-warmode.sh";
   var WARMODE_AUTH_ENDPOINT = "/cgi-bin/flowguard-warmode-auth.sh";
   var WARMODE_CFG_ENDPOINT = "/cgi-bin/flowguard-warmode-cfg.sh";
+  var WHATSAPP_ENDPOINT = "/cgi-bin/flowguard-whatsapp.sh";
 
   var warmodeToken = null; // em memória só — some ao recarregar a página (relock)
 
@@ -39,6 +41,16 @@
     { key: "cldap_amp", label: "Amplificação CLDAP", desc: "resposta UDP/389 em volume alto — reflexão via serviços CLDAP (Active Directory) expostos." },
     { key: "anomalia_baseline", label: "Anomalia de baseline", desc: "desvio estatístico (EWMA) do tráfego normal do prefixo — pega ataques pequenos demais pro limiar fixo global." },
   ];
+
+  var MITIGATION_KIND_LABELS = {
+    rtbh: "RTBH (bloqueio total)",
+    discard: "Descartar (FlowSpec)",
+    rate_limit: "Limitar banda (FlowSpec)",
+  };
+  var MITIGATION_KIND_KEYS = ["rtbh", "discard", "rate_limit"];
+  // só esses 2 tipos têm limiar de tamanho de pacote configurável — nos outros o
+  // tamanho do pacote nunca fez parte do match (ver bgp/flowspec.py no backend)
+  var MITIGATION_PKT_LEN_TYPES = { dns_amp: true, ntp_amp: true };
 
   var state = {
     topPrefixes: [],
@@ -77,6 +89,8 @@
     cgTogglesPending: {},
     fgTogglesLoaded: {},
     fgTogglesPending: {},
+    fgMitigationLoaded: {},
+    fgMitigationPending: {},
   };
 
   // Compartilhado pelas telas de toggles do ClientGuard e do FlowGuard — mostra quantas
@@ -2646,6 +2660,143 @@
     });
   }
 
+  // --- Alertas via WhatsApp (Evolution API) --------------------------------
+
+  var waCurrentDest = null;
+  var waQrPollTimer = null;
+
+  function onWaDestTypeChange() {
+    var checked = document.querySelector('input[name="fg-wa-dest-type"]:checked');
+    var type = checked ? checked.value : "group";
+    document.getElementById("fg-wa-dest-group-wrap").style.display = type === "group" ? "flex" : "none";
+    document.getElementById("fg-wa-dest-number-wrap").style.display = type === "number" ? "flex" : "none";
+  }
+
+  function stopWaQrPolling() {
+    if (waQrPollTimer) { clearInterval(waQrPollTimer); waQrPollTimer = null; }
+    var wrap = document.getElementById("fg-wa-qr-wrap");
+    if (wrap) wrap.style.display = "none";
+  }
+
+  function renderWaStatus(data) {
+    var statusEl = document.getElementById("fg-wa-status");
+    if (!statusEl) return;
+    if (!data.ok) {
+      statusEl.innerHTML = '<span class="fg-dot fg-dot-down"></span>indisponível: ' + escapeHtml(data.error || "erro desconhecido");
+      return;
+    }
+    var st = data.state;
+    var label = st === "open"
+      ? '<span class="fg-dot fg-dot-up"></span>Conectado'
+      : '<span class="fg-dot fg-dot-down"></span>Desconectado (não pareado)';
+    if (data.number) label += " — número " + escapeHtml(data.number);
+    statusEl.innerHTML = label;
+
+    var connectBtn = document.getElementById("fg-wa-connect-btn");
+    var logoutBtn = document.getElementById("fg-wa-logout-btn");
+    if (connectBtn) connectBtn.style.display = st === "open" ? "none" : "inline-block";
+    if (logoutBtn) logoutBtn.style.display = st === "open" ? "inline-block" : "none";
+    if (st === "open") stopWaQrPolling();
+
+    waCurrentDest = data.dest || null;
+    var destEl = document.getElementById("fg-wa-dest-current");
+    if (destEl) {
+      destEl.textContent = (waCurrentDest && waCurrentDest.dest)
+        ? "Destino atual: " + (waCurrentDest.dest_label || waCurrentDest.dest) + " (" + (waCurrentDest.dest_type === "group" ? "grupo" : "número direto") + ")"
+        : "Nenhum destino configurado ainda.";
+      if (waCurrentDest && waCurrentDest.dest_type) {
+        var radio = document.querySelector('input[name="fg-wa-dest-type"][value="' + waCurrentDest.dest_type + '"]');
+        if (radio) radio.checked = true;
+        onWaDestTypeChange();
+        if (waCurrentDest.dest_type === "number") {
+          document.getElementById("fg-wa-dest-number-input").value = waCurrentDest.dest.split("@")[0];
+        }
+      }
+    }
+    if (st === "open") loadWaGroups();
+  }
+
+  function loadWaStatus() {
+    if (!getToken()) return;
+    getJson(WHATSAPP_ENDPOINT + "?action=status").then(renderWaStatus).catch(function (err) {
+      console.error("flowguard.js:", err);
+    });
+  }
+
+  function loadWaGroups() {
+    getJson(WHATSAPP_ENDPOINT + "?action=groups").then(function (data) {
+      var sel = document.getElementById("fg-wa-dest-group-select");
+      if (!sel) return;
+      if (!data.ok) {
+        sel.innerHTML = '<option value="">' + escapeHtml(data.error || "erro ao listar grupos") + "</option>";
+        return;
+      }
+      var current = waCurrentDest && waCurrentDest.dest_type === "group" ? waCurrentDest.dest : null;
+      sel.innerHTML = '<option value="">selecione um grupo...</option>' + data.groups.map(function (g) {
+        return '<option value="' + escapeHtml(g.id) + '"' + (g.id === current ? " selected" : "") + ">" + escapeHtml(g.subject) + "</option>";
+      }).join("");
+    }).catch(function (err) { console.error("flowguard.js:", err); });
+  }
+
+  function loadWaQr() {
+    getJson(WHATSAPP_ENDPOINT + "?action=qrcode").then(function (data) {
+      if (!data.ok || !data.base64) {
+        showToast(data.error || "falha ao gerar QR code", "error");
+        return;
+      }
+      document.getElementById("fg-wa-qr-img").src = data.base64;
+      document.getElementById("fg-wa-qr-wrap").style.display = "block";
+      if (!waQrPollTimer) waQrPollTimer = setInterval(loadWaStatus, 3000);
+    }).catch(function (err) {
+      showToast("falha ao gerar QR code", "error");
+      console.error("flowguard.js:", err);
+    });
+  }
+
+  function onWaSaveDestClick() {
+    var checked = document.querySelector('input[name="fg-wa-dest-type"]:checked');
+    var type = checked ? checked.value : "group";
+    var payload = { action: "set_dest", dest_type: type };
+    if (type === "group") {
+      var sel = document.getElementById("fg-wa-dest-group-select");
+      if (!sel.value) { showToast("selecione um grupo", "error"); return; }
+      payload.dest = sel.value;
+      payload.dest_label = sel.options[sel.selectedIndex].textContent;
+    } else {
+      var num = document.getElementById("fg-wa-dest-number-input").value.trim();
+      if (!num) { showToast("informe um número", "error"); return; }
+      payload.dest = num;
+    }
+    var btn = document.getElementById("fg-wa-save-dest-btn");
+    btn.disabled = true;
+    postJson(WHATSAPP_ENDPOINT, payload).then(function (resp) {
+      showToast(resp.ok ? "Destino salvo" : (resp.error || "falha ao salvar destino"), resp.ok ? "success" : "error");
+      if (resp.ok) loadWaStatus();
+    }).catch(function (err) {
+      showToast("falha ao salvar destino", "error");
+      console.error("flowguard.js:", err);
+    }).finally(function () { btn.disabled = false; });
+  }
+
+  function onWaTestClick() {
+    var btn = document.getElementById("fg-wa-test-btn");
+    btn.disabled = true;
+    postJson(WHATSAPP_ENDPOINT, { action: "test" }).then(function (resp) {
+      showToast(resp.ok ? "Mensagem de teste enviada" : (resp.error || "falha ao enviar teste"), resp.ok ? "success" : "error");
+    }).catch(function (err) {
+      showToast("falha ao enviar teste", "error");
+      console.error("flowguard.js:", err);
+    }).finally(function () { btn.disabled = false; });
+  }
+
+  function onWaLogoutClick() {
+    if (!window.confirm("Desconectar o WhatsApp atual? Vai ser preciso escanear um QR novo pra reconectar.")) return;
+    postJson(WHATSAPP_ENDPOINT, { action: "logout" }).then(function (resp) {
+      showToast(resp.ok ? "Desconectado" : (resp.error || "falha ao desconectar"), resp.ok ? "success" : "error");
+      loadWaStatus();
+    }).catch(function (err) { console.error("flowguard.js:", err); });
+  }
+
   // --- Funções de detecção (toggles) + limpar hosts suspeitos --------------
 
   function renderFgToggles(toggles) {
@@ -2715,6 +2866,110 @@
       loadFgToggles(); // resincroniza com o estado real do daemon (limpa pendências)
     }).catch(function (err) {
       showToast("falha ao aplicar configurações", "error");
+      console.error("flowguard.js:", err);
+      btn.disabled = false;
+    });
+  }
+
+  // --- Mitigação: estratégia/intensidade sugerida por tipo de ataque -------
+
+  function renderFgMitigation(profiles) {
+    var el = document.getElementById("fg-mitigation-cfg");
+    if (!el) return;
+    var rows = FG_TOGGLE_META.map(function (meta) {
+      var p = profiles[meta.key] || {};
+      var kind = p.kind || "discard";
+      var kindOptions = MITIGATION_KIND_KEYS.map(function (k) {
+        return '<option value="' + k + '"' + (k === kind ? " selected" : "") + '>' + MITIGATION_KIND_LABELS[k] + "</option>";
+      }).join("");
+      var pktCell = MITIGATION_PKT_LEN_TYPES[meta.key]
+        ? "<td><input type=\"number\" min=\"1\" step=\"1\" data-field=\"pkt_len_min\" value=\"" +
+          (p.pkt_len_min != null ? p.pkt_len_min : "") + "\"> bytes</td>"
+        : '<td class="fg-muted">— (não se aplica)</td>';
+      return (
+        '<tr data-attack-type="' + meta.key + '">' +
+        "<td>" + escapeHtml(meta.label) + "</td>" +
+        '<td><select data-field="kind">' + kindOptions + "</select></td>" +
+        pktCell +
+        '<td><input type="number" min="1" step="1" data-field="rate_limit_mbps" value="' +
+        (p.rate_limit_mbps != null ? p.rate_limit_mbps : "") + '"> Mbps</td>' +
+        "</tr>"
+      );
+    }).join("");
+    el.innerHTML =
+      "<table><thead><tr><th>Tipo de ataque</th><th>Estratégia</th><th>Limiar de pacote</th>" +
+      "<th>Limite de banda</th></tr></thead><tbody>" + rows + "</tbody></table>";
+  }
+
+  function loadFgMitigation() {
+    if (!getToken()) return;
+    getJson(MITIGATION_CFG_ENDPOINT).then(function (data) {
+      if (!data.ok) {
+        showError(document.getElementById("fg-mitigation-cfg"), data.error || "erro desconhecido");
+        return;
+      }
+      state.fgMitigationLoaded = data.profiles;
+      state.fgMitigationPending = {};
+      var saveBtn = document.getElementById("fg-mitigation-save-btn");
+      if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = "Salvar configurações de mitigação"; }
+      renderFgMitigation(data.profiles);
+    }).catch(function (err) {
+      showError(document.getElementById("fg-mitigation-cfg"), "falha ao consultar configurações de mitigação");
+      console.error("flowguard.js:", err);
+    });
+  }
+
+  // Um tipo de ataque só entra em "pendente" se pelo menos 1 campo dele mudou de
+  // verdade em relação ao que veio do servidor — evita mandar um "não-muda-nada"
+  // quando o usuário mexe no campo e volta pro valor original.
+  function onFgMitigationChange(ev) {
+    var field = ev.target.getAttribute("data-field");
+    if (!field) return;
+    var row = ev.target.closest("tr[data-attack-type]");
+    if (!row) return;
+    var attackType = row.getAttribute("data-attack-type");
+    var raw = ev.target.value;
+    if (field !== "kind" && raw === "") return; // campo numérico vazio: ignora até digitar algo
+    var value = field === "kind" ? raw : Number(raw);
+    if (field !== "kind" && isNaN(value)) return;
+
+    var original = state.fgMitigationLoaded[attackType] || {};
+    var originalValue = field === "kind" ? (original.kind || "discard") : original[field];
+
+    var pendingForType = state.fgMitigationPending[attackType] || {};
+    if (value === originalValue) {
+      delete pendingForType[field];
+    } else {
+      pendingForType[field] = value;
+    }
+    if (Object.keys(pendingForType).length) {
+      state.fgMitigationPending[attackType] = pendingForType;
+    } else {
+      delete state.fgMitigationPending[attackType];
+    }
+
+    var pendingCount = Object.keys(state.fgMitigationPending).length;
+    var saveBtn = document.getElementById("fg-mitigation-save-btn");
+    if (saveBtn) {
+      saveBtn.disabled = pendingCount === 0;
+      saveBtn.textContent = pendingCount > 0
+        ? "Salvar " + pendingCount + " " + (pendingCount === 1 ? "tipo alterado" : "tipos alterados")
+        : "Salvar configurações de mitigação";
+    }
+  }
+
+  function onFgMitigationSaveClick() {
+    var pending = state.fgMitigationPending;
+    var types = Object.keys(pending);
+    if (!types.length) return;
+    var btn = document.getElementById("fg-mitigation-save-btn");
+    btn.disabled = true;
+    postJson(MITIGATION_CFG_ENDPOINT, { profiles: pending }).then(function (resp) {
+      showToast(resp.ok ? "Configurações de mitigação salvas" : (resp.error || "falha ao salvar"),
+                resp.ok ? "success" : "error");
+      loadFgMitigation(); // resincroniza com o estado real do daemon (limpa pendências)
+    }).catch(function (err) {
+      showToast("falha ao salvar configurações de mitigação", "error");
       console.error("flowguard.js:", err);
       btn.disabled = false;
     });
@@ -2838,6 +3093,37 @@
       fgTogglesEl.addEventListener("change", onFgTogglesChange);
       loadFgToggles();
     }
+
+    var fgMitigationEl = document.getElementById("fg-mitigation-cfg");
+    if (fgMitigationEl) {
+      fgMitigationEl.addEventListener("change", onFgMitigationChange);
+      fgMitigationEl.addEventListener("input", onFgMitigationChange);
+      loadFgMitigation();
+    }
+
+    var fgMitigationSaveBtn = document.getElementById("fg-mitigation-save-btn");
+    if (fgMitigationSaveBtn) fgMitigationSaveBtn.addEventListener("click", onFgMitigationSaveClick);
+
+    var waConnectBtn = document.getElementById("fg-wa-connect-btn");
+    if (waConnectBtn) waConnectBtn.addEventListener("click", loadWaQr);
+
+    var waQrRefreshBtn = document.getElementById("fg-wa-qr-refresh-btn");
+    if (waQrRefreshBtn) waQrRefreshBtn.addEventListener("click", loadWaQr);
+
+    var waLogoutBtn = document.getElementById("fg-wa-logout-btn");
+    if (waLogoutBtn) waLogoutBtn.addEventListener("click", onWaLogoutClick);
+
+    document.querySelectorAll('input[name="fg-wa-dest-type"]').forEach(function (radio) {
+      radio.addEventListener("change", onWaDestTypeChange);
+    });
+
+    var waSaveDestBtn = document.getElementById("fg-wa-save-dest-btn");
+    if (waSaveDestBtn) waSaveDestBtn.addEventListener("click", onWaSaveDestClick);
+
+    var waTestBtn = document.getElementById("fg-wa-test-btn");
+    if (waTestBtn) waTestBtn.addEventListener("click", onWaTestClick);
+
+    if (document.getElementById("fg-wa-status")) loadWaStatus();
 
     var fgTogglesApplyBtn = document.getElementById("fg-toggles-apply-btn");
     if (fgTogglesApplyBtn) fgTogglesApplyBtn.addEventListener("click", onFgTogglesApplyClick);

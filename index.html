@@ -140,6 +140,12 @@
     .fg-toggle-item .fg-toggle-name { font-weight: 600; }
     .fg-toggle-item .fg-toggle-desc { font-size: 0.75rem; color: #8b949e; }
 
+    #fg-mitigation-cfg table select, #fg-mitigation-cfg table input[type="number"] {
+      background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; padding: 0.25rem 0.4rem;
+    }
+    #fg-mitigation-cfg table input[type="number"] { width: 6rem; }
+    #fg-mitigation-cfg table td.fg-muted { color: #8b949e; }
+
     #fg-toast-container { position: fixed; bottom: 1.2rem; right: 1.2rem; display: flex; flex-direction: column; gap: 0.5rem; z-index: 999; }
     .fg-toast {
       background: #21262d; border: 1px solid #30363d; border-radius: 6px; padding: 0.6rem 1rem;
@@ -377,11 +383,50 @@
 
     <div class="fg-tab-panel" data-tab="cfg">
       <section class="fg-panel-section">
+        <h2>📱 Alertas via WhatsApp</h2>
+        <p class="fg-kpi-sub">Conexão compartilhada por FlowGuard e ClientGuard (Evolution API self-hosted) — só existe UM número conectado, usado pelos dois.</p>
+        <div id="fg-wa-status" class="fg-kpi-sub">Carregando...</div>
+        <div id="fg-wa-qr-wrap" style="display:none; margin: 0.6rem 0;">
+          <img id="fg-wa-qr-img" alt="QR code do WhatsApp" style="width:220px;height:220px;border:1px solid #30363d;border-radius:6px;background:#fff;padding:6px;">
+          <p class="fg-kpi-sub">Escaneie em WhatsApp → Aparelhos conectados → Conectar um aparelho. Expira em ~30-60s.</p>
+          <button class="fg-btn" id="fg-wa-qr-refresh-btn">Gerar novo QR</button>
+        </div>
+        <div class="fg-toolbar">
+          <button class="fg-btn" id="fg-wa-connect-btn" style="display:none;">Conectar número</button>
+          <button class="fg-btn fg-btn-danger" id="fg-wa-logout-btn" style="display:none;">Desconectar</button>
+        </div>
+        <hr style="border-color:#30363d; margin: 0.8rem 0;">
+        <h3 style="margin:0 0 0.4rem;">Destino dos alertas</h3>
+        <div class="fg-form">
+          <label><input type="radio" name="fg-wa-dest-type" value="group" checked> Grupo do WhatsApp</label>
+          <label><input type="radio" name="fg-wa-dest-type" value="number"> Número direto</label>
+        </div>
+        <div class="fg-form" id="fg-wa-dest-group-wrap">
+          <select id="fg-wa-dest-group-select"><option value="">conecte o WhatsApp primeiro</option></select>
+        </div>
+        <div class="fg-form" id="fg-wa-dest-number-wrap" style="display:none;">
+          <input type="text" id="fg-wa-dest-number-input" placeholder="DDI+DDD+número, só dígitos (ex: 5599999999999)">
+        </div>
+        <div class="fg-toolbar">
+          <button class="fg-btn" id="fg-wa-save-dest-btn">Salvar destino</button>
+          <button class="fg-btn" id="fg-wa-test-btn">Enviar mensagem de teste</button>
+        </div>
+        <p class="fg-kpi-sub" id="fg-wa-dest-current"></p>
+      </section>
+      <section class="fg-panel-section">
         <h2>Funções de Detecção</h2>
         <p class="fg-kpi-sub">Liga/desliga cada tipo de ataque detectado individualmente. Desabilitar não fecha ataques já ativos, só para de abrir/atualizar novos a partir de agora.</p>
         <div class="fg-toggle-list" id="fg-toggles">Carregando...</div>
         <div class="fg-toolbar">
           <button class="fg-btn" id="fg-toggles-apply-btn" disabled>Aplicar novas configurações</button>
+        </div>
+      </section>
+      <section class="fg-panel-section">
+        <h2>Mitigação</h2>
+        <p class="fg-kpi-sub">Estratégia sugerida (botão "Aplicar Sugestão" na aba Ataques) por tipo de ataque — RTBH bloqueia o prefixo inteiro via BGP; Descartar (FlowSpec) derruba só o tráfego que casa o padrão do ataque; Limitar banda (FlowSpec) não derruba nada, só limita a velocidade desse tráfego. O botão "Mitigar" continua sempre RTBH, como ação manual de emergência.</p>
+        <div id="fg-mitigation-cfg">Carregando...</div>
+        <div class="fg-toolbar">
+          <button class="fg-btn" id="fg-mitigation-save-btn" disabled>Salvar configurações de mitigação</button>
         </div>
       </section>
       <section class="fg-panel-section">

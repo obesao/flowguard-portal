@@ -87,6 +87,24 @@
 
     .fg-btn { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; padding: 0.2rem 0.6rem; cursor: pointer; }
     .fg-btn:hover { background: #30363d; }
+    .fg-btn-danger { background: #f85149; color: #0d1117; border-color: #f85149; font-weight: bold; }
+    .fg-btn-danger:hover { background: #ff7b72; }
+    .fg-btn-danger:disabled { opacity: 0.5; cursor: default; }
+
+    .fg-modal-overlay {
+      position: fixed; inset: 0; background: rgba(1,4,9,0.75); z-index: 500;
+      display: flex; align-items: center; justify-content: center; padding: 1rem;
+    }
+    .fg-modal-overlay[hidden] { display: none; }
+    .fg-modal {
+      background: #161b22; border: 1px solid #f85149; border-radius: 8px; padding: 1.2rem 1.5rem;
+      max-width: 640px; width: 100%; max-height: 85vh; overflow-y: auto;
+    }
+    .fg-warmode-device-row { display: flex; justify-content: space-between; padding: 0.4rem 0; border-bottom: 1px solid #30363d; }
+    .fg-warmode-result { margin-top: 0.6rem; padding: 0.6rem 0.8rem; border-radius: 6px; background: #0d1117; border: 1px solid #30363d; }
+    .fg-warmode-result.ok { border-color: #3fb950; }
+    .fg-warmode-result.fail { border-color: #f85149; }
+    .fg-warmode-result pre { white-space: pre-wrap; font-size: 0.78rem; margin: 0.4rem 0 0; max-height: 200px; overflow-y: auto; }
 
     .fg-spark { display: inline-flex; align-items: center; gap: 0.5rem; background: #21262d; padding: 0.4rem 0.8rem; border-radius: 6px; margin: 0 0.5rem 0.5rem 0; }
     .fg-spark-label { font-weight: bold; font-size: 0.8rem; }
@@ -153,7 +171,23 @@
   <div id="fg-app" class="fg-wrap" style="display: none;">
     <div class="fg-topbar">
       <h1 style="font-size: 1.3rem; margin: 0;">FlowGuard — POX Network</h1>
-      <button id="fg-logout-btn" class="fg-btn">Sair</button>
+      <div style="display:flex; gap:0.6rem; align-items:center;">
+        <button id="fg-warmode-open-btn" class="fg-btn fg-btn-danger">🚨 Modo Guerra</button>
+        <button id="fg-logout-btn" class="fg-btn">Sair</button>
+      </div>
+    </div>
+
+    <div id="fg-warmode-overlay" class="fg-modal-overlay" hidden>
+      <div class="fg-modal">
+        <h2 style="color:#f85149;">🚨 Modo Guerra</h2>
+        <p class="fg-kpi-sub">Executa os comandos configurados via SSH, em paralelo, em todos os equipamentos abaixo — reais, agora, sem confirmação adicional depois do próximo clique.</p>
+        <div id="fg-warmode-devices">Carregando...</div>
+        <div id="fg-warmode-results"></div>
+        <div style="display:flex; gap:0.6rem; margin-top:1rem;">
+          <button id="fg-warmode-confirm-btn" class="fg-btn fg-btn-danger">Confirmar e executar agora</button>
+          <button id="fg-warmode-close-btn" class="fg-btn">Fechar</button>
+        </div>
+      </div>
     </div>
 
     <div id="fg-kpis" class="fg-kpis"></div>

@@ -18,6 +18,7 @@
   var CG_TOP_ENDPOINT = "/cgi-bin/clientguard-top.sh";
   var CG_CLIENT_DETAIL_ENDPOINT = "/cgi-bin/clientguard-client-detail.sh";
   var CG_BLOCK_ENDPOINT = "/cgi-bin/clientguard-block.sh";
+  var WARMODE_ENDPOINT = "/cgi-bin/flowguard-warmode.sh";
 
   var PROTO_NAMES = { 6: "TCP", 17: "UDP", 1: "ICMP" };
 
@@ -761,6 +762,93 @@
         showToast(resp.ok ? "IP bloqueado: " + ip : resp.error, resp.ok ? "success" : "error");
         if (resp.ok) input.value = "";
         loadRules();
+      })
+      .finally(function () { btn.disabled = false; });
+  }
+
+  // --- modo guerra: SSH em vários equipamentos de uma vez -----------------
+
+  function renderWarmodeDevices(data) {
+    var el = document.getElementById("fg-warmode-devices");
+    var confirmBtn = document.getElementById("fg-warmode-confirm-btn");
+    if (!data.ok) {
+      showError(el, data.error || "erro desconhecido");
+      confirmBtn.disabled = true;
+      return;
+    }
+    if (!data.devices.length) {
+      el.innerHTML = '<p class="fg-error">Nenhum equipamento configurado (warmode.yaml não existe ou está vazio no servidor).</p>';
+      confirmBtn.disabled = true;
+      return;
+    }
+    var withoutCommands = data.devices.filter(function (d) { return !d.n_commands; });
+    el.innerHTML = data.devices
+      .map(function (d) {
+        var cmdLabel = d.n_commands
+          ? d.n_commands + " comando(s)"
+          : '<span class="fg-error">0 comandos — nada vai rodar aqui</span>';
+        return '<div class="fg-warmode-device-row"><span>' + escapeHtml(d.name) + " (" + escapeHtml(d.host || "-") +
+          ", " + escapeHtml(d.device_type || "-") + ")</span><span>" + cmdLabel + "</span></div>";
+      })
+      .join("");
+    confirmBtn.disabled = withoutCommands.length === data.devices.length;
+  }
+
+  function openWarmodeModal() {
+    var overlay = document.getElementById("fg-warmode-overlay");
+    document.getElementById("fg-warmode-results").innerHTML = "";
+    document.getElementById("fg-warmode-devices").textContent = "Carregando...";
+    overlay.hidden = false;
+    getJson(WARMODE_ENDPOINT).then(renderWarmodeDevices).catch(function (err) {
+      showError(document.getElementById("fg-warmode-devices"), "falha ao consultar equipamentos");
+      console.error("flowguard.js:", err);
+    });
+  }
+
+  function closeWarmodeModal() {
+    document.getElementById("fg-warmode-overlay").hidden = true;
+  }
+
+  function renderWarmodeResults(data) {
+    var el = document.getElementById("fg-warmode-results");
+    if (!data.ok) {
+      showError(el, data.error || "erro desconhecido");
+      return;
+    }
+    el.innerHTML = data.results
+      .map(function (r) {
+        var cls = r.ok ? "ok" : "fail";
+        var label = r.ok ? "OK" : "FALHOU";
+        var body = r.ok ? (r.output || "(sem saída)") : (r.error || "erro desconhecido");
+        return (
+          '<div class="fg-warmode-result ' + cls + '"><strong>' + (r.ok ? "✅" : "❌") + " " + label + " — " +
+          escapeHtml(r.device) + '</strong> (' + r.elapsed_s + 's)<pre>' + escapeHtml(body) + "</pre></div>"
+        );
+      })
+      .join("");
+  }
+
+  function initWarmode() {
+    var openBtn = document.getElementById("fg-warmode-open-btn");
+    if (openBtn) openBtn.addEventListener("click", openWarmodeModal);
+    var closeBtn = document.getElementById("fg-warmode-close-btn");
+    if (closeBtn) closeBtn.addEventListener("click", closeWarmodeModal);
+    var confirmBtn = document.getElementById("fg-warmode-confirm-btn");
+    if (confirmBtn) confirmBtn.addEventListener("click", onWarmodeConfirm);
+  }
+
+  function onWarmodeConfirm() {
+    var btn = document.getElementById("fg-warmode-confirm-btn");
+    btn.disabled = true;
+    document.getElementById("fg-warmode-results").innerHTML = '<p class="fg-kpi-sub">Executando em paralelo em todos os equipamentos...</p>';
+    postJson(WARMODE_ENDPOINT, {})
+      .then(function (resp) {
+        renderWarmodeResults(resp);
+        showToast(resp.ok ? "Modo Guerra executado" : resp.error, resp.ok ? "success" : "error");
+      })
+      .catch(function (err) {
+        showError(document.getElementById("fg-warmode-results"), "falha ao executar");
+        console.error("flowguard.js:", err);
       })
       .finally(function () { btn.disabled = false; });
   }
@@ -2096,6 +2184,7 @@
     initAttacksControls();
     initPaginationHandlers();
     initActionMenus();
+    initWarmode();
 
     var topSearch = document.getElementById("fg-top-prefixes-search");
     if (topSearch) topSearch.addEventListener("input", function () { state.filter.topPrefixes = topSearch.value; state.page.topPrefixes = 1; renderTopPrefixesFiltered(); });

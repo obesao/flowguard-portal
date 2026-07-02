@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.15.0**
+**Versão atual: v1.16.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -61,6 +61,17 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.16.0 — 2026-07-02 — Portal persistente via systemd
+- `init/flowguard-portal.service` (novo) — o `busybox httpd` que serve o portal
+  na porta 18080 sempre foi iniciado manualmente (sem nohup/systemd), então
+  morria em qualquer restart/instabilidade do servidor. Agora é uma unit
+  systemd de verdade (`Restart=on-failure`, `enabled` — sobe sozinho no boot),
+  mesmo padrão de `flowguard.service`/`clientguard.service`. `After=` inclui
+  os dois daemons pra não subir o portal antes dos backends que ele consulta.
+- Com isso, os três componentes do sistema (FlowGuard, ClientGuard, portal) —
+  e a Evolution API via Docker (`RestartPolicy: always`) — sobrevivem a reboot
+  sem intervenção manual.
 
 ### v1.15.0 — 2026-07-02 — Tela de Alertas via WhatsApp (Evolution API)
 - Nova seção "📱 Alertas via WhatsApp" na aba Configuração, compartilhada por

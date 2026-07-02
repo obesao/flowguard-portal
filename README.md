@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.14.0**
+**Versão atual: v1.15.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -61,6 +61,26 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.15.0 — 2026-07-02 — Tela de Alertas via WhatsApp (Evolution API)
+- Nova seção "📱 Alertas via WhatsApp" na aba Configuração, compartilhada por
+  FlowGuard e ClientGuard (só existe UMA conexão WhatsApp real — Evolution API
+  self-hosted em `/root/evolution-api/`). Mostra status da conexão (conectado/
+  desconectado + número), permite escanear o QR direto no navegador (sem
+  precisar de terminal), escolher o destino dos alertas (grupo do WhatsApp via
+  dropdown ou número direto) e mandar mensagem de teste.
+- `cgi-bin/flowguard-whatsapp.sh` (novo): GET `status`/`qrcode`/`groups`, POST
+  `set_dest`/`test`/`logout` — fala com a Evolution API via
+  `/root/evolution-api/client.py` (novo módulo compartilhado, fora de qualquer
+  git repo — mesmo padrão do `warmode.yaml`). Exige sessão normal do portal
+  (não a segunda senha do Modo Guerra — conectar/desconectar WhatsApp não tem o
+  mesmo risco de executar comando em equipamento real).
+- Frontend (`flowguard.js`): polling do status a cada 3s só enquanto o QR está
+  sendo exibido (pra detectar a conexão automaticamente e esconder o QR),
+  seletor de grupo recarrega a lista assim que conecta.
+- Validado ponta a ponta com Playwright real (login, aba Configuração, clique
+  em "Conectar número", QR real renderizado, mensagem de teste enviada com
+  sucesso pro grupo configurado) — ver [[feedback-verify-with-real-browser]].
 
 ### v1.14.0 — 2026-07-02 — Seção Mitigação na aba Configuração
 - Uma linha por tipo de ataque: select de estratégia (RTBH / Descartar via

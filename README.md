@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.7.0**
+**Versão atual: v1.8.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -53,6 +53,14 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.8.0 — 2026-07-02 — Botão "Modo Guerra"
+- Botão vermelho fixo no topo (qualquer aba) abre um modal listando os
+  equipamentos configurados no FlowGuard (`warmode.yaml`) e quantos comandos
+  cada um vai rodar. Confirmar executa via SSH em paralelo em todos e mostra
+  sucesso/erro + saída por equipamento.
+- Pensado pra cenário de DDoS massivo: aplicar mitigação de borda em vários
+  equipamentos físicos do datacenter de uma vez, sem terminal por terminal.
 
 ### v1.7.0 — 2026-07-02 — Bloqueio manual de IP (FlowGuard + ClientGuard)
 - Aba Regras: formulário "Bloquear IP manualmente" cria uma regra FlowSpec

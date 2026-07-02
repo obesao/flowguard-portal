@@ -18,6 +18,7 @@
   var CG_TOP_ENDPOINT = "/cgi-bin/clientguard-top.sh";
   var CG_CLIENT_DETAIL_ENDPOINT = "/cgi-bin/clientguard-client-detail.sh";
   var CG_BLOCK_ENDPOINT = "/cgi-bin/clientguard-block.sh";
+  var CG_TOGGLES_ENDPOINT = "/cgi-bin/clientguard-toggles.sh";
   var WARMODE_ENDPOINT = "/cgi-bin/flowguard-warmode.sh";
   var WARMODE_AUTH_ENDPOINT = "/cgi-bin/flowguard-warmode-auth.sh";
   var WARMODE_CFG_ENDPOINT = "/cgi-bin/flowguard-warmode-cfg.sh";
@@ -1256,6 +1257,19 @@
     dns_tunneling: "túnel DNS / exfiltração via DNS",
   };
 
+  // ordem fixa de exibição das funções na aba Configurações — mesmas chaves de
+  // configio.DEFAULT_FEATURE_TOGGLES no backend do ClientGuard
+  var CG_TOGGLE_META = [
+    { key: "scan_horizontal", label: "Scan horizontal", desc: "1 cliente falando com muitos hosts distintos na mesma porta — reconhecimento de rede." },
+    { key: "scan_vertical", label: "Scan vertical", desc: "1 cliente falando com muitas portas distintas no mesmo host — busca de vulnerabilidade." },
+    { key: "amplifier", label: "Amplificador hospedado", desc: "serviço UDP do cliente (DNS/NTP/SSDP/...) respondendo em volume alto pra fora — refletor de amplificação." },
+    { key: "spam", label: "Spam bot", desc: "volume alto de conexões outbound em portas de e-mail (25/465/587) pra muitos destinos." },
+    { key: "malicious_contact", label: "Contato com IP malicioso", desc: "tráfego com IP de reputação conhecida (threat feed) — C2/malware/spam." },
+    { key: "coordinated_destination", label: "Destino coordenado", desc: "vários clientes falando com o mesmo destino externo ao mesmo tempo — possível botnet." },
+    { key: "dns_tunneling", label: "Túnel DNS", desc: "volume anômalo de queries DNS pequenas pro mesmo servidor — possível exfiltração." },
+    { key: "ai_explanations", label: "Explicação por IA", desc: "gera uma explicação em texto (Claude) pra cada sinal novo disparado por qualquer detector acima." },
+  ];
+
   function updateCgBadge(count) {
     var badge = document.getElementById("cg-suspicious-badge");
     if (!badge) return;
@@ -1680,11 +1694,74 @@
     }
   }
 
+  // --- ClientGuard: configurações (toggles de funções + limpar suspeitos) --
+
+  function renderCgToggles(toggles) {
+    var el = document.getElementById("cg-toggles");
+    if (!el) return;
+    el.innerHTML = CG_TOGGLE_META.map(function (meta) {
+      var enabled = toggles[meta.key] !== false; // ausente = habilitado, mesmo default do backend
+      var id = "cg-toggle-" + meta.key;
+      return (
+        '<div class="fg-toggle-item' + (enabled ? "" : " disabled") + '" data-key="' + meta.key + '">' +
+        '<input type="checkbox" id="' + id + '"' + (enabled ? " checked" : "") + ">" +
+        '<label for="' + id + '"><div class="fg-toggle-name">' + escapeHtml(meta.label) + "</div>" +
+        '<div class="fg-toggle-desc">' + escapeHtml(meta.desc) + "</div></label></div>"
+      );
+    }).join("");
+  }
+
+  function loadCgToggles() {
+    if (!getToken()) return;
+    getJson(CG_TOGGLES_ENDPOINT).then(function (data) {
+      if (!data.ok) {
+        showError(document.getElementById("cg-toggles"), data.error || "erro desconhecido");
+        return;
+      }
+      renderCgToggles(data.toggles);
+    }).catch(function (err) {
+      showError(document.getElementById("cg-toggles"), "falha ao consultar configurações do ClientGuard");
+      console.error("flowguard.js:", err);
+    });
+  }
+
+  function onCgTogglesChange(ev) {
+    var checkbox = ev.target.closest("input[type='checkbox']");
+    if (!checkbox) return;
+    var item = checkbox.closest(".fg-toggle-item[data-key]");
+    if (!item) return;
+    var key = item.getAttribute("data-key");
+    var value = checkbox.checked;
+    checkbox.disabled = true;
+    postJson(CG_TOGGLES_ENDPOINT, { key: key, value: value }).then(function (resp) {
+      if (resp.ok) {
+        item.classList.toggle("disabled", !value);
+        showToast(value ? "Função habilitada" : "Função desabilitada", "success");
+      } else {
+        checkbox.checked = !value; // reverte o checkbox visualmente se o backend recusou
+        showToast(resp.error || "falha ao alterar função", "error");
+      }
+    }).finally(function () { checkbox.disabled = false; });
+  }
+
+  function onCgClearSuspiciousClick() {
+    if (!window.confirm("Marcar TODOS os sinais suspeitos abertos como resolvidos? Isso não pode ser desfeito (histórico continua na aba Resolvidos).")) {
+      return;
+    }
+    var btn = document.getElementById("cg-clear-suspicious-btn");
+    btn.disabled = true;
+    postJson(CG_SUSPICIOUS_ENDPOINT, { clear_all: true }).then(function (resp) {
+      showToast(resp.ok ? resp.cleared + " host(s) suspeito(s) limpo(s)" : resp.error, resp.ok ? "success" : "error");
+      loadClientGuardSuspicious();
+    }).finally(function () { btn.disabled = false; });
+  }
+
   function loadClientGuard() {
     loadClientGuardStatus();
     loadCgTop();
     loadClientGuardSuspicious();
     loadCgBlocks();
+    loadCgToggles();
   }
 
   // --- gráficos (canvas, sem dependência externa) -------------------------
@@ -2649,6 +2726,12 @@
 
     var cgBlocksEl = document.getElementById("cg-blocks");
     if (cgBlocksEl) cgBlocksEl.addEventListener("click", onCgBlocksClick);
+
+    var cgTogglesEl = document.getElementById("cg-toggles");
+    if (cgTogglesEl) cgTogglesEl.addEventListener("change", onCgTogglesChange);
+
+    var cgClearSuspiciousBtn = document.getElementById("cg-clear-suspicious-btn");
+    if (cgClearSuspiciousBtn) cgClearSuspiciousBtn.addEventListener("click", onCgClearSuspiciousClick);
 
     if (getToken()) { loadClientGuardCfg(); loadCgBlocks(); }
 

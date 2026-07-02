@@ -128,6 +128,17 @@
     }
     .fg-form label { font-size: 0.85rem; }
 
+    .fg-toggle-list { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.8rem 0; }
+    .fg-toggle-item {
+      display: flex; align-items: center; gap: 0.6rem; background: #161b22; border: 1px solid #30363d;
+      border-radius: 6px; padding: 0.5rem 0.7rem;
+    }
+    .fg-toggle-item input[type="checkbox"] { width: 1.05rem; height: 1.05rem; flex-shrink: 0; cursor: pointer; }
+    .fg-toggle-item.disabled { opacity: 0.55; }
+    .fg-toggle-item label { cursor: pointer; }
+    .fg-toggle-item .fg-toggle-name { font-weight: 600; }
+    .fg-toggle-item .fg-toggle-desc { font-size: 0.75rem; color: #8b949e; }
+
     #fg-toast-container { position: fixed; bottom: 1.2rem; right: 1.2rem; display: flex; flex-direction: column; gap: 0.5rem; z-index: 999; }
     .fg-toast {
       background: #21262d; border: 1px solid #30363d; border-radius: 6px; padding: 0.6rem 1rem;
@@ -394,9 +405,15 @@
             <button class="fg-toggle-btn active" data-view="open">Abertos</button>
             <button class="fg-toggle-btn" data-view="history">Resolvidos</button>
           </div>
+          <button class="fg-btn fg-btn-danger" id="cg-clear-suspicious-btn">Limpar hosts suspeitos</button>
         </div>
         <div id="cg-suspicious">Carregando...</div>
         <div id="cg-suspicious-detail"></div>
+      </section>
+      <section class="fg-panel-section">
+        <h2>Configurações — Funções do ClientGuard</h2>
+        <p class="fg-kpi-sub">Liga/desliga cada detector e a explicação por IA individualmente. Desabilitar não apaga sinais já abertos, só para de gerar novos a partir de agora.</p>
+        <div class="fg-toggle-list" id="cg-toggles">Carregando...</div>
       </section>
       <section class="fg-panel-section">
         <h2>Bloquear IP manualmente</h2>

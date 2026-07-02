@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.9.1**
+**Versão atual: v1.10.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -39,6 +39,10 @@ mesmo host, cada um com seu próprio socket Unix de controle:
    Ataques, setas de tendência nos KPIs, barra de proporção na tabela de top
    hosts, e correção de um bug real (header `Connection: close` ausente nas
    respostas CGI, que deixava o gráfico de protocolo em branco).
+7. **Configurações do ClientGuard** — seção nova na aba ClientGuard com um
+   checkbox por detector/função (liga/desliga individualmente via
+   `clientguard-toggles.sh`, novo) e um botão "Limpar hosts suspeitos" que
+   marca todos os sinais abertos como resolvidos de uma vez (com confirmação).
 
 ## Estrutura
 
@@ -47,12 +51,25 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `index.html` | Markup das abas/painéis |
 | `assets/flowguard.js` | Todo o JS do dashboard (um único módulo IIFE) |
 | `cgi-bin/flowguard-*.sh` | Backend do FlowGuard (status, ataques, flows, regras, config, IA, histórico) |
-| `cgi-bin/clientguard-*.sh` | Backend do ClientGuard (status, top clientes, detalhe de cliente, sinais suspeitos, config) |
+| `cgi-bin/clientguard-*.sh` | Backend do ClientGuard (status, top clientes, detalhe de cliente, sinais suspeitos, config, toggles de funções) |
 | `cgi-bin/lib.sh` | Sessão/autenticação compartilhada por todos os CGI scripts |
 | `cgi-bin/flowguard-login.sh` / `flowguard-logout.sh` | Autenticação |
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.10.0 — 2026-07-02 — Configurações do ClientGuard: liga/desliga funções + limpar suspeitos
+- Nova seção "Configurações — Funções do ClientGuard" na aba ClientGuard: um
+  checkbox por detector (scan horizontal/vertical, amplificador, spam,
+  contato malicioso, destino coordenado, túnel DNS) e pela explicação por IA
+  — cada mudança chama `clientguard-toggles.sh` (novo) na hora, sem precisar
+  salvar/recarregar página.
+- Botão "Limpar hosts suspeitos" na seção Sinais Suspeitos — com confirmação
+  (ação em lote, não tem desfazer), marca todos os sinais abertos como
+  resolvidos via `clientguard-suspicious.sh` (`clear_all: true`, novo).
+- Validado com Playwright real contra o daemon em produção: checkboxes
+  refletem o estado real na carga, alternar liga/desliga persiste no backend
+  (confirmado via `clientguard-cli toggles list`), 0 erros de console.
 
 ### v1.9.1 — 2026-07-02 — Exige a senha do Modo Guerra também pra executar
 - Antes só a configuração pedia a senha extra; agora executar (o botão

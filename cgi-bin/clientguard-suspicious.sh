@@ -1,6 +1,7 @@
 #!/bin/sh
 # clientguard-suspicious.sh — GET lista sinais suspeitos (abertos por padrão, ?history=1
-# pra resolvidos); POST resolve (id) via socket do daemon
+# pra resolvidos); POST resolve (id) ou limpa todos os abertos de uma vez (clear_all: true)
+# via socket do daemon
 
 . "$(dirname -- "$0")/lib.sh"
 
@@ -26,13 +27,16 @@ import control
 
 try:
     body = json.loads(os.environ.get("BODY") or "{}")
-    signal_id = body.get("id")
-    if not signal_id:
-        print(json.dumps({"ok": False, "error": "id obrigatório"}))
+    cfg = yaml.safe_load(open("/root/clientguard/config.yaml", encoding="utf-8"))
+    if body.get("clear_all"):
+        resp = control.send_command(cfg["daemon"]["socket"], {"cmd": "clear_suspicious"})
     else:
-        cfg = yaml.safe_load(open("/root/clientguard/config.yaml", encoding="utf-8"))
-        resp = control.send_command(cfg["daemon"]["socket"], {"cmd": "resolve", "id": signal_id})
-        print(json.dumps(resp))
+        signal_id = body.get("id")
+        if not signal_id:
+            resp = {"ok": False, "error": "id obrigatório"}
+        else:
+            resp = control.send_command(cfg["daemon"]["socket"], {"cmd": "resolve", "id": signal_id})
+    print(json.dumps(resp))
 except Exception as exc:
     print(json.dumps({"ok": False, "error": str(exc)}))
 PYEOF

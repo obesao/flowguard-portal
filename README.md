@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.9.0**
+**Versão atual: v1.9.1**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -53,6 +53,11 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.9.1 — 2026-07-02 — Exige a senha do Modo Guerra também pra executar
+- Antes só a configuração pedia a senha extra; agora executar (o botão
+  "🚨 Modo Guerra") também exige — mesma sessão de 15min compartilhada entre
+  as duas telas.
 
 ### v1.9.0 — 2026-07-02 — Configuração do Modo Guerra protegida por senha própria
 - Botão "⚙️ Modo Guerra" abre um editor de equipamentos (host, porta, tipo,

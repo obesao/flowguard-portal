@@ -1,6 +1,7 @@
 #!/bin/sh
-# flowguard-rules.sh — GET lista regras FlowSpec ativas; POST cria (src_prefix/dst_prefix)
-# ou remove (id) uma regra, proxied pro daemon via socket.
+# flowguard-rules.sh — GET lista regras FlowSpec/RTBH (?history=1 traz todo o
+# histórico, incluindo expiradas/removidas — default só as ativas); POST cria
+# (src_prefix/dst_prefix) ou remove (id) uma regra, proxied pro daemon via socket.
 
 . "$(dirname -- "$0")/lib.sh"
 
@@ -10,6 +11,8 @@ if ! check_session "$TOKEN"; then
   deny_unauthorized
   exit 0
 fi
+
+HISTORY=$(parse_param "history")
 
 if [ "$REQUEST_METHOD" = "POST" ]; then
   BODY=$(read_post_body)
@@ -57,8 +60,9 @@ PYEOF
 fi
 
 print_header 200
-/root/flowguard/venv/bin/python3 <<'PYEOF'
+HISTORY="$HISTORY" /root/flowguard/venv/bin/python3 <<'PYEOF'
 import json
+import os
 import sys
 
 sys.path.insert(0, "/root/flowguard")
@@ -69,7 +73,8 @@ from collector import storage
 try:
     cfg = yaml.safe_load(open("/root/flowguard/config.yaml", encoding="utf-8"))
     conn = storage.connect(cfg["database"]["path"])
-    rules = storage.list_flowspec_rules(conn, active_only=True)
+    history = os.environ.get("HISTORY") in ("1", "true", "True")
+    rules = storage.list_flowspec_rules(conn, active_only=not history)
     print(json.dumps({"ok": True, "rules": rules}))
 except Exception as exc:
     print(json.dumps({"ok": False, "error": str(exc)}))

@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.21.0**
+**Versão atual: v1.22.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -80,6 +80,37 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.22.0 — 2026-07-02 — Aba Regras vira histórico unificado (FlowGuard + ClientGuard)
+Usuário pediu que a aba Regras mostre TUDO que já foi gerado/enviado pra
+borda, de qualquer sistema, separado por aplicação, com o máximo de detalhe
+possível. Antes: só regras FlowSpec **ativas** do FlowGuard, 5 colunas,
+zero noção de histórico ou de ClientGuard.
+
+- Novo toggle "FlowGuard" / "ClientGuard" (`#rules-app-toggle`) + "Ativas" /
+  "Histórico completo" (`#rules-view-toggle`), mesmo padrão já usado em
+  Ataques/Sinais Suspeitos (`.fg-toggle-group`, não abas aninhadas).
+- **FlowGuard**: uma tabela só (RTBH e FlowSpec convivem na mesma
+  `flowspec_rules`) com ID, Criada em, Tipo (RTBH/FlowSpec descarte/
+  rate-limit/redirect, derivado de `action`), Origem, Destino, Protocolo,
+  Portas, Rótulo, Ataque associado (`attack_id`), Status (ativa/expirada/
+  removida, derivado de `active`+`expires_at`) e Expira em.
+- **ClientGuard**: duas tabelas — a mesma `flowspec_rules` filtrada por
+  `origin === "clientguard"` (bloqueio manual via proxy BGP) e a mitigação
+  direta na borda via SSH/ACL (`edge_mitigations`, reaproveitando o mesmo
+  endpoint já usado na aba ClientGuard) com ID, src_ip, Status, Gatilho
+  (manual/automático), Sinal associado, Aplicada em, Revertida em, Expira e
+  Erro (se falhou).
+- `flowguard-rules.sh` ganha `?history=1` (repassa pro socket, mesmo padrão
+  de `flowguard-attacks.sh`) — sem isso o backend só devolvia ativas.
+- Filtro de app/status é 100% client-side (`applyRulesFilter`) — busca sempre
+  o histórico completo uma vez e reparte na hora; volume de regras nunca
+  chega perto do de flow_aggs/client_flow_aggs, não precisou de parâmetro
+  novo por combinação.
+- Validado com Playwright real: criar regra manual → aparece com todos os
+  detalhes (tipo, status "ativa", botão Remover) → remover → some da view
+  "Ativas". Alternar entre os 4 toggles sem erro de console. Contagem de
+  linhas no histórico bateu exatamente com `flowguard-cli rules --history`.
 
 ### v1.21.0 — 2026-07-02 — Desempenho: timeouts maiores nos endpoints pesados do ClientGuard
 Usuário reportou timeout constante no portal. Causa raiz real era no daemon

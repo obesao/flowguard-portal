@@ -434,8 +434,28 @@
         </div>
       </section>
       <section class="fg-panel-section">
-        <h2>Regras FlowSpec Ativas</h2>
-        <div id="flowguard-rules">Carregando...</div>
+        <h2>Histórico de Interações com a Borda</h2>
+        <p class="fg-kpi-sub">Tudo que já foi gerado ou enviado pra borda, de qualquer sistema — RTBH e FlowSpec via BGP (FlowGuard) e mitigação direta via SSH/ACL (ClientGuard).</p>
+        <div class="fg-toolbar">
+          <div class="fg-toggle-group" id="rules-app-toggle">
+            <button class="fg-toggle-btn active" data-app="flowguard">FlowGuard</button>
+            <button class="fg-toggle-btn" data-app="clientguard">ClientGuard</button>
+          </div>
+          <div class="fg-toggle-group" id="rules-view-toggle">
+            <button class="fg-toggle-btn active" data-view="active">Ativas</button>
+            <button class="fg-toggle-btn" data-view="history">Histórico completo</button>
+          </div>
+        </div>
+        <div data-rules-app="flowguard">
+          <h3>RTBH e FlowSpec (BGP)</h3>
+          <div id="rules-fg-list">Carregando...</div>
+        </div>
+        <div data-rules-app="clientguard" hidden>
+          <h3>Bloqueio via FlowSpec (proxy BGP pro FlowGuard)</h3>
+          <div id="rules-cg-flowspec-list">Carregando...</div>
+          <h3 style="margin-top:1rem;">Mitigação direta na borda (SSH/ACL)</h3>
+          <div id="rules-cg-edge-list">Carregando...</div>
+        </div>
       </section>
     </div>
 

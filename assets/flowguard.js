@@ -95,6 +95,10 @@
     cgTogglesPending: {},
     cgEdgeAutoLoaded: {},
     cgEdgeAutoPending: {},
+    rulesApp: "flowguard",
+    rulesView: "active",
+    rulesFgData: [],
+    rulesCgEdgeData: [],
     fgTogglesLoaded: {},
     fgTogglesPending: {},
     fgMitigationLoaded: {},
@@ -757,50 +761,189 @@
     renderFlowsTable(rows);
   }
 
-  // --- regras flowspec ------------------------------------------------------
+  // --- regras: histórico unificado (FlowGuard BGP + ClientGuard SSH/ACL) ----
+  // Uma única fonte pro FlowGuard/ClientGuard-via-proxy (RULES_ENDPOINT, que já
+  // devolve todo mundo — a separação por app é o campo `origin`, ver
+  // collector/storage.py do FlowGuard) e outra pra mitigação direta do
+  // ClientGuard (CG_EDGE_ENDPOINT, já usada na aba ClientGuard). Filtro de
+  // app/ativas-histórico é 100% client-side (a lista de regras nunca chega
+  // perto do volume de flow_aggs/client_flow_aggs, não precisa filtrar no
+  // backend pra cada combinação).
 
-  function renderRules(data) {
-    var el = document.getElementById("flowguard-rules");
+  function fmtRuleType(r) {
+    if (r.action === "rtbh") return "RTBH (blackhole)";
+    if (r.action === "discard") return "FlowSpec: descarte";
+    if (String(r.action || "").indexOf("rate-limit") === 0) return "FlowSpec: rate-limit";
+    if (String(r.action || "").indexOf("redirect") === 0) return "FlowSpec: redirect";
+    return r.action || "-";
+  }
+
+  function fmtRuleStatus(r) {
+    if (r.active) return '<span class="fg-ok">ativa</span>';
+    var now = Math.floor(Date.now() / 1000);
+    return r.expires_at && r.expires_at <= now ? "expirada" : "removida";
+  }
+
+  function fmtRulePorts(r) {
+    var parts = [];
+    if (r.src_port) parts.push("origem:" + r.src_port);
+    if (r.dst_port) parts.push("destino:" + r.dst_port);
+    return parts.length ? parts.join(", ") : "-";
+  }
+
+  function renderFlowspecRulesTable(rules, elId) {
+    var el = document.getElementById(elId);
     if (!el) return;
-
-    if (!data.ok) {
-      showError(el, data.error || "erro desconhecido");
+    if (!rules.length) {
+      el.innerHTML = '<p class="fg-ok">Nenhuma regra encontrada.</p>';
       return;
     }
-
-    if (!data.rules.length) {
-      el.innerHTML = '<p class="fg-ok">Nenhuma regra FlowSpec ativa.</p>';
-      return;
-    }
-
-    var rows = data.rules
+    var rows = rules
       .map(function (r) {
+        var delBtn = r.active ? '<button class="fg-btn" data-action="del-flowspec-rule">Remover</button>' : "-";
         return (
-          '<tr data-rule-id="' + r.id + '"><td>' + escapeHtml(r.src_prefix || "-") + "</td><td>" +
-          escapeHtml(r.dst_prefix || "-") + "</td><td>" +
-          escapeHtml(r.protocol || "-") + "</td><td>" + escapeHtml(r.action) + "</td><td>" +
-          new Date(r.expires_at * 1000).toLocaleString() + '</td><td><button class="fg-btn" data-action="del">Remover</button></td></tr>'
+          '<tr data-rule-id="' + r.id + '"><td>' + r.id + "</td><td>" + fmtDateTime(r.created_at) + "</td><td>" +
+          fmtRuleType(r) + "</td><td>" + escapeHtml(r.src_prefix || "-") + "</td><td>" +
+          escapeHtml(r.dst_prefix || "-") + "</td><td>" + escapeHtml(String(r.protocol || "-")) + "</td><td>" +
+          fmtRulePorts(r) + "</td><td>" + escapeHtml(r.label || "-") + "</td><td>" +
+          (r.attack_id ? "#" + r.attack_id : "-") + "</td><td>" + fmtRuleStatus(r) + "</td><td>" +
+          (r.expires_at ? new Date(r.expires_at * 1000).toLocaleString() : "-") + "</td><td>" + delBtn + "</td></tr>"
         );
       })
       .join("");
-
     el.innerHTML =
-      "<table><thead><tr><th>Origem</th><th>Destino</th><th>Protocolo</th><th>Ação</th><th>Expira</th><th></th></tr></thead><tbody>" +
-      rows +
-      "</tbody></table>";
+      "<table><thead><tr><th>ID</th><th>Criada em</th><th>Tipo</th><th>Origem</th><th>Destino</th>" +
+      "<th>Protocolo</th><th>Portas</th><th>Rótulo</th><th>Ataque</th><th>Status</th><th>Expira</th>" +
+      "<th>Ação</th></tr></thead><tbody>" + rows + "</tbody></table>";
   }
 
-  function onRulesClick(ev) {
-    var btn = ev.target.closest("button[data-action='del']");
-    if (!btn) return;
-    var row = btn.closest("tr[data-rule-id]");
-    if (!row) return;
-    var ruleId = Number(row.getAttribute("data-rule-id"));
-    btn.disabled = true;
-    postJson(RULES_ENDPOINT, { id: ruleId }).then(function (resp) {
-      showToast(resp.ok ? "Regra removida" : resp.error, resp.ok ? "success" : "error");
-      loadRules();
+  var RULES_EDGE_STATUS_LABELS = { active: "ativa", reverted: "revertida", failed: "falhou" };
+
+  function renderRulesCgEdgeTable(mitigations, elId) {
+    var el = document.getElementById(elId);
+    if (!el) return;
+    if (!mitigations.length) {
+      el.innerHTML = '<p class="fg-ok">Nenhuma mitigação de borda registrada.</p>';
+      return;
+    }
+    var rows = mitigations
+      .map(function (m) {
+        var revertBtn = m.status === "active"
+          ? '<button class="fg-btn" data-action="revert-edge-mitigation">Reverter</button>' : "-";
+        return (
+          '<tr data-mitigation-id="' + m.id + '"><td>' + m.id + "</td><td>" + escapeHtml(m.src_ip) + "</td><td>" +
+          (RULES_EDGE_STATUS_LABELS[m.status] || m.status) + "</td><td>" +
+          (m.trigger_type === "auto" ? "automático" : "manual") + "</td><td>" +
+          (m.signal_id ? "#" + m.signal_id : "-") + "</td><td>" + fmtDateTime(m.ts_applied) + "</td><td>" +
+          (m.ts_reverted ? fmtDateTime(m.ts_reverted) : "-") + "</td><td>" +
+          (m.status === "active" && m.ts_expires ? new Date(m.ts_expires * 1000).toLocaleString() : "-") +
+          "</td><td>" + escapeHtml(m.error || "-") + "</td><td>" + revertBtn + "</td></tr>"
+        );
+      })
+      .join("");
+    el.innerHTML =
+      "<table><thead><tr><th>ID</th><th>src_ip</th><th>Status</th><th>Gatilho</th><th>Sinal</th>" +
+      "<th>Aplicada em</th><th>Revertida em</th><th>Expira</th><th>Erro</th><th>Ação</th></tr></thead><tbody>" +
+      rows + "</tbody></table>";
+  }
+
+  function applyRulesFilter() {
+    var wantActive = state.rulesView === "active";
+    var fgSection = document.querySelector('[data-rules-app="flowguard"]');
+    var cgSection = document.querySelector('[data-rules-app="clientguard"]');
+
+    if (state.rulesApp === "clientguard") {
+      if (fgSection) fgSection.hidden = true;
+      if (cgSection) cgSection.hidden = false;
+
+      var cgFlowspec = state.rulesFgData.filter(function (r) { return r.origin === "clientguard"; });
+      if (wantActive) cgFlowspec = cgFlowspec.filter(function (r) { return !!r.active; });
+      renderFlowspecRulesTable(cgFlowspec, "rules-cg-flowspec-list");
+
+      var cgEdge = state.rulesCgEdgeData.slice();
+      if (wantActive) cgEdge = cgEdge.filter(function (m) { return m.status === "active"; });
+      renderRulesCgEdgeTable(cgEdge, "rules-cg-edge-list");
+    } else {
+      if (fgSection) fgSection.hidden = false;
+      if (cgSection) cgSection.hidden = true;
+
+      var fgRules = state.rulesFgData.filter(function (r) { return r.origin !== "clientguard"; });
+      if (wantActive) fgRules = fgRules.filter(function (r) { return !!r.active; });
+      renderFlowspecRulesTable(fgRules, "rules-fg-list");
+    }
+  }
+
+  function loadRulesUnified() {
+    getJson(RULES_ENDPOINT + "?history=1").then(function (data) {
+      if (!data.ok) {
+        showError(document.getElementById("rules-fg-list"), data.error || "erro desconhecido");
+        return;
+      }
+      state.rulesFgData = data.rules;
+      applyRulesFilter();
+    }).catch(function (err) {
+      showError(document.getElementById("rules-fg-list"), "falha ao consultar regras");
+      console.error("flowguard.js:", err);
     });
+
+    getJson(CG_EDGE_ENDPOINT).then(function (data) {
+      if (!data.ok) {
+        showError(document.getElementById("rules-cg-edge-list"), data.error || "erro desconhecido");
+        return;
+      }
+      state.rulesCgEdgeData = data.mitigations;
+      applyRulesFilter();
+    }).catch(function (err) {
+      showError(document.getElementById("rules-cg-edge-list"), "falha ao consultar mitigações de borda");
+      console.error("flowguard.js:", err);
+    });
+  }
+
+  function onRulesUnifiedClick(ev) {
+    var delBtn = ev.target.closest("button[data-action='del-flowspec-rule']");
+    if (delBtn) {
+      var row = delBtn.closest("tr[data-rule-id]");
+      if (!row) return;
+      delBtn.disabled = true;
+      postJson(RULES_ENDPOINT, { id: Number(row.getAttribute("data-rule-id")) }).then(function (resp) {
+        showToast(resp.ok ? "Regra removida" : resp.error, resp.ok ? "success" : "error");
+        loadRulesUnified();
+      });
+      return;
+    }
+    var revertBtn = ev.target.closest("button[data-action='revert-edge-mitigation']");
+    if (revertBtn) {
+      var row2 = revertBtn.closest("tr[data-mitigation-id]");
+      if (!row2) return;
+      revertBtn.disabled = true;
+      postJson(CG_EDGE_ENDPOINT, { id: Number(row2.getAttribute("data-mitigation-id")) }).then(function (resp) {
+        showToast(resp.ok ? "Mitigação revertida" : resp.error, resp.ok ? "success" : "error");
+        loadRulesUnified();
+      });
+    }
+  }
+
+  function initRulesControls() {
+    var appToggle = document.getElementById("rules-app-toggle");
+    if (appToggle) {
+      appToggle.addEventListener("click", function (ev) {
+        var btn = ev.target.closest(".fg-toggle-btn");
+        if (!btn) return;
+        state.rulesApp = btn.getAttribute("data-app");
+        appToggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { b.classList.toggle("active", b === btn); });
+        applyRulesFilter();
+      });
+    }
+    var viewToggle = document.getElementById("rules-view-toggle");
+    if (viewToggle) {
+      viewToggle.addEventListener("click", function (ev) {
+        var btn = ev.target.closest(".fg-toggle-btn");
+        if (!btn) return;
+        state.rulesView = btn.getAttribute("data-view");
+        viewToggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { b.classList.toggle("active", b === btn); });
+        applyRulesFilter();
+      });
+    }
   }
 
   function onBlockSubmit() {
@@ -817,7 +960,7 @@
       .then(function (resp) {
         showToast(resp.ok ? "IP bloqueado: " + ip : resp.error, resp.ok ? "success" : "error");
         if (resp.ok) input.value = "";
-        loadRules();
+        loadRulesUnified();
       })
       .finally(function () { btn.disabled = false; });
   }
@@ -3281,13 +3424,6 @@
     });
   }
 
-  function loadRules() {
-    getJson(RULES_ENDPOINT).then(renderRules).catch(function (err) {
-      showError(document.getElementById("flowguard-rules"), "falha ao consultar regras");
-      console.error("flowguard.js:", err);
-    });
-  }
-
   function loadCfg() {
     if (!getToken()) return;
     getJson(CFG_ENDPOINT).then(renderCfg).catch(function (err) {
@@ -3628,7 +3764,7 @@
     loadStatus();
     loadAttacks();
     loadFlows();
-    loadRules();
+    loadRulesUnified();
   }
 
   function initLogin() {
@@ -3712,8 +3848,16 @@
     var attackDetailEl = document.getElementById("flowguard-attack-detail");
     if (attackDetailEl) attackDetailEl.addEventListener("click", onAttackDetailClick);
 
-    var rulesEl = document.getElementById("flowguard-rules");
-    if (rulesEl) rulesEl.addEventListener("click", onRulesClick);
+    var rulesFgListEl = document.getElementById("rules-fg-list");
+    if (rulesFgListEl) rulesFgListEl.addEventListener("click", onRulesUnifiedClick);
+
+    var rulesCgFlowspecListEl = document.getElementById("rules-cg-flowspec-list");
+    if (rulesCgFlowspecListEl) rulesCgFlowspecListEl.addEventListener("click", onRulesUnifiedClick);
+
+    var rulesCgEdgeListEl = document.getElementById("rules-cg-edge-list");
+    if (rulesCgEdgeListEl) rulesCgEdgeListEl.addEventListener("click", onRulesUnifiedClick);
+
+    initRulesControls();
 
     var blockSubmitBtn = document.getElementById("fg-block-submit");
     if (blockSubmitBtn) blockSubmitBtn.addEventListener("click", onBlockSubmit);

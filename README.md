@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.19.0**
+**Versão atual: v1.20.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -59,6 +59,13 @@ mesmo host, cada um com seu próprio socket Unix de controle:
     SSH; dois templates novos usam essa lista pra facilitar subir/derrubar a
     sessão com uma operadora específica e anunciar/remover um prefixo da
     lista de IPs advertidos, sem precisar digitar IP na mão.
+11. **Perfil de operadora + interfaces/VLANs + 5 templates novos** — botão
+    "Ver rotas" em cada peer da tabela de descoberta mostra as rotas
+    anunciadas/recebidas de verdade pra aquela operadora (alternável). A
+    descoberta ganhou tabelas de Interfaces e VLANs; qualquer template com
+    campo de interface (não só os de BGP) passa a usar essa lista real.
+    Templates novos: criar/remover VLAN, VLAN numa porta trunk, IP numa
+    interface, criar/remover sub-interface 802.1Q.
 
 ## Estrutura
 
@@ -73,6 +80,25 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.20.0 — 2026-07-02 — Perfil de operadora, interfaces/VLANs e 5 templates novos
+- Botão "Ver rotas" em cada linha da tabela de peers (descoberta BGP): mostra
+  as rotas anunciadas/recebidas de verdade pra aquele peer específico, com
+  alternância entre as duas direções — é a resposta direta a "quero ver
+  redes/hosts advertidos por operadora".
+- A tela de descoberta ganhou tabelas de "Interfaces" e "VLANs" (nome/IP/
+  estado; VID/nome/status/portas).
+- Generalização: qualquer campo de interface em qualquer template (não só
+  os de BGP) agora vira uma lista de interfaces reais depois da descoberta
+  — inclui o template de descrição/estado de interface que já existia.
+- 5 templates novos na tela de Config. Roteador: criar/remover VLAN,
+  adicionar/remover VLAN de uma porta trunk, adicionar/remover IP de uma
+  interface, criar/remover sub-interface 802.1Q (11 templates no total).
+- Validado com Playwright real (mock só nas chamadas de descoberta/rotas —
+  preview/apply seguem batendo no backend real): tabelas de interfaces/VLANs
+  aparecem corretamente, "Ver rotas" alterna anunciadas/recebidas, campos de
+  interface viram select nos templates de VLAN — ver
+  [[feedback-verify-with-real-browser]].
 
 ### v1.19.0 — 2026-07-02 — Descoberta de BGP real na tela de Config. Roteador
 - Botão "🔍 Ler configuração atual (BGP)" no modal de Config. Roteador: lê

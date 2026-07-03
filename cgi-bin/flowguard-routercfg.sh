@@ -9,7 +9,8 @@
 # POST {"warmode_token":"...","action":"apply","template_id":"...","values":{...},"window":300}
 # POST {"warmode_token":"...","action":"confirm","job_id":"..."}
 # POST {"warmode_token":"...","action":"revert","job_id":"..."}
-# POST {"warmode_token":"...","action":"discover"}                          -> lê config BGP real via SSH
+# POST {"warmode_token":"...","action":"discover"}                          -> lê BGP+interfaces+VLANs via SSH
+# POST {"warmode_token":"...","action":"peer_routes","peer_ip":"...","direction":"advertised"|"received"}
 
 . "$(dirname -- "$0")/lib.sh"
 
@@ -64,12 +65,17 @@ try:
         print(json.dumps({"ok": True, "job": job}))
 
     elif action == "discover":
-        from routercfg.discovery import discover_bgp
-        result = discover_bgp()
+        from routercfg.discovery import discover_all
+        result = discover_all()
         print(json.dumps({"ok": True, "discovery": result}))
 
+    elif action == "peer_routes":
+        from routercfg.discovery import discover_peer_routes
+        result = discover_peer_routes(body.get("peer_ip"), direction=body.get("direction") or "advertised")
+        print(json.dumps({"ok": True, "routes": result}))
+
     else:
-        print(json.dumps({"ok": False, "error": "action invalida (preview|apply|confirm|revert|discover)"}))
+        print(json.dumps({"ok": False, "error": "action invalida (preview|apply|confirm|revert|discover|peer_routes)"}))
 except ValidationError as exc:
     print(json.dumps({"ok": False, "error": str(exc)}))
 except Exception as exc:

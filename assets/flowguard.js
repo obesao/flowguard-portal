@@ -1195,11 +1195,29 @@
     return label;
   }
 
+  function rcInterfaceOptionLabel(i) {
+    var label = i.name;
+    if (i.ip) label += " — " + i.ip;
+    label += " (" + i.physical + (i.admin_down ? "/admin-down" : "") + ")";
+    return label;
+  }
+
   function rcDiscoveryFieldOverride(f, template) {
     if (!template) return null;
+    var id = "fg-rc-field-" + f.name;
+
+    // select genérico de interface — vale pra QUALQUER template com um campo
+    // desse tipo (não só os de BGP), já que a descoberta de interfaces não é
+    // específica de nenhum template.
+    if (f.type === "interface_name" && rcDiscovery && rcDiscovery.interfaces && rcDiscovery.interfaces.length) {
+      var ifOpts = rcDiscovery.interfaces
+        .map(function (i) { return '<option value="' + escapeHtml(i.name) + '">' + escapeHtml(rcInterfaceOptionLabel(i)) + "</option>"; })
+        .join("");
+      return '<select id="' + id + '" data-field="' + escapeHtml(f.name) + '"><option value="" disabled selected>selecione a interface...</option>' + ifOpts + "</select>";
+    }
+
     var isBgpTemplate = template.id === "bgp_peer_toggle" || template.id === "bgp_prefix_advertise";
     if (!isBgpTemplate) return null;
-    var id = "fg-rc-field-" + f.name;
 
     if (f.name === "as_number") {
       var asVal = rcDiscovery && rcDiscovery.local_as ? rcDiscovery.local_as : "";
@@ -1278,19 +1296,89 @@
         var estado = p.state === "up" ? '<span class="fg-ok">up</span>' : '<span class="fg-error">down (ignore)</span>';
         return (
           "<tr><td>" + escapeHtml(p.peer_ip) + "</td><td>" + escapeHtml(p.remote_as || "-") + "</td><td>" +
-          escapeHtml(p.description || "-") + "</td><td>" + estado + "</td></tr>"
+          escapeHtml(p.description || "-") + "</td><td>" + estado + "</td><td>" +
+          '<button class="fg-btn" data-rc-peer-routes="' + escapeHtml(p.peer_ip) + '">Ver rotas</button></td></tr>'
         );
       })
       .join("");
     var netsRows = d.networks.map(function (n) { return "<tr><td>" + escapeHtml(n.cidr) + "</td></tr>"; }).join("");
+    var ifRows = (d.interfaces || [])
+      .map(function (i) {
+        var phy = i.physical === "up" ? '<span class="fg-ok">up</span>' : (i.admin_down ? '<span class="fg-error">admin-down</span>' : '<span class="fg-error">down</span>');
+        return "<tr><td>" + escapeHtml(i.name) + "</td><td>" + escapeHtml(i.ip || "-") + "</td><td>" + phy + "</td><td>" + escapeHtml(i.protocol) + "</td></tr>";
+      })
+      .join("");
+    var vlanRows = (d.vlans || [])
+      .map(function (v) {
+        return "<tr><td>" + escapeHtml(v.vlan_id) + "</td><td>" + escapeHtml(v.name || "-") + "</td><td>" + escapeHtml(v.status) + "</td><td>" + escapeHtml(v.ports || "-") + "</td></tr>";
+      })
+      .join("");
     el.innerHTML =
       '<p class="fg-kpi-sub">AS local: <strong>' + escapeHtml(d.local_as || "?") + "</strong></p>" +
       "<h4>Peers BGP (" + d.peers.length + ")</h4>" +
-      "<table><thead><tr><th>IP</th><th>AS remoto</th><th>Descrição</th><th>Estado</th></tr></thead><tbody>" +
-      (peersRows || '<tr><td colspan="4">nenhum peer encontrado</td></tr>') + "</tbody></table>" +
+      "<table><thead><tr><th>IP</th><th>AS remoto</th><th>Descrição</th><th>Estado</th><th></th></tr></thead><tbody>" +
+      (peersRows || '<tr><td colspan="5">nenhum peer encontrado</td></tr>') + "</tbody></table>" +
+      '<div id="fg-rc-peer-routes"></div>' +
       "<h4>Prefixos anunciados (" + d.networks.length + ")</h4>" +
       "<table><thead><tr><th>CIDR</th></tr></thead><tbody>" +
-      (netsRows || '<tr><td>nenhum</td></tr>') + "</tbody></table>";
+      (netsRows || '<tr><td>nenhum</td></tr>') + "</tbody></table>" +
+      "<h4>Interfaces (" + (d.interfaces || []).length + ")</h4>" +
+      "<table><thead><tr><th>Nome</th><th>IP</th><th>Físico</th><th>Protocolo</th></tr></thead><tbody>" +
+      (ifRows || '<tr><td colspan="4">nenhuma interface encontrada</td></tr>') + "</tbody></table>" +
+      "<h4>VLANs (" + (d.vlans || []).length + ")</h4>" +
+      "<table><thead><tr><th>VID</th><th>Nome</th><th>Status</th><th>Portas</th></tr></thead><tbody>" +
+      (vlanRows || '<tr><td colspan="4">nenhuma VLAN encontrada</td></tr>') + "</tbody></table>";
+  }
+
+  function renderPeerRoutesPanel(peerIp, direction, data) {
+    var el = document.getElementById("fg-rc-peer-routes");
+    if (!el) return;
+    var dirLabel = direction === "received" ? "recebidas de" : "anunciadas para";
+    var toggle =
+      '<div class="fg-toggle-group" style="margin:0.4rem 0;">' +
+      '<button class="fg-toggle-btn' + (direction === "advertised" ? " active" : "") + '" data-rc-routes-dir="advertised" data-rc-routes-peer="' + escapeHtml(peerIp) + '">Anunciadas</button>' +
+      '<button class="fg-toggle-btn' + (direction === "received" ? " active" : "") + '" data-rc-routes-dir="received" data-rc-routes-peer="' + escapeHtml(peerIp) + '">Recebidas</button>' +
+      "</div>";
+    if (!data) {
+      el.innerHTML = '<div class="fg-rc-job"><strong>Rotas ' + dirLabel + " " + escapeHtml(peerIp) + "</strong>" + toggle + '<p class="fg-kpi-sub">Consultando...</p></div>';
+      return;
+    }
+    var items = data.prefixes.map(function (p) { return "<li>" + escapeHtml(p) + "</li>"; }).join("");
+    var totalNote = data.total_reported != null ? " (equipamento reporta " + data.total_reported + ")" : "";
+    el.innerHTML =
+      '<div class="fg-rc-job"><strong>Rotas ' + dirLabel + " " + escapeHtml(peerIp) + "</strong>" + toggle +
+      '<p class="fg-kpi-sub">' + data.prefixes.length + " prefixo(s)" + totalNote + "</p>" +
+      "<ul>" + (items || "<li>nenhum</li>") + "</ul></div>";
+  }
+
+  function loadPeerRoutes(peerIp, direction) {
+    renderPeerRoutesPanel(peerIp, direction, null);
+    warmodePostJson(ROUTERCFG_ENDPOINT, { warmode_token: warmodeToken, action: "peer_routes", peer_ip: peerIp, direction: direction })
+      .then(function (r) {
+        if (r.status === 401) { warmodeToken = null; rcShowStep("lock"); return; }
+        var el = document.getElementById("fg-rc-peer-routes");
+        if (!r.data.ok) {
+          showError(el, r.data.error || "falha ao consultar rotas");
+          return;
+        }
+        renderPeerRoutesPanel(peerIp, direction, r.data.routes);
+      })
+      .catch(function (err) {
+        showError(document.getElementById("fg-rc-peer-routes"), "falha ao consultar rotas");
+        console.error("flowguard.js:", err);
+      });
+  }
+
+  function onRcDiscoverySummaryClick(ev) {
+    var routesBtn = ev.target.closest("[data-rc-peer-routes]");
+    if (routesBtn) {
+      loadPeerRoutes(routesBtn.getAttribute("data-rc-peer-routes"), "advertised");
+      return;
+    }
+    var dirBtn = ev.target.closest("[data-rc-routes-dir]");
+    if (dirBtn) {
+      loadPeerRoutes(dirBtn.getAttribute("data-rc-routes-peer"), dirBtn.getAttribute("data-rc-routes-dir"));
+    }
   }
 
   function loadRcDiscovery() {
@@ -1573,6 +1661,8 @@
     if (activeJobEl) activeJobEl.addEventListener("click", onRcActiveJobClick);
     var discoverBtn = document.getElementById("fg-rc-discover-btn");
     if (discoverBtn) discoverBtn.addEventListener("click", loadRcDiscovery);
+    var discoverySummaryEl = document.getElementById("fg-rc-discovery-summary");
+    if (discoverySummaryEl) discoverySummaryEl.addEventListener("click", onRcDiscoverySummaryClick);
   }
 
   // --- configuração: prefixos monitorados + whitelist --------------------

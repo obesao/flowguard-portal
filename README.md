@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.20.0**
+**Versão atual: v1.21.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -80,6 +80,20 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.21.0 — 2026-07-02 — Desempenho: timeouts maiores nos endpoints pesados do ClientGuard
+Usuário reportou timeout constante no portal. Causa raiz real era no daemon
+(contenção de lock + `COUNT(*)` recalculado a toda hora — ver CHANGELOG do
+`clientguard`, corrigido lá). Do lado do portal, dois endpoints de leitura
+(`clientguard-top.sh`, `clientguard-client-detail.sh`) faziam `GROUP BY`+
+`ORDER BY` sobre a tabela inteira em janelas longas (7 dias) — mesmo com o
+lock resolvido, essa consulta específica ainda leva ~10-16s sob o volume
+atual de dados, acima do timeout de 5s configurado aqui. Subido pra 20s nos
+dois — validado com Playwright real: painel "Top Clientes" com janela de 7d
+renderizou em ~9s sem erro (antes: timeout sempre). Os demais endpoints do
+ClientGuard (status, sinais suspeitos, mitigações de borda) já ficaram
+rápidos o bastante (sub-10ms) com o fix no daemon, timeout deles não precisou
+mudar.
 
 ### v1.20.0 — 2026-07-02 — Perfil de operadora, interfaces/VLANs e 5 templates novos
 - Botão "Ver rotas" em cada linha da tabela de peers (descoberta BGP): mostra

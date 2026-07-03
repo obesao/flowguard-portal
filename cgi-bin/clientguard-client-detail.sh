@@ -32,9 +32,11 @@ try:
     else:
         cfg = yaml.safe_load(open("/root/clientguard/config.yaml", encoding="utf-8"))
         window_s = int(os.environ.get("WINDOW") or 3600)
+        # mesmo motivo do timeout maior em clientguard-top.sh — série temporal/top
+        # destinos de um cliente também escaneiam a tabela inteira em janelas longas.
         resp = control.send_command(cfg["daemon"]["socket"],
                                      {"cmd": "client_detail", "src_ip": src_ip, "window_s": window_s},
-                                     timeout=5.0)
+                                     timeout=20.0)
         print(json.dumps(resp))
 except Exception as exc:
     print(json.dumps({"ok": False, "error": str(exc)}))

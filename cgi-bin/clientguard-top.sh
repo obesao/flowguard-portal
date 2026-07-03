@@ -28,8 +28,12 @@ try:
     cfg = yaml.safe_load(open("/root/clientguard/config.yaml", encoding="utf-8"))
     window_s = int(os.environ.get("WINDOW") or 3600)
     limit = int(os.environ.get("LIMIT") or 20)
+    # timeout mais folgado que os outros GET do ClientGuard: top_src_ips faz
+    # GROUP BY+ORDER BY sobre a tabela inteira pra janelas longas (7d) — mesmo já
+    # rápido pros outros comandos (ver socket_server._read_only_conn), esta
+    # continua sendo, de longe, a mais pesada sob o volume atual de dados.
     resp = control.send_command(cfg["daemon"]["socket"], {"cmd": "top", "window_s": window_s, "limit": limit},
-                                 timeout=5.0)
+                                 timeout=20.0)
     print(json.dumps(resp))
 except Exception as exc:
     print(json.dumps({"ok": False, "error": str(exc)}))

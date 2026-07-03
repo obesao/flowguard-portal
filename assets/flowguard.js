@@ -348,9 +348,9 @@
 
   // --- KPIs ---------------------------------------------------------------
 
-  function kpiCard(label, valueHtml, sub, trendHtml) {
+  function kpiCard(label, valueHtml, sub, trendHtml, danger) {
     return (
-      '<div class="fg-card"><div class="fg-kpi-label">' + escapeHtml(label) + '</div>' +
+      '<div class="fg-card' + (danger ? " fg-card-danger" : "") + '"><div class="fg-kpi-label">' + escapeHtml(label) + '</div>' +
       '<div class="fg-kpi-value">' + valueHtml + '</div>' +
       '<div class="fg-kpi-sub">' + escapeHtml(sub || "") + (trendHtml || "") + '</div></div>'
     );
@@ -413,8 +413,8 @@
       kpiCard("Tráfego", fmtBps(s.bps), s.flows + " flows/s", bpsTrend) +
       kpiCard("Pacotes/s", Number(s.pps).toLocaleString("pt-BR"), "", ppsTrend) +
       kpiCard("Ataques Ativos", s.active_attacks, s.active_attacks > 0 ? "requer atenção" : "tudo normal") +
-      kpiCard("Regras FlowSpec", s.active_rules, "") +
-      kpiCard("Mitigações de Borda", activeEdgeMitigations, "ClientGuard · SSH/ACL") +
+      kpiCard("Regras FlowSpec", s.active_rules, "", null, s.active_rules > 0) +
+      kpiCard("Mitigações de Borda", activeEdgeMitigations, "ClientGuard · FlowSpec/SSH", null, activeEdgeMitigations > 0) +
       kpiCard("BGP (ExaBGP)", bgpHtml, bgpSub) +
       kpiCard("Daemon", daemonHtml, daemonSub);
 
@@ -1025,6 +1025,36 @@
     }
   }
 
+  function onRulesDelAllClick() {
+    var btn = document.getElementById("fg-rules-del-all-btn");
+    var activeCount = state.rulesFgData.filter(function (r) { return r.active; }).length;
+    if (!activeCount) {
+      showToast("Nenhuma regra ativa pra apagar", "error");
+      return;
+    }
+    if (!window.confirm(
+      "Apagar TODAS as " + activeCount + " regra(s) FlowSpec/RTBH ativas (FlowGuard + ClientGuard)? " +
+      "Isso retira o bloqueio/limite de banda de todo mundo imediatamente e não pode ser desfeito.",
+    )) {
+      return;
+    }
+    btn.disabled = true;
+    postJson(RULES_ENDPOINT, { clear_all: true })
+      .then(function (resp) {
+        if (resp.ok) {
+          showToast(resp.removed + " regra(s) removida(s)" + (resp.failed ? ", " + resp.failed + " falharam (veja detalhes)" : ""), "success");
+        } else {
+          showToast(resp.error || "falha ao apagar regras", "error");
+        }
+        loadRulesUnified();
+      })
+      .catch(function (err) {
+        showToast("falha ao apagar regras", "error");
+        console.error("flowguard.js:", err);
+      })
+      .finally(function () { btn.disabled = false; });
+  }
+
   function initRulesControls() {
     var appToggle = document.getElementById("rules-app-toggle");
     if (appToggle) {
@@ -1046,6 +1076,8 @@
         applyRulesFilter();
       });
     }
+    var delAllBtn = document.getElementById("fg-rules-del-all-btn");
+    if (delAllBtn) delAllBtn.addEventListener("click", onRulesDelAllClick);
   }
 
   function onBlockSubmit() {

@@ -92,6 +92,11 @@
     .fg-btn-danger:hover { background: #ff7b72; }
     .fg-btn-danger:disabled { opacity: 0.5; cursor: default; }
 
+    /* mitigação/regra FlowSpec ativa nas caixas de resumo do topo — chama atenção
+       mesmo sem entrar na aba Regras */
+    .fg-card-danger { border-color: #f85149; }
+    .fg-card-danger .fg-kpi-value { color: #f85149; }
+
     .fg-modal-overlay {
       position: fixed; inset: 0; background: rgba(1,4,9,0.75); z-index: 500;
       display: flex; align-items: center; justify-content: center; padding: 1rem;
@@ -454,6 +459,7 @@
             <button class="fg-toggle-btn active" data-view="active">Ativas</button>
             <button class="fg-toggle-btn" data-view="history">Histórico completo</button>
           </div>
+          <button class="fg-btn fg-btn-danger" id="fg-rules-del-all-btn">Apagar todas as regras ativas</button>
         </div>
         <div data-rules-app="flowguard">
           <h3>RTBH e FlowSpec (BGP)</h3>

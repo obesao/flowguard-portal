@@ -32,6 +32,7 @@
   var warmodeToken = null; // em memória só — some ao recarregar a página (relock)
   var rcTemplates = [];
   var rcCountdownTimer = null;
+  var rcDiscovery = null; // cache em memória do último "Ler configuração atual (BGP)"
 
   var PROTO_NAMES = { 6: "TCP", 17: "UDP", 1: "ICMP" };
 
@@ -1186,16 +1187,67 @@
     });
   }
 
-  function rcFieldInputHtml(f) {
+  function rcPeerOptionLabel(p) {
+    var label = p.peer_ip;
+    if (p.remote_as) label += " — AS" + p.remote_as;
+    if (p.description) label += " — " + p.description;
+    label += " (" + (p.state === "up" ? "up" : "down/ignore") + ")";
+    return label;
+  }
+
+  function rcDiscoveryFieldOverride(f, template) {
+    if (!template) return null;
+    var isBgpTemplate = template.id === "bgp_peer_toggle" || template.id === "bgp_prefix_advertise";
+    if (!isBgpTemplate) return null;
+    var id = "fg-rc-field-" + f.name;
+
+    if (f.name === "as_number") {
+      var asVal = rcDiscovery && rcDiscovery.local_as ? rcDiscovery.local_as : "";
+      var readonlyAttr = asVal ? " readonly" : "";
+      return '<input type="text" id="' + id + '" data-field="as_number" value="' + escapeHtml(asVal) +
+        '" placeholder="AS local (use \'Ler configuração atual\' pra preencher)"' + readonlyAttr + ">";
+    }
+    if (template.id === "bgp_peer_toggle" && f.name === "peer_ip") {
+      if (rcDiscovery && rcDiscovery.peers && rcDiscovery.peers.length) {
+        var peerOpts = rcDiscovery.peers
+          .map(function (p) { return '<option value="' + escapeHtml(p.peer_ip) + '">' + escapeHtml(rcPeerOptionLabel(p)) + "</option>"; })
+          .join("");
+        return '<select id="' + id + '" data-field="peer_ip"><option value="" disabled selected>selecione o peer...</option>' + peerOpts + "</select>";
+      }
+      return (
+        '<p class="fg-kpi-sub">Clique em "Ler configuração atual (BGP)" acima pra escolher o peer.</p>' +
+        '<input type="text" id="' + id + '" data-field="peer_ip" placeholder="ou digite o IP do peer">'
+      );
+    }
+    if (template.id === "bgp_prefix_advertise" && f.name === "prefix") {
+      if (rcDiscovery && rcDiscovery.networks && rcDiscovery.networks.length) {
+        var netOpts = rcDiscovery.networks
+          .map(function (n) { return '<option value="' + escapeHtml(n.cidr) + '">' + escapeHtml(n.cidr) + "</option>"; })
+          .join("");
+        return '<select id="' + id + '" data-field="prefix"><option value="" disabled selected>selecione o prefixo...</option>' + netOpts + "</select>";
+      }
+      return (
+        '<p class="fg-kpi-sub">Clique em "Ler configuração atual (BGP)" acima pra escolher o prefixo.</p>' +
+        '<input type="text" id="' + id + '" data-field="prefix" placeholder="ou digite o CIDR manualmente">'
+      );
+    }
+    return null;
+  }
+
+  function rcFieldInputHtml(f, template) {
+    var override = rcDiscoveryFieldOverride(f, template);
+    if (override) return override;
+
     var id = "fg-rc-field-" + f.name;
     if (f.type === "enum") {
+      var placeholderOpt = f.default == null ? '<option value="" disabled selected>selecione...</option>' : "";
       var opts = (f.options || [])
         .map(function (o) {
           var sel = f.default === o ? " selected" : "";
           return '<option value="' + escapeHtml(o) + '"' + sel + ">" + escapeHtml(o) + "</option>";
         })
         .join("");
-      return '<select id="' + id + '" data-field="' + escapeHtml(f.name) + '">' + opts + "</select>";
+      return '<select id="' + id + '" data-field="' + escapeHtml(f.name) + '">' + placeholderOpt + opts + "</select>";
     }
     var placeholder = f.help || f.label;
     var defaultVal = f.default != null ? ' value="' + escapeHtml(String(f.default)) + '"' : "";
@@ -1213,9 +1265,57 @@
     }
     el.innerHTML = template.fields
       .map(function (f) {
-        return "<label>" + escapeHtml(f.label) + (f.required ? " *" : "") + rcFieldInputHtml(f) + "</label>";
+        return "<label>" + escapeHtml(f.label) + (f.required ? " *" : "") + rcFieldInputHtml(f, template) + "</label>";
       })
       .join("");
+  }
+
+  function renderRcDiscoverySummary(d) {
+    var el = document.getElementById("fg-rc-discovery-summary");
+    if (!d) { el.innerHTML = ""; return; }
+    var peersRows = d.peers
+      .map(function (p) {
+        var estado = p.state === "up" ? '<span class="fg-ok">up</span>' : '<span class="fg-error">down (ignore)</span>';
+        return (
+          "<tr><td>" + escapeHtml(p.peer_ip) + "</td><td>" + escapeHtml(p.remote_as || "-") + "</td><td>" +
+          escapeHtml(p.description || "-") + "</td><td>" + estado + "</td></tr>"
+        );
+      })
+      .join("");
+    var netsRows = d.networks.map(function (n) { return "<tr><td>" + escapeHtml(n.cidr) + "</td></tr>"; }).join("");
+    el.innerHTML =
+      '<p class="fg-kpi-sub">AS local: <strong>' + escapeHtml(d.local_as || "?") + "</strong></p>" +
+      "<h4>Peers BGP (" + d.peers.length + ")</h4>" +
+      "<table><thead><tr><th>IP</th><th>AS remoto</th><th>Descrição</th><th>Estado</th></tr></thead><tbody>" +
+      (peersRows || '<tr><td colspan="4">nenhum peer encontrado</td></tr>') + "</tbody></table>" +
+      "<h4>Prefixos anunciados (" + d.networks.length + ")</h4>" +
+      "<table><thead><tr><th>CIDR</th></tr></thead><tbody>" +
+      (netsRows || '<tr><td>nenhum</td></tr>') + "</tbody></table>";
+  }
+
+  function loadRcDiscovery() {
+    var btn = document.getElementById("fg-rc-discover-btn");
+    var summary = document.getElementById("fg-rc-discovery-summary");
+    btn.disabled = true;
+    summary.innerHTML = '<p class="fg-kpi-sub">Consultando o roteador via SSH...</p>';
+    warmodePostJson(ROUTERCFG_ENDPOINT, { warmode_token: warmodeToken, action: "discover" })
+      .then(function (r) {
+        btn.disabled = false;
+        if (r.status === 401) { warmodeToken = null; rcShowStep("lock"); return; }
+        if (!r.data.ok) {
+          showError(summary, r.data.error || "falha ao consultar o roteador");
+          return;
+        }
+        rcDiscovery = r.data.discovery;
+        renderRcDiscoverySummary(rcDiscovery);
+        var template = rcSelectedTemplate();
+        if (template) renderRcFields(template);
+      })
+      .catch(function (err) {
+        btn.disabled = false;
+        showError(summary, "falha ao consultar o roteador");
+        console.error("flowguard.js:", err);
+      });
   }
 
   function rcSelectedTemplate() {
@@ -1414,6 +1514,7 @@
       }
       renderRcTemplateSelect(r.data.templates || []);
       renderRcFields(null);
+      renderRcDiscoverySummary(rcDiscovery);
       renderRcHistory(r.data.history || []);
       var pending = (r.data.history || []).filter(function (j) { return j.status === "pending_confirm"; })[0];
       renderActiveJob(pending || null);
@@ -1470,6 +1571,8 @@
     if (applyBtn) applyBtn.addEventListener("click", onRcApplyClick);
     var activeJobEl = document.getElementById("fg-rc-active-job");
     if (activeJobEl) activeJobEl.addEventListener("click", onRcActiveJobClick);
+    var discoverBtn = document.getElementById("fg-rc-discover-btn");
+    if (discoverBtn) discoverBtn.addEventListener("click", loadRcDiscovery);
   }
 
   // --- configuração: prefixos monitorados + whitelist --------------------

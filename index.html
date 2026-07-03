@@ -324,6 +324,13 @@
         <div id="fg-rc-content" hidden>
           <div id="fg-rc-active-job"></div>
 
+          <h3 style="margin-top:1rem;">Configuração real do roteador (BGP)</h3>
+          <p class="fg-kpi-sub">Lê peers e prefixos anunciados de verdade via SSH, pra escolher no template abaixo em vez de digitar IP na mão.</p>
+          <div class="fg-toolbar">
+            <button id="fg-rc-discover-btn" class="fg-btn">🔍 Ler configuração atual (BGP)</button>
+          </div>
+          <div id="fg-rc-discovery-summary"></div>
+
           <h3 style="margin-top:1rem;">Aplicar novo template</h3>
           <div class="fg-form">
             <select id="fg-rc-template-select"><option value="">selecione um template...</option></select>

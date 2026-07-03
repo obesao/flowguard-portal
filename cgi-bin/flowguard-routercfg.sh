@@ -9,6 +9,7 @@
 # POST {"warmode_token":"...","action":"apply","template_id":"...","values":{...},"window":300}
 # POST {"warmode_token":"...","action":"confirm","job_id":"..."}
 # POST {"warmode_token":"...","action":"revert","job_id":"..."}
+# POST {"warmode_token":"...","action":"discover"}                          -> lê config BGP real via SSH
 
 . "$(dirname -- "$0")/lib.sh"
 
@@ -62,8 +63,13 @@ try:
         job = routercfg_apply.revert_job(body.get("job_id"), trigger="manual")
         print(json.dumps({"ok": True, "job": job}))
 
+    elif action == "discover":
+        from routercfg.discovery import discover_bgp
+        result = discover_bgp()
+        print(json.dumps({"ok": True, "discovery": result}))
+
     else:
-        print(json.dumps({"ok": False, "error": "action invalida (preview|apply|confirm|revert)"}))
+        print(json.dumps({"ok": False, "error": "action invalida (preview|apply|confirm|revert|discover)"}))
 except ValidationError as exc:
     print(json.dumps({"ok": False, "error": str(exc)}))
 except Exception as exc:

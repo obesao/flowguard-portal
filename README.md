@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.18.0**
+**Versão atual: v1.19.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -54,6 +54,11 @@ mesmo host, cada um com seu próprio socket Unix de controle:
    descrição/estado de interface. Fluxo obrigatório de preview → confirmação
    → aplicação, com reversão automática se o operador não confirmar a mudança
    dentro de alguns minutos.
+10. **Descoberta de BGP real** — botão "🔍 Ler configuração atual (BGP)" na
+    tela de Config. Roteador lê peers e prefixos anunciados de verdade via
+    SSH; dois templates novos usam essa lista pra facilitar subir/derrubar a
+    sessão com uma operadora específica e anunciar/remover um prefixo da
+    lista de IPs advertidos, sem precisar digitar IP na mão.
 
 ## Estrutura
 
@@ -68,6 +73,23 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.19.0 — 2026-07-02 — Descoberta de BGP real na tela de Config. Roteador
+- Botão "🔍 Ler configuração atual (BGP)" no modal de Config. Roteador: lê
+  via SSH o AS local, os peers configurados (IP, AS remoto, descrição,
+  estado up/down) e os prefixos anunciados, mostrando um resumo em tabela.
+- Os templates novos "Subir/derrubar sessão BGP com uma operadora" e
+  "Anunciar/remover prefixo da lista de IPs advertidos" passam a usar essa
+  descoberta: os campos de peer/prefixo viram um `<select>` com os valores
+  reais (em vez de texto livre), e o campo de AS local é preenchido sozinho
+  — reduz erro de digitação e evita apontar pra algo que não existe na
+  config real. Sem descoberta ainda feita, os campos caem de volta pra texto
+  livre (a tela continua utilizável).
+- Validado com Playwright real (mock só da chamada SSH de descoberta —
+  preview/apply continuam batendo no backend real): resumo da descoberta
+  aparece corretamente, selects populados com os peers/prefixos certos,
+  campo de AS local somente-leitura, preview reflete a escolha exata de
+  peer+ação e prefixo+ação — ver [[feedback-verify-with-real-browser]].
 
 ### v1.18.0 — 2026-07-02 — ClientGuard: mitigação direta na borda (SSH/ACL) na aba do portal
 - Nova seção "Mitigação direta na borda (SSH/ACL)" na aba ClientGuard —

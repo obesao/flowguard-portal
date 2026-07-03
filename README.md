@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.22.0**
+**Versão atual: v1.23.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -80,6 +80,23 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.23.0 — 2026-07-03 — Botão "Sair do Modo Guerra" (reversão dos comandos)
+Usuário pediu um botão ao lado do "🚨 Modo Guerra" pra reverter os comandos
+aplicados: "digito os comandos novamente e salvo" descrevia o ciclo desejado
+(rodar mitigação → sair revertendo → reconfigurar pro próximo incidente).
+Cada equipamento ganhou um campo `revert_commands` (novo textarea "Comandos
+de reversão" no editor de equipamentos, mesmas regras de `commands` —
+`system-view` como primeiro item entra em modo de configuração
+automaticamente). Novo botão "🔙 Sair do Modo Guerra" reaproveita o MESMO
+modal de execução do "🚨 Modo Guerra" (só troca título/descrição/rótulo do
+botão e manda `action: "revert"` no POST) — evita duplicar toda a lógica de
+sessão/desbloqueio/renderização. Equipamento sem `revert_commands`
+configurado simplesmente não roda nada nesse botão (erro tratado por
+equipamento, não trava os outros). Validado com Playwright real contra o
+backend de produção (contagem de comandos batendo com `warmode.yaml` real,
+0 erros de console) — ver nota de reversão de sessão de teste no repo
+`flowguard`.
 
 ### v1.22.0 — 2026-07-02 — Aba Regras vira histórico unificado (FlowGuard + ClientGuard)
 Usuário pediu que a aba Regras mostre TUDO que já foi gerado/enviado pra

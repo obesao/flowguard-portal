@@ -1,8 +1,8 @@
 #!/bin/sh
-# clientguard-edge.sh — mitigação direta na borda (SSH/ACL no roteador), sem depender
-# do FlowGuard. GET lista mitigações (ativas + histórico); POST aplica (ip, ttl_s,
-# signal_id opcional) ou reverte (id) uma mitigação. Só exige sessão normal do portal
-# (sem a segunda senha do Modo Guerra) — ação cirúrgica de 1 IP por vez.
+# clientguard-edge.sh — mitigação na borda (FlowSpec via FlowGuard ou SSH/ACL legado).
+# GET lista mitigações (ativas + histórico); POST aplica (ip, ttl_s, signal_id
+# opcional), reverte uma (id) ou reverte TODAS as ativas (revert_all). Só exige
+# sessão normal do portal (sem a segunda senha do Modo Guerra).
 
 . "$(dirname -- "$0")/lib.sh"
 
@@ -30,7 +30,9 @@ try:
     body = json.loads(os.environ.get("BODY") or "{}")
     cfg = yaml.safe_load(open("/root/clientguard/config.yaml", encoding="utf-8"))
     sock_path = cfg["daemon"]["socket"]
-    if body.get("id"):
+    if body.get("revert_all"):
+        resp = control.send_command(sock_path, {"cmd": "edge_revert_all"}, timeout=60.0)
+    elif body.get("id"):
         resp = control.send_command(sock_path, {"cmd": "edge_revert", "id": body["id"]}, timeout=25.0)
     elif body.get("ip"):
         payload = {"cmd": "edge_apply", "ip": body["ip"]}
@@ -40,7 +42,7 @@ try:
             payload["signal_id"] = body["signal_id"]
         resp = control.send_command(sock_path, payload, timeout=25.0)
     else:
-        resp = {"ok": False, "error": "informe ip (aplicar) ou id (reverter)"}
+        resp = {"ok": False, "error": "informe ip (aplicar), id (reverter) ou revert_all (reverter todas)"}
     print(json.dumps(resp))
 except Exception as exc:
     print(json.dumps({"ok": False, "error": str(exc)}))

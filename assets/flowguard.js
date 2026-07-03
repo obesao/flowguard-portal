@@ -2126,6 +2126,7 @@
       kpiCard("Flows na janela", status.flows_window, "") +
       kpiCard("Clientes ativos", status.distinct_src_ips, "na janela atual") +
       kpiCard("Sinais abertos", status.open_signals, status.open_signals > 0 ? "requer atenção" : "tudo normal") +
+      kpiCard("Mitigações ativas", status.active_mitigations, "FlowSpec + SSH legado", null, status.active_mitigations > 0) +
       kpiCard("Redes cadastradas", status.n_customers, "") +
       kpiCard("Whitelist", status.n_whitelist, "") +
       kpiCard("Daemon", '<span class="fg-dot fg-dot-up"></span>ativo', "uptime " + fmtUptime(status.uptime_s) + " · pid " + status.pid);
@@ -2753,6 +2754,32 @@
       showToast(resp.ok ? "Mitigação revertida" : resp.error, resp.ok ? "success" : "error");
       loadCgEdgeList();
     });
+  }
+
+  function onCgEdgeRevertAllClick() {
+    var btn = document.getElementById("cg-edge-revert-all-btn");
+    if (!window.confirm(
+      "Reverter TODAS as mitigações ativas do ClientGuard (FlowSpec + SSH legado)? " +
+      "Isso libera imediatamente todos os clientes atualmente bloqueados/limitados e não pode ser desfeito.",
+    )) {
+      return;
+    }
+    btn.disabled = true;
+    postJson(CG_EDGE_ENDPOINT, { revert_all: true })
+      .then(function (resp) {
+        if (resp.ok) {
+          showToast(resp.reverted + " mitigação(ões) revertida(s)" + (resp.failed ? ", " + resp.failed + " falharam" : ""), "success");
+        } else {
+          showToast(resp.error || "falha ao reverter mitigações", "error");
+        }
+        loadCgEdgeList();
+        loadClientGuardStatus();
+      })
+      .catch(function (err) {
+        showToast("falha ao reverter mitigações", "error");
+        console.error("flowguard.js:", err);
+      })
+      .finally(function () { btn.disabled = false; });
   }
 
   function onCgClearSuspiciousClick() {
@@ -4132,6 +4159,9 @@
 
     var cgEdgeListEl = document.getElementById("cg-edge-list");
     if (cgEdgeListEl) cgEdgeListEl.addEventListener("click", onCgEdgeListClick);
+
+    var cgEdgeRevertAllBtn = document.getElementById("cg-edge-revert-all-btn");
+    if (cgEdgeRevertAllBtn) cgEdgeRevertAllBtn.addEventListener("click", onCgEdgeRevertAllClick);
 
     if (getToken()) { loadClientGuardCfg(); loadCgBlocks(); loadCgEdgeAuto(); loadCgEdgeList(); }
 

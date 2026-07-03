@@ -359,6 +359,24 @@
   // seta de tendência comparando o valor atual com a média da primeira
   // metade do minuto de histórico em memória (suaviza ruído de um poll só) —
   // só aparece depois de ter buffer suficiente e quando a variação é notável
+  // Uma sessão BGP por linha dentro do card "BGP (ExaBGP)" — hoje temos 2
+  // sessões simultâneas no mesmo exabgp.conf (main = NE8000BGP, pppoe =
+  // NE8000-PPPOE), cada uma com seu próprio estado (mesmo padrão já usado por
+  // flowguard-cli.py status). 'unconfigured' (peer sem bgp.peer_ip_<nome> no
+  // config.yaml) não aparece — não é uma sessão que deveria existir.
+  function bgpPeerRow(label, peer) {
+    var state = (peer || {}).peer_state;
+    var dotClass = state === "up" ? "fg-dot-up" : "fg-dot-down";
+    var stateText = state === "up" ? "Up" : "Down/Idle";
+    return '<div class="fg-bgp-peer"><span class="fg-dot ' + dotClass + '"></span><strong>' +
+      escapeHtml(label) + "</strong> " + stateText + "</div>";
+  }
+
+  function bgpPeerSubText(label, peer) {
+    var detail = peer.peer_state === "up" ? peer.peer_ip : (peer.detail || peer.reason || peer.peer_ip);
+    return detail ? label + ": " + detail : "";
+  }
+
   function kpiTrend(key, current) {
     var buf = state.kpiHistory[key];
     var html = "";
@@ -395,14 +413,19 @@
       : '<span class="fg-dot fg-dot-down"></span>indisponível';
     var daemonSub = daemon.alive ? "uptime " + fmtUptime(daemon.uptime_s) + " · pid " + daemon.pid : "socket não respondeu";
 
-    var bgp = data.bgp || {};
-    var bgpUp = bgp.peer_state === "up";
-    var bgpHtml = bgpUp
-      ? '<span class="fg-dot fg-dot-up"></span>Up'
-      : '<span class="fg-dot fg-dot-down"></span>Down/Idle';
-    var bgpSub = bgp.peer_ip
-      ? (bgpUp ? "peer " + bgp.peer_ip : (bgp.detail || bgp.reason || "peer " + bgp.peer_ip))
-      : "";
+    var bgpMain = data.bgp || {};
+    var bgpPppoe = data.bgp_pppoe || {};
+    var pppoeConfigured = bgpPppoe.peer_state && bgpPppoe.peer_state !== "unconfigured";
+
+    var bgpHtml = bgpPeerRow("NE8000BGP", bgpMain);
+    var bgpSubParts = [bgpPeerSubText("NE8000BGP", bgpMain)];
+    var bgpAnyDown = bgpMain.peer_state !== "up";
+    if (pppoeConfigured) {
+      bgpHtml += bgpPeerRow("NE8000-PPPOE", bgpPppoe);
+      bgpSubParts.push(bgpPeerSubText("NE8000-PPPOE", bgpPppoe));
+      bgpAnyDown = bgpAnyDown || bgpPppoe.peer_state !== "up";
+    }
+    var bgpSub = bgpSubParts.filter(Boolean).join(" · ");
 
     var bpsTrend = kpiTrend("bps", s.bps);
     var ppsTrend = kpiTrend("pps", s.pps);
@@ -415,7 +438,7 @@
       kpiCard("Ataques Ativos", s.active_attacks, s.active_attacks > 0 ? "requer atenção" : "tudo normal") +
       kpiCard("Regras FlowSpec", s.active_rules, "", null, s.active_rules > 0) +
       kpiCard("Mitigações de Borda", activeEdgeMitigations, "ClientGuard · FlowSpec/SSH", null, activeEdgeMitigations > 0) +
-      kpiCard("BGP (ExaBGP)", bgpHtml, bgpSub) +
+      kpiCard("BGP (ExaBGP)", bgpHtml, bgpSub, null, bgpAnyDown) +
       kpiCard("Daemon", daemonHtml, daemonSub);
 
     updateAttacksBadge(s.active_attacks);

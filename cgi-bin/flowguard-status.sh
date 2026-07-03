@@ -46,9 +46,14 @@ try:
     bgp_resp = control.send_command(cfg["daemon"]["socket"], {"cmd": "bgp_status"}, timeout=1.5)
     bgp = bgp_resp if bgp_resp.get("ok") else {"ok": False, "peer_state": "down", "detail": bgp_resp.get("error")}
 
+    # segunda sessão BGP (NE8000-PPPOE, ver bgp.peer_ip_pppoe em config.yaml) — mesmo
+    # padrão já usado por flowguard-cli.py status (duas consultas, uma por peer).
+    bgp_pppoe_resp = control.send_command(cfg["daemon"]["socket"], {"cmd": "bgp_status", "peer": "pppoe"}, timeout=1.5)
+    bgp_pppoe = bgp_pppoe_resp if bgp_pppoe_resp.get("ok") else {"ok": False, "peer_state": "down", "detail": bgp_pppoe_resp.get("error")}
+
     print(json.dumps({
         "ok": True, "stats": stats, "top_prefixes": top,
-        "protocol_series": protocol_series, "daemon": daemon, "bgp": bgp,
+        "protocol_series": protocol_series, "daemon": daemon, "bgp": bgp, "bgp_pppoe": bgp_pppoe,
     }))
 except Exception as exc:
     print(json.dumps({"ok": False, "error": str(exc)}))

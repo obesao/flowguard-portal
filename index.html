@@ -206,6 +206,7 @@
       <h1 style="font-size: 1.3rem; margin: 0;">FlowGuard — POX Network</h1>
       <div style="display:flex; gap:0.6rem; align-items:center;">
         <button id="fg-warmode-open-btn" class="fg-btn fg-btn-danger">🚨 Modo Guerra</button>
+        <button id="fg-warmode-revert-open-btn" class="fg-btn" title="Roda os comandos de reversão em todos os equipamentos, desfazendo o que o Modo Guerra aplicou">🔙 Sair do Modo Guerra</button>
         <button id="fg-warmode-cfg-open-btn" class="fg-btn" title="Configurar equipamentos do Modo Guerra">⚙️ Modo Guerra</button>
         <button id="fg-routercfg-open-btn" class="fg-btn" title="Editar configuração do roteador de borda via templates validados">🔧 Config. Roteador</button>
         <button id="fg-logout-btn" class="fg-btn">Sair</button>
@@ -214,7 +215,7 @@
 
     <div id="fg-warmode-overlay" class="fg-modal-overlay" hidden>
       <div class="fg-modal">
-        <h2 style="color:#f85149;">🚨 Modo Guerra</h2>
+        <h2 id="fg-warmode-title" style="color:#f85149;">🚨 Modo Guerra</h2>
         <p class="fg-kpi-sub">Protegido pela mesma senha da configuração do Modo Guerra.</p>
 
         <div id="fg-warmode-exec-needs-setup" hidden>
@@ -230,7 +231,7 @@
         </div>
 
         <div id="fg-warmode-exec-content" hidden>
-          <p class="fg-kpi-sub">Executa os comandos configurados via SSH, em paralelo, em todos os equipamentos abaixo — reais, agora, sem confirmação adicional depois do próximo clique.</p>
+          <p id="fg-warmode-exec-desc" class="fg-kpi-sub">Executa os comandos configurados via SSH, em paralelo, em todos os equipamentos abaixo — reais, agora, sem confirmação adicional depois do próximo clique.</p>
           <div id="fg-warmode-devices">Carregando...</div>
           <div id="fg-warmode-results"></div>
           <div style="display:flex; gap:0.6rem; margin-top:1rem;">

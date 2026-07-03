@@ -30,6 +30,7 @@
   var WHATSAPP_ENDPOINT = "/cgi-bin/flowguard-whatsapp.sh";
 
   var warmodeToken = null; // em memória só — some ao recarregar a página (relock)
+  var warmodeExecMode = "apply"; // "apply" (🚨 Modo Guerra) ou "revert" (🔙 Sair do Modo Guerra) — mesmo modal, endpoints/rótulos trocam conforme o modo
   var rcTemplates = [];
   var rcCountdownTimer = null;
   var rcDiscovery = null; // cache em memória do último "Ler configuração atual (BGP)"
@@ -970,6 +971,8 @@
   function renderWarmodeDevices(data) {
     var el = document.getElementById("fg-warmode-devices");
     var confirmBtn = document.getElementById("fg-warmode-confirm-btn");
+    var countField = warmodeExecMode === "revert" ? "n_revert_commands" : "n_commands";
+    var noCmdLabel = warmodeExecMode === "revert" ? "0 comandos de reversão — nada vai rodar aqui" : "0 comandos — nada vai rodar aqui";
     if (!data.ok) {
       showError(el, data.error || "erro desconhecido");
       confirmBtn.disabled = true;
@@ -980,12 +983,11 @@
       confirmBtn.disabled = true;
       return;
     }
-    var withoutCommands = data.devices.filter(function (d) { return !d.n_commands; });
+    var withoutCommands = data.devices.filter(function (d) { return !d[countField]; });
     el.innerHTML = data.devices
       .map(function (d) {
-        var cmdLabel = d.n_commands
-          ? d.n_commands + " comando(s)"
-          : '<span class="fg-error">0 comandos — nada vai rodar aqui</span>';
+        var n = d[countField];
+        var cmdLabel = n ? n + " comando(s)" : '<span class="fg-error">' + noCmdLabel + '</span>';
         return '<div class="fg-warmode-device-row"><span>' + escapeHtml(d.name) + " (" + escapeHtml(d.host || "-") +
           ", " + escapeHtml(d.device_type || "-") + ")</span><span>" + cmdLabel + "</span></div>";
       })
@@ -1013,7 +1015,17 @@
     });
   }
 
-  function openWarmodeModal() {
+  function openWarmodeModal(mode) {
+    warmodeExecMode = mode === "revert" ? "revert" : "apply";
+    var isRevert = warmodeExecMode === "revert";
+    document.getElementById("fg-warmode-title").textContent = isRevert ? "🔙 Sair do Modo Guerra" : "🚨 Modo Guerra";
+    document.getElementById("fg-warmode-title").style.color = isRevert ? "" : "#f85149";
+    document.getElementById("fg-warmode-exec-desc").textContent = isRevert
+      ? "Roda os comandos de reversão configurados via SSH, em paralelo, em todos os equipamentos abaixo — desfaz o que o Modo Guerra aplicou. Reais, agora, sem confirmação adicional depois do próximo clique."
+      : "Executa os comandos configurados via SSH, em paralelo, em todos os equipamentos abaixo — reais, agora, sem confirmação adicional depois do próximo clique.";
+    var confirmBtn = document.getElementById("fg-warmode-confirm-btn");
+    confirmBtn.textContent = isRevert ? "Confirmar e reverter agora" : "Confirmar e executar agora";
+    confirmBtn.className = isRevert ? "fg-btn" : "fg-btn fg-btn-danger";
     document.getElementById("fg-warmode-overlay").hidden = false;
     document.getElementById("fg-warmode-exec-unlock-status").textContent = "";
     if (warmodeToken) {
@@ -1068,7 +1080,9 @@
 
   function initWarmode() {
     var openBtn = document.getElementById("fg-warmode-open-btn");
-    if (openBtn) openBtn.addEventListener("click", openWarmodeModal);
+    if (openBtn) openBtn.addEventListener("click", function () { openWarmodeModal("apply"); });
+    var revertOpenBtn = document.getElementById("fg-warmode-revert-open-btn");
+    if (revertOpenBtn) revertOpenBtn.addEventListener("click", function () { openWarmodeModal("revert"); });
     var closeBtn = document.getElementById("fg-warmode-close-btn");
     if (closeBtn) closeBtn.addEventListener("click", closeWarmodeModal);
     var confirmBtn = document.getElementById("fg-warmode-confirm-btn");
@@ -1155,7 +1169,7 @@
   }
 
   function warmodeDeviceCardHtml(d) {
-    d = d || { name: "", host: "", port: 22, device_type: "", username: "", has_password: false, enable_mode: false, commands: [] };
+    d = d || { name: "", host: "", port: 22, device_type: "", username: "", has_password: false, enable_mode: false, commands: [], revert_commands: [] };
     return (
       '<div class="fg-wm-device">' +
       '<div class="fg-wm-row-top"><strong>' + (d.name ? escapeHtml(d.name) : "(novo equipamento)") +
@@ -1174,6 +1188,8 @@
       '> precisa de "enable" antes dos comandos</label>' +
       '<label>Comandos (um por linha)</label>' +
       '<textarea class="fg-wm-commands" placeholder="ex: display version">' + escapeHtml((d.commands || []).join("\n")) + "</textarea>" +
+      '<label>Comandos de reversão (um por linha) — rodados pelo botão "Sair do Modo Guerra", pra desfazer os comandos acima</label>' +
+      '<textarea class="fg-wm-revert-commands" placeholder="ex: system-view / undo acl number 3006 / quit">' + escapeHtml((d.revert_commands || []).join("\n")) + "</textarea>" +
       "</div>"
     );
   }
@@ -1200,6 +1216,7 @@
   function collectWarmodeCfgDevices() {
     return Array.prototype.map.call(document.querySelectorAll("#fg-warmode-cfg-devices .fg-wm-device"), function (card) {
       var commandsRaw = card.querySelector(".fg-wm-commands").value;
+      var revertCommandsRaw = card.querySelector(".fg-wm-revert-commands").value;
       return {
         name: card.querySelector(".fg-wm-name").value.trim(),
         host: card.querySelector(".fg-wm-host").value.trim(),
@@ -1209,6 +1226,7 @@
         password: card.querySelector(".fg-wm-password").value,
         enable_mode: card.querySelector(".fg-wm-enable-mode").checked,
         commands: commandsRaw.split("\n").map(function (c) { return c.trim(); }).filter(Boolean),
+        revert_commands: revertCommandsRaw.split("\n").map(function (c) { return c.trim(); }).filter(Boolean),
       };
     });
   }
@@ -1301,9 +1319,11 @@
 
   function onWarmodeConfirm() {
     var btn = document.getElementById("fg-warmode-confirm-btn");
+    var isRevert = warmodeExecMode === "revert";
     btn.disabled = true;
-    document.getElementById("fg-warmode-results").innerHTML = '<p class="fg-kpi-sub">Executando em paralelo em todos os equipamentos...</p>';
-    warmodePostJson(WARMODE_ENDPOINT, { warmode_token: warmodeToken })
+    document.getElementById("fg-warmode-results").innerHTML = '<p class="fg-kpi-sub">' +
+      (isRevert ? "Revertendo" : "Executando") + " em paralelo em todos os equipamentos...</p>";
+    warmodePostJson(WARMODE_ENDPOINT, { warmode_token: warmodeToken, action: warmodeExecMode })
       .then(function (r) {
         if (r.status === 401) {
           warmodeToken = null;
@@ -1312,7 +1332,8 @@
           return;
         }
         renderWarmodeResults(r.data);
-        showToast(r.data.ok ? "Modo Guerra executado" : r.data.error, r.data.ok ? "success" : "error");
+        var okMsg = isRevert ? "Sair do Modo Guerra executado" : "Modo Guerra executado";
+        showToast(r.data.ok ? okMsg : r.data.error, r.data.ok ? "success" : "error");
       })
       .catch(function (err) {
         showError(document.getElementById("fg-warmode-results"), "falha ao executar");

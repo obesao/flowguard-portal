@@ -1,6 +1,7 @@
 #!/bin/sh
 # flowguard-warmode.sh — "botão de emergência": GET lista os equipamentos configurados,
-# POST dispara a execução real dos comandos via SSH em todos eles. As duas exigem a
+# POST dispara a execução real dos comandos via SSH em todos eles (ou a reversão, se
+# {"action":"revert"} vier no corpo — botão "Sair do Modo Guerra"). As duas exigem a
 # MESMA senha/sessão do Modo Guerra usada pra configuração (ver flowguard-warmode-auth.sh)
 # — não basta estar logado no portal.
 
@@ -22,16 +23,20 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     exit 0
   fi
   print_header 200
-  /root/flowguard/venv/bin/python3 <<'PYEOF'
+  BODY="$BODY" /root/flowguard/venv/bin/python3 <<'PYEOF'
 import json
+import os
 import sys
 
 sys.path.insert(0, "/root/flowguard")
 
-from warmode.executor import run_war_mode
+from warmode.executor import run_war_mode, run_war_mode_revert
 
 try:
-    results = run_war_mode(trigger="portal")
+    body = json.loads(os.environ.get("BODY") or "{}")
+    action = body.get("action") or "apply"
+    fn = run_war_mode_revert if action == "revert" else run_war_mode
+    results = fn(trigger="portal")
     print(json.dumps({"ok": True, "results": results}))
 except Exception as exc:
     print(json.dumps({"ok": False, "error": str(exc)}))

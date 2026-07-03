@@ -1018,7 +1018,7 @@
       '<div class="fg-wm-row-top"><strong>' + (d.name ? escapeHtml(d.name) : "(novo equipamento)") +
       '</strong><button class="fg-btn" data-action="remove-device">Remover</button></div>' +
       '<div class="fg-wm-device-grid">' +
-      '<div><label>Nome</label><input type="text" class="fg-wm-name" value="' + escapeHtml(d.name) + '" placeholder="ex: NE8000 borda"></div>' +
+      '<div><label>Nome</label><input type="text" class="fg-wm-name" value="' + escapeHtml(d.name) + '" placeholder="ex: NE8000BGP"></div>' +
       '<div><label>Host</label><input type="text" class="fg-wm-host" value="' + escapeHtml(d.host) + '" placeholder="IP de gerência"></div>' +
       '<div><label>Porta</label><input type="text" class="fg-wm-port" value="' + (d.port || 22) + '"></div>' +
       '<div><label>Tipo (driver Netmiko)</label><input type="text" class="fg-wm-device-type" value="' + escapeHtml(d.device_type) +

@@ -1078,6 +1078,8 @@
     }
     var delAllBtn = document.getElementById("fg-rules-del-all-btn");
     if (delAllBtn) delAllBtn.addEventListener("click", onRulesDelAllClick);
+    var cgRevertAllBtn = document.getElementById("rules-cg-edge-revert-all-btn");
+    if (cgRevertAllBtn) cgRevertAllBtn.addEventListener("click", onRulesCgEdgeRevertAllClick);
   }
 
   function onBlockSubmit() {
@@ -2756,8 +2758,12 @@
     });
   }
 
-  function onCgEdgeRevertAllClick() {
-    var btn = document.getElementById("cg-edge-revert-all-btn");
+  // Compartilhado pelos dois botões "reverter todas as mitigações do
+  // ClientGuard" — um na aba ClientGuard (cg-edge-revert-all-btn) e outro na
+  // aba Regras (rules-cg-edge-revert-all-btn), lado a lado com "Apagar todas
+  // as regras ativas" do FlowGuard. Atualiza todas as views que dependem
+  // dessa lista, independente de qual botão foi clicado.
+  function revertAllClientGuardMitigations(btn) {
     if (!window.confirm(
       "Reverter TODAS as mitigações ativas do ClientGuard (FlowSpec + SSH legado)? " +
       "Isso libera imediatamente todos os clientes atualmente bloqueados/limitados e não pode ser desfeito.",
@@ -2774,12 +2780,21 @@
         }
         loadCgEdgeList();
         loadClientGuardStatus();
+        loadRulesUnified();
       })
       .catch(function (err) {
         showToast("falha ao reverter mitigações", "error");
         console.error("flowguard.js:", err);
       })
       .finally(function () { btn.disabled = false; });
+  }
+
+  function onCgEdgeRevertAllClick() {
+    revertAllClientGuardMitigations(document.getElementById("cg-edge-revert-all-btn"));
+  }
+
+  function onRulesCgEdgeRevertAllClick() {
+    revertAllClientGuardMitigations(document.getElementById("rules-cg-edge-revert-all-btn"));
   }
 
   function onCgClearSuspiciousClick() {

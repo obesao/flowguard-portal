@@ -23,6 +23,7 @@
   var CG_TOGGLES_ENDPOINT = "/cgi-bin/clientguard-toggles.sh";
   var CG_EDGE_ENDPOINT = "/cgi-bin/clientguard-edge.sh";
   var CG_EDGE_CFG_ENDPOINT = "/cgi-bin/clientguard-edge-cfg.sh";
+  var CG_FLOWSPEC_CFG_ENDPOINT = "/cgi-bin/clientguard-flowspec-cfg.sh";
   var WARMODE_ENDPOINT = "/cgi-bin/flowguard-warmode.sh";
   var WARMODE_AUTH_ENDPOINT = "/cgi-bin/flowguard-warmode-auth.sh";
   var WARMODE_CFG_ENDPOINT = "/cgi-bin/flowguard-warmode-cfg.sh";
@@ -406,11 +407,14 @@
     var bpsTrend = kpiTrend("bps", s.bps);
     var ppsTrend = kpiTrend("pps", s.pps);
 
+    var activeEdgeMitigations = state.rulesCgEdgeData.filter(function (m) { return m.status === "active"; }).length;
+
     el.innerHTML =
       kpiCard("Tráfego", fmtBps(s.bps), s.flows + " flows/s", bpsTrend) +
       kpiCard("Pacotes/s", Number(s.pps).toLocaleString("pt-BR"), "", ppsTrend) +
       kpiCard("Ataques Ativos", s.active_attacks, s.active_attacks > 0 ? "requer atenção" : "tudo normal") +
       kpiCard("Regras FlowSpec", s.active_rules, "") +
+      kpiCard("Mitigações de Borda", activeEdgeMitigations, "ClientGuard · SSH/ACL") +
       kpiCard("BGP (ExaBGP)", bgpHtml, bgpSub) +
       kpiCard("Daemon", daemonHtml, daemonSub);
 
@@ -808,7 +812,8 @@
           escapeHtml(r.dst_prefix || "-") + "</td><td>" + escapeHtml(String(r.protocol || "-")) + "</td><td>" +
           fmtRulePorts(r) + "</td><td>" + escapeHtml(r.label || "-") + "</td><td>" +
           (r.attack_id ? "#" + r.attack_id : "-") + "</td><td>" + fmtRuleStatus(r) + "</td><td>" +
-          (r.expires_at ? new Date(r.expires_at * 1000).toLocaleString() : "-") + "</td><td>" + delBtn + "</td></tr>"
+          (r.expires_at ? new Date(r.expires_at * 1000).toLocaleString() : "-") + "</td><td>" +
+          '<button class="fg-btn" data-action="detail-flowspec-rule">Detalhes</button> ' + delBtn + "</td></tr>"
         );
       })
       .join("");
@@ -816,6 +821,29 @@
       "<table><thead><tr><th>ID</th><th>Criada em</th><th>Tipo</th><th>Origem</th><th>Destino</th>" +
       "<th>Protocolo</th><th>Portas</th><th>Rótulo</th><th>Ataque</th><th>Status</th><th>Expira</th>" +
       "<th>Ação</th></tr></thead><tbody>" + rows + "</tbody></table>";
+  }
+
+  function renderFlowspecRuleDetail(r) {
+    var el = document.getElementById("rules-detail");
+    el.innerHTML =
+      '<div class="fg-card"><h3>Detalhes da regra #' + r.id + "</h3>" +
+      "<table><tbody>" +
+      "<tr><td>Tipo</td><td>" + fmtRuleType(r) + "</td></tr>" +
+      "<tr><td>Origem</td><td>" + escapeHtml(r.src_prefix || "-") + "</td></tr>" +
+      "<tr><td>Destino</td><td>" + escapeHtml(r.dst_prefix || "-") + "</td></tr>" +
+      "<tr><td>Protocolo</td><td>" + escapeHtml(String(r.protocol || "-")) + "</td></tr>" +
+      "<tr><td>Portas</td><td>" + fmtRulePorts(r) + "</td></tr>" +
+      "<tr><td>TCP flags</td><td>" + escapeHtml(r.tcp_flags || "-") + "</td></tr>" +
+      "<tr><td>Tamanho de pacote</td><td>" + escapeHtml(r.pkt_len || "-") + "</td></tr>" +
+      "<tr><td>Rótulo</td><td>" + escapeHtml(r.label || "-") + "</td></tr>" +
+      "<tr><td>Aplicação de origem</td><td>" + (r.origin === "clientguard" ? "ClientGuard" : "FlowGuard") + "</td></tr>" +
+      "<tr><td>Ataque associado</td><td>" + (r.attack_id ? "#" + r.attack_id : "-") + "</td></tr>" +
+      "<tr><td>Criada em</td><td>" + fmtDateTime(r.created_at) + "</td></tr>" +
+      "<tr><td>Expira em</td><td>" + (r.expires_at ? new Date(r.expires_at * 1000).toLocaleString() : "-") + "</td></tr>" +
+      "<tr><td>Status</td><td>" + fmtRuleStatus(r) + "</td></tr>" +
+      "</tbody></table>" +
+      '<button class="fg-btn" id="rules-detail-close-btn">Fechar</button></div>';
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   var RULES_EDGE_STATUS_LABELS = { active: "ativa", reverted: "revertida", failed: "falhou" };
@@ -830,22 +858,72 @@
     var rows = mitigations
       .map(function (m) {
         var revertBtn = m.status === "active"
-          ? '<button class="fg-btn" data-action="revert-edge-mitigation">Reverter</button>' : "-";
+          ? '<button class="fg-btn" data-action="revert-edge-mitigation">Reverter</button>' : "";
+        var mechanism = m.mechanism || "ssh";
         return (
-          '<tr data-mitigation-id="' + m.id + '"><td>' + m.id + "</td><td>" + escapeHtml(m.src_ip) + "</td><td>" +
+          '<tr data-mitigation-id="' + m.id + '"><td>' + m.id + "</td><td>" +
+          (mechanism === "flowspec" ? "FlowSpec" : "SSH (legado)") + "</td><td>" +
+          escapeHtml(m.src_ip) + "</td><td>" +
           (RULES_EDGE_STATUS_LABELS[m.status] || m.status) + "</td><td>" +
           (m.trigger_type === "auto" ? "automático" : "manual") + "</td><td>" +
           (m.signal_id ? "#" + m.signal_id : "-") + "</td><td>" + fmtDateTime(m.ts_applied) + "</td><td>" +
           (m.ts_reverted ? fmtDateTime(m.ts_reverted) : "-") + "</td><td>" +
           (m.status === "active" && m.ts_expires ? new Date(m.ts_expires * 1000).toLocaleString() : "-") +
-          "</td><td>" + escapeHtml(m.error || "-") + "</td><td>" + revertBtn + "</td></tr>"
+          "</td><td>" + escapeHtml(m.error || "-") + "</td><td>" +
+          '<button class="fg-btn" data-action="detail-edge-mitigation">Detalhes</button> ' + revertBtn + "</td></tr>"
         );
       })
       .join("");
     el.innerHTML =
-      "<table><thead><tr><th>ID</th><th>src_ip</th><th>Status</th><th>Gatilho</th><th>Sinal</th>" +
+      "<table><thead><tr><th>ID</th><th>Mecanismo</th><th>src_ip</th><th>Status</th><th>Gatilho</th><th>Sinal</th>" +
       "<th>Aplicada em</th><th>Revertida em</th><th>Expira</th><th>Erro</th><th>Ação</th></tr></thead><tbody>" +
       rows + "</tbody></table>";
+  }
+
+  function renderEdgeMitigationDetail(m) {
+    var el = document.getElementById("rules-detail");
+    var mechanism = m.mechanism || "ssh"; // linhas antigas não têm a coluna preenchida
+    var baseRows =
+      "<tr><td>Mecanismo</td><td>" + (mechanism === "flowspec" ? "BGP FlowSpec" : "SSH/ACL (legado)") + "</td></tr>" +
+      "<tr><td>IP mitigado</td><td>" + escapeHtml(m.src_ip) + "</td></tr>" +
+      "<tr><td>Status</td><td>" + (RULES_EDGE_STATUS_LABELS[m.status] || m.status) + "</td></tr>" +
+      "<tr><td>Gatilho</td><td>" + (m.trigger_type === "auto" ? "automático" : "manual") + "</td></tr>" +
+      "<tr><td>Sinal associado</td><td>" + (m.signal_id ? "#" + m.signal_id : "-") + "</td></tr>" +
+      "<tr><td>Aplicada em</td><td>" + fmtDateTime(m.ts_applied) + "</td></tr>" +
+      "<tr><td>Expira em</td><td>" + (m.status === "active" && m.ts_expires ? new Date(m.ts_expires * 1000).toLocaleString() : "-") + "</td></tr>" +
+      "<tr><td>Revertida em</td><td>" + (m.ts_reverted ? fmtDateTime(m.ts_reverted) : "-") + "</td></tr>" +
+      "<tr><td>Erro</td><td>" + escapeHtml(m.error || "-") + "</td></tr>";
+
+    var detailHtml;
+    if (mechanism === "flowspec") {
+      var rule = m.match_json ? JSON.parse(m.match_json) : null;
+      var matchDesc = rule
+        ? Object.keys(rule).filter(function (k) { return k !== "action" && k !== "label"; })
+            .map(function (k) { return k + "=" + rule[k]; }).join(", ")
+        : "-";
+      detailHtml =
+        "<table><tbody>" + baseRows +
+        "<tr><td>Regra FlowSpec (id no FlowGuard)</td><td>" + (m.flowspec_rule_id || "-") + "</td></tr>" +
+        "<tr><td>Match</td><td>" + escapeHtml(matchDesc) + "</td></tr>" +
+        "<tr><td>Ação</td><td>" + (m.rate_limit_bps ? "Limitar banda a " + fmtBps(m.rate_limit_bps) : "Descartar") + "</td></tr>" +
+        "</tbody></table>";
+    } else {
+      var applyCommands = m.apply_commands ? JSON.parse(m.apply_commands) : null;
+      var revertCommands = m.revert_commands ? JSON.parse(m.revert_commands) : null;
+      detailHtml =
+        "<table><tbody>" + baseRows + "</tbody></table>" +
+        "<h4>Comandos enviados ao aplicar</h4>" +
+        "<pre>" + escapeHtml(applyCommands ? applyCommands.join("\n") : "(sem registro)") + "</pre>" +
+        "<h4>Saída do equipamento (aplicar)</h4>" +
+        "<pre>" + escapeHtml(m.apply_output || "(sem saída registrada)") + "</pre>" +
+        (revertCommands ? "<h4>Comandos enviados ao reverter</h4><pre>" + escapeHtml(revertCommands.join("\n")) + "</pre>" : "") +
+        (m.revert_output ? "<h4>Saída do equipamento (reverter)</h4><pre>" + escapeHtml(m.revert_output) + "</pre>" : "");
+    }
+
+    el.innerHTML =
+      '<div class="fg-card"><h3>Detalhes da mitigação #' + m.id + "</h3>" + detailHtml +
+      '<button class="fg-btn" id="rules-detail-close-btn">Fechar</button></div>';
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   function applyRulesFilter() {
@@ -921,6 +999,29 @@
         showToast(resp.ok ? "Mitigação revertida" : resp.error, resp.ok ? "success" : "error");
         loadRulesUnified();
       });
+      return;
+    }
+    var detailFgBtn = ev.target.closest("button[data-action='detail-flowspec-rule']");
+    if (detailFgBtn) {
+      var row3 = detailFgBtn.closest("tr[data-rule-id]");
+      if (!row3) return;
+      var ruleId = Number(row3.getAttribute("data-rule-id"));
+      var rule = state.rulesFgData.filter(function (r) { return r.id === ruleId; })[0];
+      if (rule) renderFlowspecRuleDetail(rule);
+      return;
+    }
+    var detailEdgeBtn = ev.target.closest("button[data-action='detail-edge-mitigation']");
+    if (detailEdgeBtn) {
+      var row4 = detailEdgeBtn.closest("tr[data-mitigation-id]");
+      if (!row4) return;
+      var mitigationId = Number(row4.getAttribute("data-mitigation-id"));
+      var mitigation = state.rulesCgEdgeData.filter(function (m) { return m.id === mitigationId; })[0];
+      if (mitigation) renderEdgeMitigationDetail(mitigation);
+      return;
+    }
+    var closeDetailBtn = ev.target.closest("#rules-detail-close-btn");
+    if (closeDetailBtn) {
+      document.getElementById("rules-detail").innerHTML = "";
     }
   }
 
@@ -2488,26 +2589,36 @@
     });
   }
 
-  // --- ClientGuard: mitigação direta na borda (SSH/ACL) --------------------
+  // --- ClientGuard: mitigação automática por detector (BGP FlowSpec) --------
+  // painel reaproveita os IDs antigos (cg-edge-auto/cg-edge-default-ttl/
+  // cg-edge-auto-apply-btn) — o gatilho automático inteiro migrou de SSH/ACL
+  // pra FlowSpec (flowspec_mitigation.py), só a lista de mitigações abaixo
+  // (cg-edge-list, endpoint separado) ainda mostra SSH legado + FlowSpec juntos.
+
+  var CG_FLOWSPEC_ACTION_LABELS = { discard: "Descartar (bloqueia tudo)", rate_limit: "Limitar banda (dinâmico)", "off": "Desligado" };
 
   function renderCgEdgeAuto(autoMitigate) {
     var el = document.getElementById("cg-edge-auto");
     if (!el) return;
     el.innerHTML = Object.keys(CG_SIGNAL_LABELS).map(function (key) {
-      var enabled = autoMitigate[key] === true; // ausente/false = desabilitado (opt-in, ao contrário dos toggles de detecção)
+      var action = autoMitigate[key] || "off";
       var id = "cg-edge-auto-" + key;
+      var options = Object.keys(CG_FLOWSPEC_ACTION_LABELS).map(function (opt) {
+        return '<option value="' + opt + '"' + (opt === action ? " selected" : "") + ">" +
+          escapeHtml(CG_FLOWSPEC_ACTION_LABELS[opt]) + "</option>";
+      }).join("");
       return (
-        '<div class="fg-toggle-item' + (enabled ? "" : " disabled") + '" data-key="' + key + '">' +
-        '<input type="checkbox" id="' + id + '"' + (enabled ? " checked" : "") + ">" +
+        '<div class="fg-toggle-item' + (action === "off" ? " disabled" : "") + '" data-key="' + key + '">' +
         '<label for="' + id + '"><div class="fg-toggle-name">' + escapeHtml(CG_SIGNAL_LABELS[key]) + "</div>" +
-        '<div class="fg-toggle-desc">dispara mitigação na borda sozinho, sem clique, a cada sinal novo desse tipo</div></label></div>'
+        '<div class="fg-toggle-desc">ação automática via FlowSpec a cada sinal novo desse tipo</div></label>' +
+        '<select id="' + id + '" class="fg-toggle-select">' + options + "</select></div>"
       );
     }).join("");
   }
 
   function loadCgEdgeAuto() {
     if (!getToken()) return;
-    getJson(CG_EDGE_CFG_ENDPOINT).then(function (data) {
+    getJson(CG_FLOWSPEC_CFG_ENDPOINT).then(function (data) {
       if (!data.ok) {
         showError(document.getElementById("cg-edge-auto"), data.error || "erro desconhecido");
         return;
@@ -2519,20 +2630,20 @@
       var ttlSelect = document.getElementById("cg-edge-default-ttl");
       if (ttlSelect && data.config.default_ttl_s) ttlSelect.value = String(data.config.default_ttl_s);
     }).catch(function (err) {
-      showError(document.getElementById("cg-edge-auto"), "falha ao consultar configuração de mitigação na borda");
+      showError(document.getElementById("cg-edge-auto"), "falha ao consultar configuração de mitigação automática");
       console.error("flowguard.js:", err);
     });
   }
 
   function onCgEdgeAutoChange(ev) {
-    var checkbox = ev.target.closest("input[type='checkbox']");
-    if (!checkbox) return;
-    var item = checkbox.closest(".fg-toggle-item[data-key]");
+    var select = ev.target.closest("select.fg-toggle-select");
+    if (!select) return;
+    var item = select.closest(".fg-toggle-item[data-key]");
     if (!item) return;
     var key = item.getAttribute("data-key");
-    var value = checkbox.checked;
-    item.classList.toggle("disabled", !value);
-    var original = state.cgEdgeAutoLoaded[key] === true;
+    var value = select.value;
+    item.classList.toggle("disabled", value === "off");
+    var original = state.cgEdgeAutoLoaded[key] || "off";
     if (value === original) {
       delete state.cgEdgeAutoPending[key];
     } else {
@@ -2547,7 +2658,7 @@
     var btn = document.getElementById("cg-edge-auto-apply-btn");
     btn.disabled = true;
     var ttlSelect = document.getElementById("cg-edge-default-ttl");
-    postJson(CG_EDGE_CFG_ENDPOINT, { auto_mitigate: pending, default_ttl_s: Number(ttlSelect.value) })
+    postJson(CG_FLOWSPEC_CFG_ENDPOINT, { auto_mitigate: pending, default_ttl_s: Number(ttlSelect.value) })
       .then(function (resp) {
         showToast(resp.ok ? "Configurações aplicadas" : (resp.error || "falha ao aplicar configurações"),
                   resp.ok ? "success" : "error");
@@ -2578,15 +2689,17 @@
           ? '<button class="fg-btn" data-action="edge-revert">Reverter</button>'
           : "-";
         var expira = m.status === "active" && m.ts_expires ? new Date(m.ts_expires * 1000).toLocaleString() : "-";
+        var mechanism = m.mechanism || "ssh";
         return (
-          '<tr data-mitigation-id="' + m.id + '"><td>' + escapeHtml(m.src_ip) + "</td><td>" +
+          '<tr data-mitigation-id="' + m.id + '"><td>' + (mechanism === "flowspec" ? "FlowSpec" : "SSH (legado)") +
+          "</td><td>" + escapeHtml(m.src_ip) + "</td><td>" +
           (statusLabels[m.status] || m.status) + "</td><td>" + (m.trigger_type === "auto" ? "automático" : "manual") +
           "</td><td>" + fmtDateTime(m.ts_applied) + "</td><td>" + expira + "</td><td>" + revertBtn + "</td></tr>"
         );
       })
       .join("");
     el.innerHTML =
-      "<table><thead><tr><th>src_ip</th><th>Status</th><th>Gatilho</th><th>Aplicada em</th><th>Expira</th>" +
+      "<table><thead><tr><th>Mecanismo</th><th>src_ip</th><th>Status</th><th>Gatilho</th><th>Aplicada em</th><th>Expira</th>" +
       "<th></th></tr></thead><tbody>" + rows + "</tbody></table>";
   }
 
@@ -3877,6 +3990,9 @@
 
     var rulesCgEdgeListEl = document.getElementById("rules-cg-edge-list");
     if (rulesCgEdgeListEl) rulesCgEdgeListEl.addEventListener("click", onRulesUnifiedClick);
+
+    var rulesDetailEl = document.getElementById("rules-detail");
+    if (rulesDetailEl) rulesDetailEl.addEventListener("click", onRulesUnifiedClick);
 
     initRulesControls();
 

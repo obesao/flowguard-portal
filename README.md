@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.33.0**
+**Versão atual: v1.34.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -85,6 +85,47 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.34.0 — 2026-07-04 — "Mitigações ativas/histórico" do ClientGuard: deduplicada e com motivo
+Pedido do usuário: a lista "Mitigações ativas / histórico (FlowSpec e SSH
+legado)" na Configuração > ClientGuard mostrava muitos hosts sem dar pra
+saber o que tinha acontecido ou se estava ativa. Achado real ao investigar:
+essa lista já era um **duplicado sem paginação nem filtro** de uma tabela
+melhor que já existia na aba Regras → ClientGuard (`renderRulesCgEdgeTable`)
+— a mesma classe de duplicação já corrigida no "Bloquear IP manualmente"
+(v1.32.0). Em vez de melhorar duas listas, removida a pior (a da
+Configuração) e melhorada a que sobrou.
+
+- **Deduplicação**: `cg-edge-list`, seu botão "Reverter todas" e todo o JS
+  só usado por ela (`renderCgEdgeList`, `loadCgEdgeList`, `onCgEdgeListClick`,
+  `onCgEdgeRevertAllClick`) foram removidos. Nada se perde — os mesmos dados
+  já carregavam independentemente via `loadRulesUnified()` (poll de 5s), e o
+  botão "Reverter todas" sobrevive na aba Regras.
+- **Nova coluna "Motivo"**: extrai o label do detector (`match_json.label`,
+  ex: "ClientGuard auto: port_scan_vertical") e mostra o nome amigável já
+  usado na lista de detectores ("scan vertical") — antes essa informação só
+  aparecia enterrada dentro do "Match" do painel de Detalhes, e a chave
+  `label` era explicitamente filtrada de lá.
+- **Status virou selo colorido** (`.fg-mitigation-badge`, já usado em
+  Ataques/Sinais Suspeitos) em vez de texto puro — ativa (verde), revertida
+  (âmbar), falhou (vermelho, com o erro no tooltip).
+- **Paginação** (reaproveita `paginate()`/`paginationHtml()` já usados em
+  Ataques/Flows/Top Prefixos) — 121 linhas acumuladas viram 15 por página em
+  vez de um despejo só.
+- Colunas menos essenciais pro dia a dia (ID, nº do sinal associado, erro
+  bruto) saíram da tabela principal — continuam no painel de Detalhes.
+
+Sobre "será que faz sentido guardar isso": guardar o histórico continua
+fazendo sentido e é consistente com o resto do portal (Ataques e Regras
+também nunca apagam, só ficam "encerrados") — o problema real era mostrar
+tudo de uma vez sem filtro, não o volume de dados em si (121 linhas em ~4
+dias não é preocupante).
+
+Validado com Playwright real: lista antiga (`cg-edge-list`) e botão antigo
+confirmados ausentes da Configuração, tabela nova na aba Regras com coluna
+Motivo/selos/paginação nas duas visões (Ativas: 20 itens/2 páginas; Histórico:
+100+ itens paginados), painel de Detalhes mostrando "Motivo" no topo — 0
+erros de console.
 
 ### v1.33.0 — 2026-07-04 — Selo de mitigação na aba Ataques (FlowGuard)
 Espelha o FlowGuard v1.24.0 e o mesmo padrão já usado na aba Sinais Suspeitos

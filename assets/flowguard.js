@@ -93,6 +93,7 @@
       topPrefixes: 1,
       flows: 1,
       attacks: 1,
+      cgEdgeMitigations: 1,
     },
     chart: {
       window: "6h",
@@ -315,6 +316,7 @@
       if (key === "topPrefixes") renderTopPrefixesFiltered();
       if (key === "flows") renderFlowsFiltered();
       if (key === "attacks") renderAttacksFiltered();
+      if (key === "cgEdgeMitigations") applyRulesFilter();
     });
   }
 
@@ -1074,6 +1076,20 @@
   }
 
   var RULES_EDGE_STATUS_LABELS = { active: "ativa", reverted: "revertida", failed: "falhou" };
+  var RULES_EDGE_STATUS_BADGE_CLASS = { active: "active", reverted: "inactive", failed: "failed" };
+
+  // "o que aconteceu": match_json.label vem tipo "ClientGuard auto: port_scan_vertical"
+  // — extrai a chave do detector e reusa os mesmos nomes amigáveis já usados na
+  // lista de toggles (CG_SIGNAL_LABELS), em vez de mostrar o label cru ou nada
+  function edgeMitigationReason(m) {
+    if (!m.match_json) return null;
+    var rule;
+    try { rule = JSON.parse(m.match_json); } catch (e) { return null; }
+    var label = rule && rule.label;
+    if (!label) return null;
+    var key = label.split(":").pop().trim();
+    return CG_SIGNAL_LABELS[key] || label;
+  }
 
   function renderRulesCgEdgeTable(mitigations, elId) {
     var el = document.getElementById(elId);
@@ -1082,35 +1098,43 @@
       el.innerHTML = '<p class="fg-ok">Nenhuma mitigação de borda registrada.</p>';
       return;
     }
-    var rows = mitigations
+    var pageKey = "cgEdgeMitigations";
+    var p = paginate(mitigations, pageKey);
+    var rows = p.pageRows
       .map(function (m) {
         var revertBtn = m.status === "active"
           ? '<button class="fg-btn" data-action="revert-edge-mitigation">Reverter</button>' : "";
         var mechanism = m.mechanism || "ssh";
+        var badgeCls = RULES_EDGE_STATUS_BADGE_CLASS[m.status] || "none";
+        var badgeTitle = m.status === "failed" && m.error ? ' title="' + escapeHtml(m.error) + '"' : "";
+        var when = m.status === "active" && m.ts_expires
+          ? "expira " + fmtDateTime(m.ts_expires)
+          : (m.ts_reverted ? "revertida " + fmtDateTime(m.ts_reverted) : "");
+        var reason = edgeMitigationReason(m) || (m.trigger_type === "auto" ? "-" : "bloqueio manual");
         return (
-          '<tr data-mitigation-id="' + m.id + '"><td>' + m.id + "</td><td>" +
-          (mechanism === "flowspec" ? "FlowSpec" : "SSH (legado)") + "</td><td>" +
-          escapeHtml(m.src_ip) + "</td><td>" +
-          (RULES_EDGE_STATUS_LABELS[m.status] || m.status) + "</td><td>" +
-          (m.trigger_type === "auto" ? "automático" : "manual") + "</td><td>" +
-          (m.signal_id ? "#" + m.signal_id : "-") + "</td><td>" + fmtDateTime(m.ts_applied) + "</td><td>" +
-          (m.ts_reverted ? fmtDateTime(m.ts_reverted) : "-") + "</td><td>" +
-          (m.status === "active" && m.ts_expires ? new Date(m.ts_expires * 1000).toLocaleString() : "-") +
-          "</td><td>" + escapeHtml(m.error || "-") + "</td><td>" +
-          '<button class="fg-btn" data-action="detail-edge-mitigation">Detalhes</button> ' + revertBtn + "</td></tr>"
+          '<tr data-mitigation-id="' + m.id + '">' +
+          '<td><span class="fg-mitigation-badge ' + badgeCls + '"' + badgeTitle + '>' +
+          (RULES_EDGE_STATUS_LABELS[m.status] || m.status) + "</span></td>" +
+          "<td>" + escapeHtml(m.src_ip) + "</td>" +
+          "<td>" + escapeHtml(reason) + "</td>" +
+          "<td>" + (mechanism === "flowspec" ? "FlowSpec" : "SSH (legado)") + "</td>" +
+          "<td>" + (m.trigger_type === "auto" ? "automático" : "manual") + "</td>" +
+          "<td>" + fmtDateTime(m.ts_applied) + (when ? '<div class="fg-kpi-sub">' + escapeHtml(when) + "</div>" : "") + "</td>" +
+          "<td>" + '<button class="fg-btn" data-action="detail-edge-mitigation">Detalhes</button> ' + revertBtn + "</td></tr>"
         );
       })
       .join("");
     el.innerHTML =
-      "<table><thead><tr><th>ID</th><th>Mecanismo</th><th>src_ip</th><th>Status</th><th>Gatilho</th><th>Sinal</th>" +
-      "<th>Aplicada em</th><th>Revertida em</th><th>Expira</th><th>Erro</th><th>Ação</th></tr></thead><tbody>" +
-      rows + "</tbody></table>";
+      "<table><thead><tr><th>Status</th><th>Cliente</th><th>Motivo</th><th>Mecanismo</th><th>Gatilho</th>" +
+      "<th>Aplicada em</th><th></th></tr></thead><tbody>" + rows + "</tbody></table>" +
+      paginationHtml(pageKey, p.page, p.totalPages, p.total);
   }
 
   function renderEdgeMitigationDetail(m) {
     var el = document.getElementById("rules-detail");
     var mechanism = m.mechanism || "ssh"; // linhas antigas não têm a coluna preenchida
     var baseRows =
+      "<tr><td>Motivo</td><td>" + escapeHtml(edgeMitigationReason(m) || "-") + "</td></tr>" +
       "<tr><td>Mecanismo</td><td>" + (mechanism === "flowspec" ? "BGP FlowSpec" : "SSH/ACL (legado)") + "</td></tr>" +
       "<tr><td>IP mitigado</td><td>" + escapeHtml(m.src_ip) + "</td></tr>" +
       "<tr><td>Status</td><td>" + (RULES_EDGE_STATUS_LABELS[m.status] || m.status) + "</td></tr>" +
@@ -2902,7 +2926,7 @@
           showToast(resp.ok
             ? (resp.already_active ? srcIp + " já tinha mitigação ativa (TTL renovado)" : srcIp + " bloqueado na borda")
             : (resp.error || "falha ao aplicar mitigação"), resp.ok ? "success" : "error");
-          loadCgEdgeList();
+          loadRulesUnified();
         })
         .finally(function () { btn.disabled = false; });
     }
@@ -3107,8 +3131,9 @@
   // --- ClientGuard: mitigação automática por detector (BGP FlowSpec) --------
   // painel reaproveita os IDs antigos (cg-edge-auto/cg-edge-default-ttl/
   // cg-edge-auto-apply-btn) — o gatilho automático inteiro migrou de SSH/ACL
-  // pra FlowSpec (flowspec_mitigation.py), só a lista de mitigações abaixo
-  // (cg-edge-list, endpoint separado) ainda mostra SSH legado + FlowSpec juntos.
+  // pra FlowSpec (flowspec_mitigation.py). A lista de mitigações (ativas +
+  // histórico, SSH legado e FlowSpec juntos) vive só na aba Regras →
+  // ClientGuard (renderRulesCgEdgeTable) — ver nota mais abaixo.
 
   var CG_FLOWSPEC_ACTION_LABELS = { discard: "Descartar (bloqueia tudo)", rate_limit: "Limitar banda (dinâmico)", "off": "Desligado" };
 
@@ -3186,64 +3211,14 @@
       });
   }
 
-  function renderCgEdgeList(data) {
-    var el = document.getElementById("cg-edge-list");
-    if (!el) return;
-    if (!data.ok) {
-      showError(el, data.error || "erro desconhecido");
-      return;
-    }
-    if (!data.mitigations.length) {
-      el.innerHTML = '<p class="fg-ok">Nenhuma mitigação de borda registrada.</p>';
-      return;
-    }
-    var statusLabels = { active: "ativa", reverted: "revertida", failed: "falhou" };
-    var rows = data.mitigations
-      .map(function (m) {
-        var revertBtn = m.status === "active"
-          ? '<button class="fg-btn" data-action="edge-revert">Reverter</button>'
-          : "-";
-        var expira = m.status === "active" && m.ts_expires ? new Date(m.ts_expires * 1000).toLocaleString() : "-";
-        var mechanism = m.mechanism || "ssh";
-        return (
-          '<tr data-mitigation-id="' + m.id + '"><td>' + (mechanism === "flowspec" ? "FlowSpec" : "SSH (legado)") +
-          "</td><td>" + escapeHtml(m.src_ip) + "</td><td>" +
-          (statusLabels[m.status] || m.status) + "</td><td>" + (m.trigger_type === "auto" ? "automático" : "manual") +
-          "</td><td>" + fmtDateTime(m.ts_applied) + "</td><td>" + expira + "</td><td>" + revertBtn + "</td></tr>"
-        );
-      })
-      .join("");
-    el.innerHTML =
-      "<table><thead><tr><th>Mecanismo</th><th>src_ip</th><th>Status</th><th>Gatilho</th><th>Aplicada em</th><th>Expira</th>" +
-      "<th></th></tr></thead><tbody>" + rows + "</tbody></table>";
-  }
+  // a lista completa (ativas + histórico) desse mesmo dado já vive na aba
+  // Regras → ClientGuard (renderRulesCgEdgeTable/rules-cg-edge-list, com
+  // toggle Ativas/Histórico e paginação) — não duplicar aqui
 
-  function loadCgEdgeList() {
-    if (!getToken()) return;
-    getJson(CG_EDGE_ENDPOINT).then(renderCgEdgeList).catch(function (err) {
-      showError(document.getElementById("cg-edge-list"), "falha ao consultar mitigações de borda");
-      console.error("flowguard.js:", err);
-    });
-  }
-
-  function onCgEdgeListClick(ev) {
-    var btn = ev.target.closest("button[data-action='edge-revert']");
-    if (!btn) return;
-    var row = btn.closest("tr[data-mitigation-id]");
-    if (!row) return;
-    btn.disabled = true;
-    postJson(CG_EDGE_ENDPOINT, { id: Number(row.getAttribute("data-mitigation-id")) }).then(function (resp) {
-      showToast(resp.ok ? "Mitigação revertida" : resp.error, resp.ok ? "success" : "error");
-      loadCgEdgeList();
-    });
-  }
-
-  // Compartilhado pelos dois botões "reverter todas as mitigações do
-  // ClientGuard" — um na aba ClientGuard (cg-edge-revert-all-btn) e outro na
-  // aba Regras (rules-cg-edge-revert-all-btn), lado a lado com "Apagar todas
-  // as regras ativas" do FlowGuard. Atualiza todas as views que dependem
-  // dessa lista, independente de qual botão foi clicado.
-  function revertAllClientGuardMitigations(btn) {
+  // Botão único agora (só existe na aba Regras — a cópia da aba ClientGuard
+  // foi removida junto com a lista duplicada, ver nota acima).
+  function onRulesCgEdgeRevertAllClick() {
+    var btn = document.getElementById("rules-cg-edge-revert-all-btn");
     if (!window.confirm(
       "Reverter TODAS as mitigações ativas do ClientGuard (FlowSpec + SSH legado)? " +
       "Isso libera imediatamente todos os clientes atualmente bloqueados/limitados e não pode ser desfeito.",
@@ -3258,7 +3233,6 @@
         } else {
           showToast(resp.error || "falha ao reverter mitigações", "error");
         }
-        loadCgEdgeList();
         loadClientGuardStatus();
         loadRulesUnified();
       })
@@ -3267,14 +3241,6 @@
         console.error("flowguard.js:", err);
       })
       .finally(function () { btn.disabled = false; });
-  }
-
-  function onCgEdgeRevertAllClick() {
-    revertAllClientGuardMitigations(document.getElementById("cg-edge-revert-all-btn"));
-  }
-
-  function onRulesCgEdgeRevertAllClick() {
-    revertAllClientGuardMitigations(document.getElementById("rules-cg-edge-revert-all-btn"));
   }
 
   function onCgClearSuspiciousClick() {
@@ -3295,7 +3261,6 @@
     loadClientGuardSuspicious();
     loadCgToggles();
     loadCgEdgeAuto();
-    loadCgEdgeList();
   }
 
   // --- gráficos (canvas, sem dependência externa) -------------------------
@@ -4682,13 +4647,7 @@
     var cgEdgeAutoApplyBtn = document.getElementById("cg-edge-auto-apply-btn");
     if (cgEdgeAutoApplyBtn) cgEdgeAutoApplyBtn.addEventListener("click", onCgEdgeAutoApplyClick);
 
-    var cgEdgeListEl = document.getElementById("cg-edge-list");
-    if (cgEdgeListEl) cgEdgeListEl.addEventListener("click", onCgEdgeListClick);
-
-    var cgEdgeRevertAllBtn = document.getElementById("cg-edge-revert-all-btn");
-    if (cgEdgeRevertAllBtn) cgEdgeRevertAllBtn.addEventListener("click", onCgEdgeRevertAllClick);
-
-    if (getToken()) { loadClientGuardCfg(); loadCgToggles(); loadCgEdgeAuto(); loadCgEdgeList(); }
+    if (getToken()) { loadClientGuardCfg(); loadCgToggles(); loadCgEdgeAuto(); }
 
     initChartControls();
 

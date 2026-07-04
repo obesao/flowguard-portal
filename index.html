@@ -743,7 +743,7 @@
         </section>
         <section class="fg-panel-section">
           <h2>Mitigação automática por detector (FlowSpec)</h2>
-          <p class="fg-kpi-sub">Cada sinal novo pode disparar sozinho, sem clique, uma regra BGP FlowSpec (proxy pro FlowGuard — mesma sessão BGP única com o roteador): <strong>Descartar</strong> bloqueia todo o tráfego do cliente; <strong>Limitar banda</strong> não derruba a navegação, só corta o excesso acima do normal daquele cliente (limite calculado sozinho a partir do histórico dele, maior peso pra DNS/amplificação); <strong>Desligado</strong> só registra o sinal, sem mitigar. Aplicar numa origem já mitigada só estende o TTL ou substitui por uma ação mais severa, nunca duplica regra. O antigo caminho via SSH/ACL direto no roteador fica só de suporte, sem novo gatilho automático — mitigações SSH já ativas de antes continuam expirando normalmente e aparecem na lista abaixo.</p>
+          <p class="fg-kpi-sub">Cada sinal novo pode disparar sozinho, sem clique, uma regra BGP FlowSpec (proxy pro FlowGuard — mesma sessão BGP única com o roteador): <strong>Descartar</strong> bloqueia todo o tráfego do cliente; <strong>Limitar banda</strong> não derruba a navegação, só corta o excesso acima do normal daquele cliente (limite calculado sozinho a partir do histórico dele, maior peso pra DNS/amplificação); <strong>Desligado</strong> só registra o sinal, sem mitigar. Aplicar numa origem já mitigada só estende o TTL ou substitui por uma ação mais severa, nunca duplica regra. O antigo caminho via SSH/ACL direto no roteador fica só de suporte, sem novo gatilho automático — mitigações SSH já ativas de antes continuam expirando normalmente. Mitigações ativas e histórico completo (com motivo, status e opção de reverter) ficam na aba <strong>Regras → ClientGuard</strong>, junto com o resto do que já foi enviado pra borda.</p>
           <h3 style="margin-top:0.6rem;">Ação automática por detector</h3>
           <div class="fg-toggle-list" id="cg-edge-auto"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
           <div class="fg-toolbar">
@@ -755,11 +755,6 @@
             </select>
             <button class="fg-btn" id="cg-edge-auto-apply-btn" disabled>Aplicar novas configurações</button>
           </div>
-          <div class="fg-toolbar" style="margin-top:1rem;">
-            <h3 style="margin:0;">Mitigações ativas / histórico (FlowSpec e SSH legado)</h3>
-            <button class="fg-btn fg-btn-danger" id="cg-edge-revert-all-btn">Reverter todas as mitigações ativas</button>
-          </div>
-          <div id="cg-edge-list"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
         </section>
         <section class="fg-panel-section">
           <h2>Redes de Clientes</h2>

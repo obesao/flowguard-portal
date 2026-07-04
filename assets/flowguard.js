@@ -1238,16 +1238,25 @@
       confirmBtn.disabled = true;
       return;
     }
-    var withoutCommands = data.devices.filter(function (d) { return !d[countField]; });
+    // desativado (fg-wm-enabled=false na Configuração do Modo Guerra) aparece
+    // esmaecido aqui, com o motivo, em vez de simplesmente sumir da lista —
+    // evita o operador se perguntar "cadê meu equipamento" em cima da hora
+    var enabledDevices = data.devices.filter(function (d) { return d.enabled !== false; });
+    var enabledWithoutCommands = enabledDevices.filter(function (d) { return !d[countField]; });
     el.innerHTML = data.devices
       .map(function (d) {
+        if (d.enabled === false) {
+          return '<div class="fg-warmode-device-row fg-warmode-device-disabled"><span>' + escapeHtml(d.name) + " (" +
+            escapeHtml(d.host || "-") + ", " + escapeHtml(d.device_type || "-") +
+            ')</span><span class="fg-kpi-sub">desativado — não vai rodar</span></div>';
+        }
         var n = d[countField];
         var cmdLabel = n ? n + " comando(s)" : '<span class="fg-error">' + noCmdLabel + '</span>';
         return '<div class="fg-warmode-device-row"><span>' + escapeHtml(d.name) + " (" + escapeHtml(d.host || "-") +
           ", " + escapeHtml(d.device_type || "-") + ")</span><span>" + cmdLabel + "</span></div>";
       })
       .join("");
-    confirmBtn.disabled = withoutCommands.length === data.devices.length;
+    confirmBtn.disabled = !enabledDevices.length || enabledWithoutCommands.length === enabledDevices.length;
   }
 
   function warmodeExecShowStep(step) {
@@ -1482,12 +1491,48 @@
     });
   }
 
-  function warmodeDeviceCardHtml(d) {
-    d = d || { name: "", host: "", port: 22, device_type: "", username: "", has_password: false, enable_mode: false, commands: [], revert_commands: [] };
+  // badge de última execução (audit log, via last_run vindo do backend) —
+  // "nunca executado" pra equipamento novo/nunca rodado, senão ok/falhou +
+  // há-quanto-tempo, com data/hora exata e erro (se houve) só no title
+  function warmodeLastRunBadge(lastRun) {
+    if (!lastRun) return '<span class="fg-wm-lastrun fg-wm-lastrun-none">nunca executado</span>';
+    var cls = lastRun.ok ? "fg-wm-lastrun-ok" : "fg-wm-lastrun-fail";
+    var verb = lastRun.mode === "revert" ? "reversão" : "execução";
+    var ago = fmtUptime(Math.floor(Date.now() / 1000) - lastRun.ts) + " atrás";
+    var label = (lastRun.ok ? "ok" : "falhou") + " — última " + verb + " " + ago;
+    var title = fmtDateTime(lastRun.ts) + (lastRun.error ? " — " + lastRun.error : "");
+    return '<span class="fg-wm-lastrun ' + cls + '" title="' + escapeHtml(title) + '">' + escapeHtml(label) + "</span>";
+  }
+
+  function warmodeDeviceCardHtml(d, expanded) {
+    var isNew = !d;
+    d = d || {
+      name: "", host: "", port: 22, device_type: "", username: "", has_password: false,
+      enable_mode: false, enabled: true, commands: [], revert_commands: [], last_run: null,
+    };
+    expanded = expanded || isNew;
+    var nCommands = (d.commands || []).length;
+    var nRevert = (d.revert_commands || []).length;
+    var meta = (d.host || "sem host") + " · " + (d.device_type || "sem tipo") + " · " +
+      nCommands + " comando(s) / " + nRevert + " reversão";
     return (
-      '<div class="fg-wm-device">' +
-      '<div class="fg-wm-row-top"><strong>' + (d.name ? escapeHtml(d.name) : "(novo equipamento)") +
-      '</strong><button class="fg-btn" data-action="remove-device">Remover</button></div>' +
+      '<div class="fg-wm-device' + (d.enabled === false ? " fg-wm-device-disabled" : "") + '">' +
+      '<div class="fg-wm-row-top">' +
+      '<label class="fg-wm-enabled-toggle" title="Participa do próximo lote (ligar ou reverter o Modo Guerra)">' +
+      '<input type="checkbox" class="fg-wm-enabled"' + (d.enabled === false ? "" : " checked") + '></label>' +
+      '<div class="fg-wm-summary" data-action="toggle-expand">' +
+      "<strong>" + (d.name ? escapeHtml(d.name) : "(novo equipamento)") + "</strong>" +
+      '<span class="fg-wm-summary-meta">' + escapeHtml(meta) +
+      (nCommands === 0 ? ' <span class="fg-wm-warn">· sem comandos</span>' : "") + "</span>" +
+      warmodeLastRunBadge(d.last_run) +
+      "</div>" +
+      '<div class="fg-wm-row-actions">' +
+      '<button type="button" class="fg-btn" data-action="duplicate-device">Duplicar</button>' +
+      '<button type="button" class="fg-btn" data-action="remove-device">Remover</button>' +
+      '<button type="button" class="fg-btn fg-wm-chevron-btn" data-action="toggle-expand">' + (expanded ? "▴" : "▾") + "</button>" +
+      "</div>" +
+      "</div>" +
+      '<div class="fg-wm-body"' + (expanded ? "" : " hidden") + ">" +
       '<div class="fg-wm-device-grid">' +
       '<div><label>Nome</label><input type="text" class="fg-wm-name" value="' + escapeHtml(d.name) + '" placeholder="ex: NE8000BGP"></div>' +
       '<div><label>Host</label><input type="text" class="fg-wm-host" value="' + escapeHtml(d.host) + '" placeholder="IP de gerência"></div>' +
@@ -1502,15 +1547,21 @@
       '> precisa de "enable" antes dos comandos</label>' +
       '<label>Comandos (um por linha)</label>' +
       '<textarea class="fg-wm-commands" placeholder="ex: display version">' + escapeHtml((d.commands || []).join("\n")) + "</textarea>" +
-      '<label>Comandos de reversão (um por linha) — rodados pelo botão "Sair do Modo Guerra", pra desfazer os comandos acima</label>' +
+      '<label>Comandos de reversão (um por linha) — rodados no 2º clique do botão único do Modo Guerra, pra desfazer os comandos acima</label>' +
       '<textarea class="fg-wm-revert-commands" placeholder="ex: system-view / undo acl number 3006 / quit">' + escapeHtml((d.revert_commands || []).join("\n")) + "</textarea>" +
+      '<div class="fg-wm-test-row">' +
+      '<button type="button" class="fg-btn" data-action="test-device">Testar conexão</button>' +
+      '<span class="fg-kpi-sub">só autentica por SSH, nenhum comando é enviado</span>' +
+      '<span class="fg-wm-test-result"></span>' +
+      "</div>" +
+      "</div>" +
       "</div>"
     );
   }
 
   function renderWarmodeCfgDevices(devices) {
     var el = document.getElementById("fg-warmode-cfg-devices");
-    el.innerHTML = devices.map(warmodeDeviceCardHtml).join("") ||
+    el.innerHTML = devices.map(function (d) { return warmodeDeviceCardHtml(d, false); }).join("") ||
       '<p class="fg-kpi-sub">Nenhum equipamento cadastrado ainda.</p>';
   }
 
@@ -1527,32 +1578,121 @@
     });
   }
 
+  function warmodeCollectOneDevice(card) {
+    var commandsRaw = card.querySelector(".fg-wm-commands").value;
+    var revertCommandsRaw = card.querySelector(".fg-wm-revert-commands").value;
+    return {
+      name: card.querySelector(".fg-wm-name").value.trim(),
+      host: card.querySelector(".fg-wm-host").value.trim(),
+      port: Number(card.querySelector(".fg-wm-port").value) || 22,
+      device_type: card.querySelector(".fg-wm-device-type").value.trim(),
+      username: card.querySelector(".fg-wm-username").value.trim(),
+      password: card.querySelector(".fg-wm-password").value,
+      enable_mode: card.querySelector(".fg-wm-enable-mode").checked,
+      enabled: card.querySelector(".fg-wm-enabled").checked,
+      commands: commandsRaw.split("\n").map(function (c) { return c.trim(); }).filter(Boolean),
+      revert_commands: revertCommandsRaw.split("\n").map(function (c) { return c.trim(); }).filter(Boolean),
+    };
+  }
+
   function collectWarmodeCfgDevices() {
-    return Array.prototype.map.call(document.querySelectorAll("#fg-warmode-cfg-devices .fg-wm-device"), function (card) {
-      var commandsRaw = card.querySelector(".fg-wm-commands").value;
-      var revertCommandsRaw = card.querySelector(".fg-wm-revert-commands").value;
-      return {
-        name: card.querySelector(".fg-wm-name").value.trim(),
-        host: card.querySelector(".fg-wm-host").value.trim(),
-        port: Number(card.querySelector(".fg-wm-port").value) || 22,
-        device_type: card.querySelector(".fg-wm-device-type").value.trim(),
-        username: card.querySelector(".fg-wm-username").value.trim(),
-        password: card.querySelector(".fg-wm-password").value,
-        enable_mode: card.querySelector(".fg-wm-enable-mode").checked,
-        commands: commandsRaw.split("\n").map(function (c) { return c.trim(); }).filter(Boolean),
-        revert_commands: revertCommandsRaw.split("\n").map(function (c) { return c.trim(); }).filter(Boolean),
-      };
-    });
+    return Array.prototype.map.call(document.querySelectorAll("#fg-warmode-cfg-devices .fg-wm-device"), warmodeCollectOneDevice);
+  }
+
+  function onWarmodeTestDevice(btn) {
+    var card = btn.closest(".fg-wm-device");
+    var resultEl = card.querySelector(".fg-wm-test-result");
+    var device = warmodeCollectOneDevice(card);
+    if (!device.host || !device.device_type) {
+      resultEl.className = "fg-wm-test-result fail";
+      resultEl.textContent = "preencha host e tipo antes de testar";
+      return;
+    }
+    btn.disabled = true;
+    resultEl.className = "fg-wm-test-result";
+    resultEl.textContent = "testando conexão...";
+    warmodePostJson(WARMODE_CFG_ENDPOINT, {
+      warmode_token: warmodeToken,
+      action: "test",
+      device: {
+        host: device.host, port: device.port, device_type: device.device_type,
+        username: device.username, password: device.password, enable_mode: device.enable_mode,
+      },
+    }).then(function (r) {
+      if (r.status === 401) {
+        resultEl.className = "fg-wm-test-result fail";
+        resultEl.textContent = "sessão do Modo Guerra expirada — feche e desbloqueie de novo";
+        return;
+      }
+      if (r.data.ok) {
+        resultEl.className = "fg-wm-test-result ok";
+        resultEl.textContent = "✔ conexão OK (" + r.data.elapsed_s + "s)";
+      } else {
+        resultEl.className = "fg-wm-test-result fail";
+        resultEl.textContent = "✘ " + (r.data.error || "falha desconhecida");
+      }
+    }).catch(function (err) {
+      resultEl.className = "fg-wm-test-result fail";
+      resultEl.textContent = "falha ao testar conexão";
+      console.error("flowguard.js:", err);
+    }).finally(function () { btn.disabled = false; });
   }
 
   function onWarmodeAddDevice() {
-    document.getElementById("fg-warmode-cfg-devices").insertAdjacentHTML("beforeend", warmodeDeviceCardHtml(null));
+    var el = document.getElementById("fg-warmode-cfg-devices");
+    // se a lista estava vazia, o placeholder "Nenhum equipamento..." não é
+    // um .fg-wm-device — precisa sumir, senão fica junto do card novo
+    if (!el.querySelector(".fg-wm-device")) el.innerHTML = "";
+    el.insertAdjacentHTML("beforeend", warmodeDeviceCardHtml(null, true));
+  }
+
+  // toggle "enabled" só mexe no checkbox por padrão — sem isso o esmaecimento
+  // visual (.fg-wm-device-disabled) ficaria "preso" no estado de quando a
+  // lista carregou, só atualizando de verdade depois de salvar e recarregar
+  function onWarmodeCfgDevicesChange(ev) {
+    if (!ev.target.classList.contains("fg-wm-enabled")) return;
+    var card = ev.target.closest(".fg-wm-device");
+    if (card) card.classList.toggle("fg-wm-device-disabled", !ev.target.checked);
   }
 
   function onWarmodeCfgDevicesClick(ev) {
-    var btn = ev.target.closest("button[data-action='remove-device']");
-    if (!btn) return;
-    btn.closest(".fg-wm-device").remove();
+    var toggleEl = ev.target.closest("[data-action='toggle-expand']");
+    if (toggleEl) {
+      var card = toggleEl.closest(".fg-wm-device");
+      var body = card.querySelector(".fg-wm-body");
+      var chevronBtn = card.querySelector(".fg-wm-chevron-btn");
+      body.hidden = !body.hidden;
+      if (chevronBtn) chevronBtn.textContent = body.hidden ? "▾" : "▴";
+      return;
+    }
+
+    var removeBtn = ev.target.closest("button[data-action='remove-device']");
+    if (removeBtn) {
+      var removeCard = removeBtn.closest(".fg-wm-device");
+      var nameInput = removeCard.querySelector(".fg-wm-name");
+      var label = (nameInput && nameInput.value.trim()) || "este equipamento";
+      if (confirm('Remover "' + label + '" da lista? Só efetiva de verdade depois de clicar em "Salvar".')) {
+        removeCard.remove();
+      }
+      return;
+    }
+
+    var dupBtn = ev.target.closest("button[data-action='duplicate-device']");
+    if (dupBtn) {
+      var srcCard = dupBtn.closest(".fg-wm-device");
+      var data = warmodeCollectOneDevice(srcCard);
+      data.name = data.name ? data.name + " (cópia)" : "";
+      data.password = ""; // nunca duplica senha — cópia sempre pede uma nova
+      data.has_password = false;
+      data.last_run = null;
+      srcCard.insertAdjacentHTML("afterend", warmodeDeviceCardHtml(data, true));
+      return;
+    }
+
+    var testBtn = ev.target.closest("button[data-action='test-device']");
+    if (testBtn) {
+      onWarmodeTestDevice(testBtn);
+    }
   }
 
   function onWarmodeSaveClick() {
@@ -1621,6 +1761,7 @@
     if (addBtn) addBtn.addEventListener("click", onWarmodeAddDevice);
     var devicesEl = document.getElementById("fg-warmode-cfg-devices");
     if (devicesEl) devicesEl.addEventListener("click", onWarmodeCfgDevicesClick);
+    if (devicesEl) devicesEl.addEventListener("change", onWarmodeCfgDevicesChange);
     var saveBtn = document.getElementById("fg-warmode-save-btn");
     if (saveBtn) saveBtn.addEventListener("click", onWarmodeSaveClick);
     var changepassToggleBtn = document.getElementById("fg-warmode-changepass-toggle-btn");

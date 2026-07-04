@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.28.0**
+**Versão atual: v1.29.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -86,7 +86,44 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 
 ## Changelog
 
+### v1.29.0 — 2026-07-04 — Configuração do Modo Guerra: cards colapsáveis, ativar/desativar, testar conexão, histórico
+Pedido do usuário: melhorias na tela "Configuração do Modo Guerra" — cada
+equipamento virou um card colapsável (resumo: nome, host, tipo, contagem de
+comandos, badge de última execução, checkbox "participa do lote") que expande
+só quando clicado, em vez de formulários sempre abertos empilhados. Reflete
+`enabled` do FlowGuard v1.23.0 — desmarcar tira o equipamento do próximo lote
+sem apagar credenciais/comandos; o modal de execução ("Confirmar e executar
+agora") mostra o equipamento desativado esmaecido com "não vai rodar" em vez
+de simplesmente omitir (evita "cadê meu equipamento" em cima da hora).
+
+Três ações novas por card: **Testar conexão** (autentica via SSH sem enviar
+nenhum comando de produção — novo endpoint `flowguard-warmode-cfg.sh` com
+`{"action":"test"}`, usa a senha já salva se o campo ficar em branco);
+**Duplicar** (clona um equipamento como base pra outro parecido, nunca
+duplica a senha); **Remover** ganhou confirmação (`confirm()`) — antes tirava
+o card na hora sem perguntar. Badge de última execução (`última: ok há 2h` /
+`falhou há 3h` / `nunca executado`) vem do audit log via
+`last_runs_by_device()` do FlowGuard. Bug real corrigido: alternar o
+checkbox "participa do lote" só mudava o valor — o esmaecimento visual do
+card ficava "preso" no estado de quando a lista carregou; agora reage na
+hora via um listener de `change` dedicado.
+
+De passagem: o texto do campo "Comandos de reversão" ainda dizia 'rodados
+pelo botão "Sair do Modo Guerra"', botão que não existe mais desde a v1.26.0
+(botão único) — atualizado pra "no 2º clique do botão único do Modo Guerra".
+
+Validado com Playwright real sem tocar na senha real do Modo Guerra nem em
+equipamento de produção: sessão de desbloqueio criada diretamente no arquivo
+de sessões do servidor (mesmo mecanismo de `scripts/create_dev_session.sh`,
+só que pro `warmode_token`) e interceptação só do POST de unlock — todo o
+resto (listar/testar equipamentos) falou com o backend de verdade, incluindo
+os 3 equipamentos reais configurados. "Testar conexão" testado contra um
+host inexistente (timeout de 12s confirmado, sem alcançar nenhum equipamento
+real). Nenhum clique em "Salvar" durante o teste — `warmode.yaml` de
+produção conferido (mtime) como intocado depois. 0 erros de console.
+
 ### v1.28.0 — 2026-07-04 — Selo WARMODE-OFF/WARMODE-ON + topo vermelho quando ativo
+Pedido do usuário: uma sinalização clara de que o Modo Guerra está desativado
 Pedido do usuário: uma sinalização clara de que o Modo Guerra está desativado
 ("tipo link saudável") e, quando ativado, mudar a cor do topo da página pra
 vermelho, indicando problema/ataque em andamento. Novo selo `#fg-warmode-badge`

@@ -1,9 +1,13 @@
 #!/bin/sh
-# flowguard-warmode.sh — "botão de emergência": GET lista os equipamentos configurados,
-# POST dispara a execução real dos comandos via SSH em todos eles (ou a reversão, se
-# {"action":"revert"} vier no corpo — botão "Sair do Modo Guerra"). As duas exigem a
-# MESMA senha/sessão do Modo Guerra usada pra configuração (ver flowguard-warmode-auth.sh)
-# — não basta estar logado no portal.
+# flowguard-warmode.sh — "botão de emergência" (agora único, liga/desliga): GET
+# lista os equipamentos configurados (ou, com ?status=1, só o estado
+# ligado/desligado + desde quando — pro botão/timer do topo do portal), POST
+# dispara a execução real dos comandos via SSH em todos eles (ou a reversão, se
+# {"action":"revert"} vier no corpo — mesmo botão, 2º clique). Listar
+# equipamentos e executar exigem a MESMA senha/sessão do Modo Guerra usada pra
+# configuração (ver flowguard-warmode-auth.sh); ?status=1 não — qualquer
+# usuário logado no portal pode ver se o Modo Guerra está ativo, sem precisar
+# saber a senha de equipamentos.
 
 . "$(dirname -- "$0")/lib.sh"
 
@@ -11,6 +15,24 @@ TOKEN=$(parse_param "token")
 
 if ! check_session "$TOKEN"; then
   deny_unauthorized
+  exit 0
+fi
+
+if [ "$REQUEST_METHOD" != "POST" ] && [ "$(parse_param "status")" = "1" ]; then
+  print_header 200
+  /root/flowguard/venv/bin/python3 <<'PYEOF'
+import json
+import sys
+
+sys.path.insert(0, "/root/flowguard")
+
+from warmode.executor import get_state
+
+try:
+    print(json.dumps({"ok": True, **get_state()}))
+except Exception as exc:
+    print(json.dumps({"ok": False, "error": str(exc)}))
+PYEOF
   exit 0
 fi
 

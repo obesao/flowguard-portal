@@ -31,7 +31,10 @@
   var WHATSAPP_ENDPOINT = "/cgi-bin/flowguard-whatsapp.sh";
 
   var warmodeToken = null; // em memória só — some ao recarregar a página (relock)
-  var warmodeExecMode = "apply"; // "apply" (🚨 Modo Guerra) ou "revert" (🔙 Sair do Modo Guerra) — mesmo modal, endpoints/rótulos trocam conforme o modo
+  var warmodeExecMode = "apply"; // "apply" ou "revert" — mesmo modal, endpoints/rótulos trocam conforme o modo
+  var warmodeActive = false; // estado real (vem do servidor via loadWarmodeStatus, polling) — botão único: liga se false, abre reversão se true
+  var warmodeStartedAt = null; // epoch (s) — base do timer digital no topo da página
+  var warmodeTickTimer = null;
   var rcTemplates = [];
   var rcCountdownTimer = null;
   var rcDiscovery = null; // cache em memória do último "Ler configuração atual (BGP)"
@@ -56,6 +59,9 @@
     rate_limit: "Limitar banda (FlowSpec)",
   };
   var MITIGATION_KIND_KEYS = ["rtbh", "discard", "rate_limit"];
+  // chave global (não por tipo de ataque) dentro do mesmo objeto "profiles" —
+  // mesmo nome reservado do backend (collector.configio.RTBH_TTL_KEY)
+  var RTBH_TTL_KEY = "rtbh_default_ttl_s";
   // só esses 2 tipos têm limiar de tamanho de pacote configurável — nos outros o
   // tamanho do pacote nunca fez parte do match (ver bgp/flowspec.py no backend)
   var MITIGATION_PKT_LEN_TYPES = { dns_amp: true, ntp_amp: true };
@@ -314,6 +320,9 @@
 
   function initActionMenus() {
     document.addEventListener("click", function (ev) {
+      // clicar no campo de duração do RTBH não deve fechar o menu (senão não dá
+      // pra nem focar o campo pra digitar)
+      if (ev.target.closest(".fg-menu-list input")) return;
       var toggle = ev.target.closest("[data-menu-toggle]");
       document.querySelectorAll(".fg-menu-list").forEach(function (list) {
         if (!toggle || list !== toggle.nextElementSibling) list.hidden = true;
@@ -569,6 +578,8 @@
           '<div class="fg-menu-list" hidden>' +
           '<button data-action="detail">Detalhes</button>' +
           '<button data-action="analyze">Detalhes IA</button>' +
+          '<input type="number" class="fg-mitigate-ttl-min" min="1" step="1" ' +
+          'placeholder="min RTBH (padrão)" title="Duração do bloqueio RTBH em minutos — deixe em branco para usar o padrão configurado (aba Configuração > Mitigação)">' +
           '<button data-action="mitigate">Mitigar</button>' +
           '<button data-action="release">Liberar</button>' +
           suggestionMenuItem +
@@ -708,7 +719,14 @@
       apply_suggestion: "Mitigação sugerida aplicada para ",
     }[action] || "Ação aplicada para ";
 
-    postJson(ATTACKS_ENDPOINT, { action: action, attack_id: attackId }).then(function (resp) {
+    var body = { action: action, attack_id: attackId };
+    if (action === "mitigate") {
+      var ttlInput = row.querySelector(".fg-mitigate-ttl-min");
+      var ttlMin = ttlInput && ttlInput.value ? Number(ttlInput.value) : NaN;
+      if (!isNaN(ttlMin) && ttlMin > 0) body.ttl_s = Math.round(ttlMin * 60);
+    }
+
+    postJson(ATTACKS_ENDPOINT, body).then(function (resp) {
       showToast(resp.ok ? successLabel + prefix : resp.error, resp.ok ? "success" : "error");
       done();
     }).catch(done);
@@ -1255,7 +1273,9 @@
   function openWarmodeModal(mode) {
     warmodeExecMode = mode === "revert" ? "revert" : "apply";
     var isRevert = warmodeExecMode === "revert";
-    document.getElementById("fg-warmode-title").textContent = isRevert ? "🔙 Sair do Modo Guerra" : "🚨 Modo Guerra";
+    // só o texto troca — o ícone (span.fg-icon) fica intacto; setar textContent
+    // no <h2> inteiro apagaria o SVG (bug real, corrigido aqui)
+    document.getElementById("fg-warmode-title-text").textContent = isRevert ? "Sair do Modo Guerra" : "Modo Guerra";
     document.getElementById("fg-warmode-title").style.color = isRevert ? "" : "#f85149";
     document.getElementById("fg-warmode-exec-desc").textContent = isRevert
       ? "Roda os comandos de reversão configurados via SSH, em paralelo, em todos os equipamentos abaixo — desfaz o que o Modo Guerra aplicou. Reais, agora, sem confirmação adicional depois do próximo clique."
@@ -1315,11 +1335,57 @@
       .join("");
   }
 
+  // --- modo guerra: botão único (liga/desliga) + timer digital no topo -----
+
+  function fmtWarmodeElapsed(totalSeconds) {
+    var s = Math.max(0, Math.floor(totalSeconds));
+    var hh = Math.floor(s / 3600);
+    var mm = Math.floor((s % 3600) / 60);
+    var ss = s % 60;
+    function pad(n) { return n < 10 ? "0" + n : "" + n; }
+    return pad(hh) + ":" + pad(mm) + ":" + pad(ss);
+  }
+
+  function tickWarmodeTimer() {
+    var el = document.getElementById("fg-warmode-timer");
+    if (!el || warmodeStartedAt == null) return;
+    el.textContent = fmtWarmodeElapsed(Date.now() / 1000 - warmodeStartedAt);
+  }
+
+  function updateWarmodeUi() {
+    var btn = document.getElementById("fg-warmode-open-btn");
+    var timerEl = document.getElementById("fg-warmode-timer");
+    if (btn) {
+      btn.classList.toggle("is-warmode-active", warmodeActive);
+      btn.title = warmodeActive ? "Clique para sair do Modo Guerra" : "Clique para ativar o Modo Guerra";
+    }
+    if (timerEl) timerEl.hidden = !warmodeActive;
+
+    if (warmodeActive && warmodeStartedAt != null) {
+      if (!warmodeTickTimer) {
+        tickWarmodeTimer();
+        warmodeTickTimer = setInterval(tickWarmodeTimer, 1000);
+      }
+    } else if (warmodeTickTimer) {
+      clearInterval(warmodeTickTimer);
+      warmodeTickTimer = null;
+    }
+  }
+
+  function loadWarmodeStatus() {
+    return getJson(WARMODE_ENDPOINT + "?status=1").then(function (data) {
+      if (!data.ok) return;
+      warmodeActive = !!data.active;
+      warmodeStartedAt = data.started_at || null;
+      updateWarmodeUi();
+    }).catch(function (err) {
+      console.error("flowguard.js:", err);
+    });
+  }
+
   function initWarmode() {
     var openBtn = document.getElementById("fg-warmode-open-btn");
-    if (openBtn) openBtn.addEventListener("click", function () { openWarmodeModal("apply"); });
-    var revertOpenBtn = document.getElementById("fg-warmode-revert-open-btn");
-    if (revertOpenBtn) revertOpenBtn.addEventListener("click", function () { openWarmodeModal("revert"); });
+    if (openBtn) openBtn.addEventListener("click", function () { openWarmodeModal(warmodeActive ? "revert" : "apply"); });
     var closeBtn = document.getElementById("fg-warmode-close-btn");
     if (closeBtn) closeBtn.addEventListener("click", closeWarmodeModal);
     var confirmBtn = document.getElementById("fg-warmode-confirm-btn");
@@ -1571,6 +1637,7 @@
         renderWarmodeResults(r.data);
         var okMsg = isRevert ? "Sair do Modo Guerra executado" : "Modo Guerra executado";
         showToast(r.data.ok ? okMsg : r.data.error, r.data.ok ? "success" : "error");
+        if (r.data.ok) loadWarmodeStatus(); // reflete o botão/timer na hora, sem esperar o próximo poll
       })
       .catch(function (err) {
         showError(document.getElementById("fg-warmode-results"), "falha ao executar");
@@ -4083,6 +4150,7 @@
     loadAttacks();
     loadFlows();
     loadRulesUnified();
+    loadWarmodeStatus();
   }
 
   function initLogin() {

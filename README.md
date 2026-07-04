@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.25.0**
+**Versão atual: v1.26.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -85,6 +85,38 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.26.0 — 2026-07-04 — Modo Guerra: botão único com timer digital
+Pedido do usuário: em vez de dois botões ("🚨 Modo Guerra" pra ligar e "🔙
+Sair do Modo Guerra" pra desligar), agora é um botão único que alterna —
+clique liga (abre o modal de confirmação de sempre: senha + lista de
+equipamentos + "Confirmar e executar agora"), clique de novo abre o mesmo
+modal só que em modo reversão. A etapa de confirmação por senha continua
+obrigatória nos dois sentidos — não foi removida. Enquanto ativo, o botão
+ganha um visual "pressionado" (brilho vermelho pulsante, `is-warmode-active`)
+e aparece um timer digital no topo da página (`#fg-warmode-timer`, fonte
+monoespaçada vermelha, `HH:MM:SS`) contando o tempo decorrido desde que foi
+ligado — atualiza a cada segundo no navegador e resincroniza a cada poll
+(5s) com o estado real do servidor (`flowguard-warmode.sh?status=1`, novo,
+não exige a senha do Modo Guerra — só sessão normal do portal, pra qualquer
+operador ver que está em Modo Guerra sem precisar da senha de equipamentos).
+Estado (`{"active", "started_at"}`) persistido pelo `flowguard` (v1.21.0,
+`warmode/state.json`) toda vez que o botão é confirmado — sobrevive a reload
+da página. Bug real corrigido de passagem: o título do modal (`#fg-warmode-title`)
+era reescrito via `textContent`, o que apagava o ícone SVG (adicionado na
+v1.24.0) toda vez que o modal abria — só o texto agora fica num `<span>`
+próprio, o ícone nunca é tocado.
+
+Segunda parte do pedido (aviso periódico no WhatsApp com resumo por IA
+enquanto ativo) é 100% no lado do `flowguard` — ver changelog dele (v1.21.0)
+pro timer systemd/`warmode/report.py`, este repo só consome o estado via o
+endpoint de status acima.
+
+Validado com Playwright real: estado ativo simulado diretamente no arquivo
+(sem rodar nenhum comando SSH real), timer incrementando corretamente
+(00:01:34 → 00:01:36 em 2s reais), classe `is-warmode-active` aplicada,
+clique no botão único abrindo o modal em modo reversão com ícone intacto —
+0 erros de console.
 
 ### v1.25.0 — 2026-07-04 — Mitigação automática + "Verificar no roteador" na aba Regras
 - **Mitigação automática** (FlowGuard v1.20.0): aba Configuração > Mitigação

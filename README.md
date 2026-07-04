@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.26.0**
+**Versão atual: v1.27.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -85,6 +85,23 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.27.0 — 2026-07-04 — Duração personalizável do bloqueio RTBH
+Espelha o FlowGuard v1.22.0. Aba Configuração > Mitigação ganha um campo
+"Duração padrão do bloqueio RTBH" (minutos) abaixo da tabela por tipo de
+ataque — reaproveita o mesmo mecanismo de pendência/salvar em lote das
+outras colunas. Aba Ataques: o menu "Ações" de cada ataque ganha um campo de
+minutos ao lado do botão "Mitigar", pra sobrescrever a duração só daquela
+vez sem mexer no padrão configurado (em branco = usa o padrão). Bug real
+evitado nesse processo: o listener global que fecha o menu "Ações" ao
+clicar fora dele (`initActionMenus`) fecharia o menu assim que o operador
+clicasse no campo de minutos pra digitar — corrigido ignorando cliques
+dentro de `input`/`select` do menu.
+
+Validado com Playwright real: campo na aba Configuração > Mitigação
+salvando/resetando corretamente (valor persistido após reload), campo de
+minutos na aba Ataques mantendo o menu aberto ao clicar e digitar, 0 erros
+de console.
 
 ### v1.26.0 — 2026-07-04 — Modo Guerra: botão único com timer digital
 Pedido do usuário: em vez de dois botões ("🚨 Modo Guerra" pra ligar e "🔙

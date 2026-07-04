@@ -4050,9 +4050,14 @@
         "</tr>"
       );
     }).join("");
+    var rtbhTtlMin = Math.round((profiles[RTBH_TTL_KEY] || 3600) / 60);
     el.innerHTML =
       "<table><thead><tr><th>Tipo de ataque</th><th>Estratégia</th><th>Limiar de pacote</th>" +
-      "<th>Limite de banda</th><th>Automático</th></tr></thead><tbody>" + rows + "</tbody></table>";
+      "<th>Limite de banda</th><th>Automático</th></tr></thead><tbody>" + rows + "</tbody></table>" +
+      '<p class="fg-rtbh-ttl-row"><label>Duração padrão do bloqueio RTBH (botão "Mitigar" e ' +
+      'automático): <input type="number" min="1" step="1" id="fg-rtbh-ttl-input" value="' +
+      rtbhTtlMin + '"> minutos</label> <span class="fg-kpi-sub">(pode ser sobrescrita pontualmente ' +
+      'no campo ao lado do botão "Mitigar", na aba Ataques)</span></p>';
   }
 
   function loadFgMitigation() {
@@ -4073,10 +4078,36 @@
     });
   }
 
-  // Um tipo de ataque só entra em "pendente" se pelo menos 1 campo dele mudou de
-  // verdade em relação ao que veio do servidor — evita mandar um "não-muda-nada"
-  // quando o usuário mexe no campo e volta pro valor original.
+  function updateFgMitigationSaveBtn() {
+    var pendingCount = Object.keys(state.fgMitigationPending).length;
+    var saveBtn = document.getElementById("fg-mitigation-save-btn");
+    if (saveBtn) {
+      saveBtn.disabled = pendingCount === 0;
+      saveBtn.textContent = pendingCount > 0
+        ? "Salvar " + pendingCount + " " + (pendingCount === 1 ? "alteração" : "alterações")
+        : "Salvar configurações de mitigação";
+    }
+  }
+
+  // Um tipo de ataque (ou a duração padrão do RTBH, chave global RTBH_TTL_KEY)
+  // só entra em "pendente" se o valor mudou de verdade em relação ao que veio
+  // do servidor — evita mandar um "não-muda-nada" quando o usuário mexe no
+  // campo e volta pro valor original.
   function onFgMitigationChange(ev) {
+    if (ev.target.id === "fg-rtbh-ttl-input") {
+      var minutes = Number(ev.target.value);
+      var originalTtlS = state.fgMitigationLoaded[RTBH_TTL_KEY] || 3600;
+      if (!ev.target.value || isNaN(minutes) || minutes <= 0) {
+        delete state.fgMitigationPending[RTBH_TTL_KEY];
+      } else {
+        var ttlS = Math.round(minutes * 60);
+        if (ttlS === originalTtlS) delete state.fgMitigationPending[RTBH_TTL_KEY];
+        else state.fgMitigationPending[RTBH_TTL_KEY] = ttlS;
+      }
+      updateFgMitigationSaveBtn();
+      return;
+    }
+
     var field = ev.target.getAttribute("data-field");
     if (!field) return;
     var row = ev.target.closest("tr[data-attack-type]");
@@ -4105,14 +4136,7 @@
       delete state.fgMitigationPending[attackType];
     }
 
-    var pendingCount = Object.keys(state.fgMitigationPending).length;
-    var saveBtn = document.getElementById("fg-mitigation-save-btn");
-    if (saveBtn) {
-      saveBtn.disabled = pendingCount === 0;
-      saveBtn.textContent = pendingCount > 0
-        ? "Salvar " + pendingCount + " " + (pendingCount === 1 ? "tipo alterado" : "tipos alterados")
-        : "Salvar configurações de mitigação";
-    }
+    updateFgMitigationSaveBtn();
   }
 
   function onFgMitigationSaveClick() {

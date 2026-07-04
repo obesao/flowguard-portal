@@ -57,9 +57,16 @@ try:
             resp = control.send_command(cfg["daemon"]["socket"], {"cmd": "unban", "target": attack["dst_prefix"]})
             print(json.dumps(resp))
         elif action == "mitigate":
-            resp = control.send_command(cfg["daemon"]["socket"], {
-                "cmd": "ban", "target": attack["dst_prefix"], "attack_id": attack["id"],
-            })
+            payload = {"cmd": "ban", "target": attack["dst_prefix"], "attack_id": attack["id"]}
+            ttl_s = body.get("ttl_s")
+            if ttl_s is not None:
+                try:
+                    ttl_s = int(ttl_s)
+                except (TypeError, ValueError):
+                    ttl_s = None
+                if ttl_s and ttl_s > 0:
+                    payload["ttl_s"] = ttl_s
+            resp = control.send_command(cfg["daemon"]["socket"], payload)
             print(json.dumps(resp))
         else:  # apply_suggestion
             mp_path = cfg.get("mitigation_profiles_file", configio.DEFAULT_MITIGATION_PROFILES_FILE)

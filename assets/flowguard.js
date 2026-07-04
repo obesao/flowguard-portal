@@ -1355,11 +1355,22 @@
   function updateWarmodeUi() {
     var btn = document.getElementById("fg-warmode-open-btn");
     var timerEl = document.getElementById("fg-warmode-timer");
+    var badgeEl = document.getElementById("fg-warmode-badge");
+    var topbarEl = document.querySelector(".fg-topbar");
     if (btn) {
       btn.classList.toggle("is-warmode-active", warmodeActive);
       btn.title = warmodeActive ? "Clique para sair do Modo Guerra" : "Clique para ativar o Modo Guerra";
     }
     if (timerEl) timerEl.hidden = !warmodeActive;
+    if (badgeEl) {
+      badgeEl.textContent = warmodeActive ? "WARMODE-ON" : "WARMODE-OFF";
+      badgeEl.classList.toggle("on", warmodeActive);
+      badgeEl.classList.toggle("off", !warmodeActive);
+      badgeEl.title = warmodeActive
+        ? "Modo Guerra ATIVO — mitigação de emergência em andamento nos equipamentos"
+        : "Modo Guerra desativado — operação normal";
+    }
+    if (topbarEl) topbarEl.classList.toggle("is-warmode-active", warmodeActive);
 
     if (warmodeActive && warmodeStartedAt != null) {
       if (!warmodeTickTimer) {

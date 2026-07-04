@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.27.0**
+**Versão atual: v1.28.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -85,6 +85,26 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.28.0 — 2026-07-04 — Selo WARMODE-OFF/WARMODE-ON + topo vermelho quando ativo
+Pedido do usuário: uma sinalização clara de que o Modo Guerra está desativado
+("tipo link saudável") e, quando ativado, mudar a cor do topo da página pra
+vermelho, indicando problema/ataque em andamento. Novo selo `#fg-warmode-badge`
+no topbar, sempre visível (ao contrário do timer, que só aparece ativo):
+"WARMODE-OFF" (verde, parado) ou "WARMODE-ON" (vermelho, pulsante) — mesmo
+padrão visual de "saudável vs alerta" já usado nos indicadores de sessão BGP
+(`fg-dot-up`/`fg-dot-down`). O `.fg-topbar` inteiro ganha um brilho vermelho
+pulsante (`is-warmode-active`, reaproveitando a mesma paleta/opacidade do botão
+já existente) quando o Modo Guerra está ativo — fica óbvio em qualquer aba, não
+só olhando o botão. Estado vem do mesmo polling que já alimentava
+botão/timer (`loadWarmodeStatus`, a cada 5s), sem endpoint novo.
+
+Validado com Playwright real: estado OFF (selo verde, sem glow no topo),
+estado ON simulado diretamente em `warmode/state.json` (sem tocar em nenhum
+equipamento real — mesmo método já usado pra validar o timer na v1.26.0),
+confirmando selo vermelho pulsante + brilho no topbar + timer visível
+simultaneamente, e retorno a OFF depois — 0 erros de console nos dois
+estados.
 
 ### v1.27.0 — 2026-07-04 — Duração personalizável do bloqueio RTBH
 Espelha o FlowGuard v1.22.0. Aba Configuração > Mitigação ganha um campo

@@ -37,7 +37,42 @@
     #fg-login-form input { background: var(--fg-bg); color: var(--fg-text); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.5rem 0.6rem; }
     #fg-login-status { font-size: 0.85rem; min-height: 1.1em; }
 
-    .fg-topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.6rem; }
+    .fg-topbar {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.6rem;
+      border-radius: 8px; padding: 0.5rem 0.7rem; margin-left: -0.7rem; margin-right: -0.7rem;
+      transition: background 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease; border: 1px solid transparent;
+    }
+    /* Modo Guerra ativo — topo inteiro da página fica com aviso visual persistente
+       (não só o botão), pra ficar óbvio de qualquer aba que há um incidente em
+       andamento mesmo sem olhar pro botão especificamente */
+    .fg-topbar.is-warmode-active {
+      background: rgba(248,81,73,0.12); border-color: var(--fg-danger);
+      box-shadow: 0 0 16px 1px rgba(248,81,73,0.35);
+      animation: fg-warmode-topbar-pulse 2.2s ease-in-out infinite;
+    }
+    @keyframes fg-warmode-topbar-pulse {
+      0%, 100% { box-shadow: 0 0 10px 0 rgba(248,81,73,0.25); }
+      50% { box-shadow: 0 0 20px 2px rgba(248,81,73,0.5); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .fg-topbar.is-warmode-active { animation: none; }
+    }
+
+    /* selo de status do Modo Guerra — "link saudável" (verde, parado) vs alerta
+       (vermelho, pulsante) — sempre visível, ao contrário do timer (só quando ativo) */
+    .fg-warmode-badge {
+      display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; font-weight: bold;
+      letter-spacing: 0.04em; padding: 0.25rem 0.6rem; border-radius: 999px; border: 1px solid var(--fg-border);
+      background: var(--fg-bg-elevated); color: var(--fg-text-muted);
+    }
+    .fg-warmode-badge.off { color: var(--fg-success); border-color: var(--fg-success); }
+    .fg-warmode-badge.on {
+      color: var(--fg-danger); border-color: var(--fg-danger); background: rgba(248,81,73,0.15);
+      animation: fg-warmode-pulse 1.6s ease-in-out infinite;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .fg-warmode-badge.on { animation: none; }
+    }
 
     .fg-wrap { max-width: 100%; }
 
@@ -185,7 +220,36 @@
     .fg-wm-device-grid input { background: var(--fg-bg-panel); color: var(--fg-text); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.3rem 0.5rem; width: 100%; }
     .fg-wm-device textarea { width: 100%; background: var(--fg-bg-panel); color: var(--fg-text); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.4rem 0.5rem; margin-top: 0.5rem; font-family: monospace; font-size: 0.82rem; min-height: 70px; }
     .fg-wm-device label { font-size: 0.72rem; color: var(--fg-text-muted); display: block; margin-bottom: 0.15rem; }
-    .fg-wm-device .fg-wm-row-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+    .fg-wm-device .fg-wm-row-top { display: flex; align-items: center; gap: 0.6rem; }
+    .fg-wm-device .fg-wm-body { margin-top: 0.7rem; padding-top: 0.7rem; border-top: 1px solid var(--fg-border); }
+
+    /* equipamento desativado (não participa do próximo lote) — some a ênfase
+       visual sem esconder os dados, pra ficar óbvio que ele existe mas não vai rodar */
+    .fg-wm-device-disabled { opacity: 0.55; }
+    .fg-wm-device-disabled .fg-wm-summary strong::after { content: " (desativado)"; font-weight: normal; color: var(--fg-text-muted); }
+
+    .fg-wm-enabled-toggle { flex-shrink: 0; margin: 0; cursor: pointer; }
+    .fg-wm-enabled-toggle input { width: 1.1rem; height: 1.1rem; cursor: pointer; }
+
+    .fg-wm-summary { flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; cursor: pointer; }
+    .fg-wm-summary strong { white-space: nowrap; }
+    .fg-wm-summary-meta { font-size: 0.78rem; color: var(--fg-text-muted); }
+    .fg-wm-warn { color: var(--fg-warning); }
+
+    .fg-wm-row-actions { display: flex; align-items: center; gap: 0.4rem; flex-shrink: 0; }
+    .fg-wm-chevron-btn { font-family: inherit; min-width: 2.2rem; }
+
+    .fg-wm-lastrun { font-size: 0.72rem; padding: 0.1rem 0.5rem; border-radius: 999px; white-space: nowrap; border: 1px solid var(--fg-border); }
+    .fg-wm-lastrun-ok { color: var(--fg-success); border-color: var(--fg-success); }
+    .fg-wm-lastrun-fail { color: var(--fg-danger); border-color: var(--fg-danger); }
+    .fg-wm-lastrun-none { color: var(--fg-text-muted); }
+
+    .fg-wm-test-row { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.6rem; flex-wrap: wrap; }
+    .fg-wm-test-result { font-size: 0.82rem; }
+    .fg-wm-test-result.ok { color: var(--fg-success); }
+    .fg-wm-test-result.fail { color: var(--fg-danger); }
+
+    .fg-warmode-device-disabled { opacity: 0.55; }
 
     .fg-spark { display: inline-flex; align-items: center; gap: 0.5rem; background: var(--fg-bg-elevated); padding: 0.4rem 0.8rem; border-radius: 6px; margin: 0 0.5rem 0.5rem 0; }
     .fg-spark-label { font-weight: bold; font-size: 0.8rem; }
@@ -308,6 +372,7 @@
     <div class="fg-topbar">
       <h1 style="font-size: 1.3rem; margin: 0;">FlowGuard — POX Network</h1>
       <div style="display:flex; gap:0.6rem; align-items:center;">
+        <span id="fg-warmode-badge" class="fg-warmode-badge off" title="Estado do Modo Guerra">WARMODE-OFF</span>
         <span id="fg-warmode-timer" class="fg-warmode-timer" hidden>00:00:00</span>
         <button id="fg-warmode-open-btn" class="fg-btn fg-btn-danger" title="Clique para ativar o Modo Guerra"><span class="fg-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3Z"/><path d="M12 9v5"/><path d="M12 17h.01"/></svg></span>Modo Guerra</button>
         <button id="fg-warmode-cfg-open-btn" class="fg-btn" title="Configurar equipamentos do Modo Guerra"><span class="fg-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg></span>Modo Guerra</button>

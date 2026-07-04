@@ -38,6 +38,7 @@
     .fg-panel-section.fg-panel-collapsed { border-color: var(--fg-border); }
     .fg-panel-section.fg-panel-collapsed > h2 { color: var(--fg-text-muted); }
     .fg-panel-section.fg-panel-collapsed > h2:hover { color: var(--fg-text); }
+    .fg-collapse-all-btn { display: block; margin: 0 0 0.8rem auto; font-size: 0.8rem; color: var(--fg-text-muted); }
 
     a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible,
     textarea:focus-visible, [tabindex]:focus-visible {
@@ -87,19 +88,20 @@
       .fg-warmode-badge.on { animation: none; }
     }
 
-    /* selo "esse cliente já participa de alguma mitigação?" na aba Sinais
-       Suspeitos do ClientGuard — none=nunca mitigado (neutro), active=mitigação
-       em vigor (verde), inactive=já teve mitigação mas não está mais em vigor
-       (âmbar — vale atenção, sobretudo com o sinal ainda aberto), failed=
-       tentativa de mitigação falhou (vermelho) */
-    .cg-mitigation-badge {
+    /* selo "esse cliente/ataque já participa de alguma mitigação?" — usado na
+       aba Sinais Suspeitos do ClientGuard e na aba Ataques do FlowGuard —
+       none=nunca mitigado (neutro), active=mitigação em vigor (verde),
+       inactive=já teve mitigação mas não está mais em vigor (âmbar — vale
+       atenção, sobretudo com o sinal/ataque ainda aberto), failed=tentativa de
+       mitigação falhou (vermelho, só o ClientGuard grava esse estado hoje) */
+    .fg-mitigation-badge {
       display: inline-block; font-size: 0.78rem; padding: 0.15rem 0.5rem; border-radius: 999px;
       border: 1px solid var(--fg-border); white-space: nowrap;
     }
-    .cg-mitigation-badge.none { color: var(--fg-text-muted); }
-    .cg-mitigation-badge.active { color: var(--fg-success); border-color: var(--fg-success); }
-    .cg-mitigation-badge.inactive { color: var(--fg-warning); border-color: var(--fg-warning); }
-    .cg-mitigation-badge.failed { color: var(--fg-danger); border-color: var(--fg-danger); }
+    .fg-mitigation-badge.none { color: var(--fg-text-muted); }
+    .fg-mitigation-badge.active { color: var(--fg-success); border-color: var(--fg-success); }
+    .fg-mitigation-badge.inactive { color: var(--fg-warning); border-color: var(--fg-warning); }
+    .fg-mitigation-badge.failed { color: var(--fg-danger); border-color: var(--fg-danger); }
 
     .fg-wrap { max-width: 100%; }
 
@@ -124,6 +126,11 @@
     .fg-tab-btn.active { color: var(--fg-text); border-bottom-color: var(--fg-accent); }
     .fg-tab-btn:hover { color: var(--fg-text); }
     .fg-badge { background: var(--fg-danger); color: white; font-size: 0.7rem; border-radius: 999px; padding: 0.05rem 0.45rem; }
+    /* contagem informativa (ex: regras ativas), não um alerta — mais discreta que o fg-badge vermelho padrão */
+    .fg-badge-neutral { background: var(--fg-bg-elevated); color: var(--fg-text-muted); border: 1px solid var(--fg-border); }
+    /* separa visualmente as abas do FlowGuard das do ClientGuard — são dois
+       sistemas distintos compartilhando a mesma barra de navegação */
+    .fg-tabs-divider { width: 1px; align-self: stretch; background: var(--fg-border); margin: 0.4rem 0.4rem; }
 
     .fg-tab-panel { display: none; }
     .fg-tab-panel.active { display: block; animation: fg-fade-in 0.15s ease; }
@@ -555,10 +562,11 @@
       <button class="fg-tab-btn active" data-tab="overview">Visão Geral</button>
       <button class="fg-tab-btn" data-tab="attacks">Ataques <span class="fg-badge" id="fg-attacks-badge" style="display:none;">0</span></button>
       <button class="fg-tab-btn" data-tab="flows">Flows</button>
-      <button class="fg-tab-btn" data-tab="rules">Regras</button>
+      <button class="fg-tab-btn" data-tab="rules">Regras <span class="fg-badge fg-badge-neutral" id="fg-rules-badge" style="display:none;">0</span></button>
       <button class="fg-tab-btn" data-tab="cfg">Configuração</button>
-      <button class="fg-tab-btn" data-tab="clientguard">ClientGuard <span class="fg-badge" id="cg-suspicious-badge" style="display:none;">0</span></button>
       <button class="fg-tab-btn" data-tab="charts">Gráficos</button>
+      <span class="fg-tabs-divider" title="ClientGuard é um sistema à parte (detecção por cliente, não por prefixo)"></span>
+      <button class="fg-tab-btn" data-tab="clientguard">ClientGuard <span class="fg-badge" id="cg-suspicious-badge" style="display:none;">0</span></button>
     </div>
 
     <div class="fg-tab-panel active" data-tab="overview">
@@ -617,8 +625,12 @@
     <div class="fg-tab-panel" data-tab="rules">
       <section class="fg-panel-section">
         <h2>Bloquear IP manualmente</h2>
-        <p class="fg-kpi-sub">Bloqueia todo o tráfego de origem desse IP/rede via FlowSpec (BGP), em toda a rede — não precisa estar ligado a um ataque.</p>
+        <p class="fg-kpi-sub">Bloqueia todo o tráfego de origem desse IP/rede via FlowSpec (BGP) — não precisa estar ligado a um ataque. Mesma sessão BGP real nos dois casos; a origem é só rótulo (aparece no histórico da aba, FlowGuard ou ClientGuard).</p>
         <div class="fg-toolbar">
+          <div class="fg-toggle-group" id="fg-block-source-toggle">
+            <button class="fg-toggle-btn active" data-source="flowguard">FlowGuard</button>
+            <button class="fg-toggle-btn" data-source="clientguard">ClientGuard</button>
+          </div>
           <input type="text" id="fg-block-ip" placeholder="IP ou CIDR a bloquear, ex: 203.0.113.7">
           <select id="fg-block-ttl">
             <option value="3600">1 hora</option>
@@ -690,26 +702,84 @@
         </div>
         <p class="fg-kpi-sub" id="fg-wa-dest-current"></p>
       </section>
-      <section class="fg-panel-section">
-        <h2>Funções de Detecção</h2>
-        <p class="fg-kpi-sub">Liga/desliga cada tipo de ataque detectado individualmente. Desabilitar não fecha ataques já ativos, só para de abrir/atualizar novos a partir de agora.</p>
-        <div class="fg-toggle-list" id="fg-toggles"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
-        <div class="fg-toolbar">
-          <button class="fg-btn" id="fg-toggles-apply-btn" disabled>Aplicar novas configurações</button>
+      <div class="fg-toolbar">
+        <div class="fg-toggle-group" id="cfg-app-toggle">
+          <button class="fg-toggle-btn active" data-app="flowguard">FlowGuard</button>
+          <button class="fg-toggle-btn" data-app="clientguard">ClientGuard</button>
         </div>
-      </section>
-      <section class="fg-panel-section">
-        <h2>Mitigação</h2>
-        <p class="fg-kpi-sub">Estratégia sugerida (botão "Aplicar Sugestão" na aba Ataques) por tipo de ataque — RTBH bloqueia o prefixo inteiro via BGP; Descartar (FlowSpec) derruba só o tráfego que casa o padrão do ataque; Limitar banda (FlowSpec) não derruba nada, só limita a velocidade desse tráfego. O botão "Mitigar" continua sempre RTBH, como ação manual de emergência. A coluna "Automático" dispara a mitigação sozinha assim que o ataque abre, sem esperar clique manual — só tem efeito nos prefixos com "auto-mitigar" marcado na aba Monitor (as duas condições precisam estar ligadas). A duração do bloqueio RTBH (abaixo da tabela) expira sozinha e retira a regra automaticamente — pode ser ajustada pontualmente no campo ao lado do botão "Mitigar", na aba Ataques.</p>
-        <div id="fg-mitigation-cfg"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
-        <div class="fg-toolbar">
-          <button class="fg-btn" id="fg-mitigation-save-btn" disabled>Salvar configurações de mitigação</button>
-        </div>
-      </section>
-      <section class="fg-panel-section">
-        <h2>Configuração</h2>
-        <div id="flowguard-cfg"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
-      </section>
+      </div>
+
+      <div data-cfg-app="flowguard">
+        <section class="fg-panel-section">
+          <h2>Funções de Detecção</h2>
+          <p class="fg-kpi-sub">Liga/desliga cada tipo de ataque detectado individualmente. Desabilitar não fecha ataques já ativos, só para de abrir/atualizar novos a partir de agora.</p>
+          <div class="fg-toggle-list" id="fg-toggles"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
+          <div class="fg-toolbar">
+            <button class="fg-btn" id="fg-toggles-apply-btn" disabled>Aplicar novas configurações</button>
+          </div>
+        </section>
+        <section class="fg-panel-section">
+          <h2>Mitigação</h2>
+          <p class="fg-kpi-sub">Estratégia sugerida (botão "Aplicar Sugestão" na aba Ataques) por tipo de ataque — RTBH bloqueia o prefixo inteiro via BGP; Descartar (FlowSpec) derruba só o tráfego que casa o padrão do ataque; Limitar banda (FlowSpec) não derruba nada, só limita a velocidade desse tráfego. O botão "Mitigar" continua sempre RTBH, como ação manual de emergência. A coluna "Automático" dispara a mitigação sozinha assim que o ataque abre, sem esperar clique manual — só tem efeito nos prefixos com "auto-mitigar" marcado na aba Monitor (as duas condições precisam estar ligadas). A duração do bloqueio RTBH (abaixo da tabela) expira sozinha e retira a regra automaticamente — pode ser ajustada pontualmente no campo ao lado do botão "Mitigar", na aba Ataques.</p>
+          <div id="fg-mitigation-cfg"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
+          <div class="fg-toolbar">
+            <button class="fg-btn" id="fg-mitigation-save-btn" disabled>Salvar configurações de mitigação</button>
+          </div>
+        </section>
+        <section class="fg-panel-section">
+          <h2>Configuração</h2>
+          <div id="flowguard-cfg"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
+        </section>
+      </div>
+
+      <div data-cfg-app="clientguard" hidden>
+        <section class="fg-panel-section">
+          <h2>Configurações — Funções do ClientGuard</h2>
+          <p class="fg-kpi-sub">Liga/desliga cada detector e a explicação por IA individualmente. Desabilitar não apaga sinais já abertos, só para de gerar novos a partir de agora.</p>
+          <div class="fg-toggle-list" id="cg-toggles"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
+          <div class="fg-toolbar">
+            <button class="fg-btn" id="cg-toggles-apply-btn" disabled>Aplicar novas configurações</button>
+          </div>
+        </section>
+        <section class="fg-panel-section">
+          <h2>Mitigação automática por detector (FlowSpec)</h2>
+          <p class="fg-kpi-sub">Cada sinal novo pode disparar sozinho, sem clique, uma regra BGP FlowSpec (proxy pro FlowGuard — mesma sessão BGP única com o roteador): <strong>Descartar</strong> bloqueia todo o tráfego do cliente; <strong>Limitar banda</strong> não derruba a navegação, só corta o excesso acima do normal daquele cliente (limite calculado sozinho a partir do histórico dele, maior peso pra DNS/amplificação); <strong>Desligado</strong> só registra o sinal, sem mitigar. Aplicar numa origem já mitigada só estende o TTL ou substitui por uma ação mais severa, nunca duplica regra. O antigo caminho via SSH/ACL direto no roteador fica só de suporte, sem novo gatilho automático — mitigações SSH já ativas de antes continuam expirando normalmente e aparecem na lista abaixo.</p>
+          <h3 style="margin-top:0.6rem;">Ação automática por detector</h3>
+          <div class="fg-toggle-list" id="cg-edge-auto"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
+          <div class="fg-toolbar">
+            <select id="cg-edge-default-ttl">
+              <option value="3600">TTL padrão: 1 hora</option>
+              <option value="21600">TTL padrão: 6 horas</option>
+              <option value="86400">TTL padrão: 24 horas</option>
+              <option value="2592000">TTL padrão: longa duração (30 dias)</option>
+            </select>
+            <button class="fg-btn" id="cg-edge-auto-apply-btn" disabled>Aplicar novas configurações</button>
+          </div>
+          <div class="fg-toolbar" style="margin-top:1rem;">
+            <h3 style="margin:0;">Mitigações ativas / histórico (FlowSpec e SSH legado)</h3>
+            <button class="fg-btn fg-btn-danger" id="cg-edge-revert-all-btn">Reverter todas as mitigações ativas</button>
+          </div>
+          <div id="cg-edge-list"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
+        </section>
+        <section class="fg-panel-section">
+          <h2>Redes de Clientes</h2>
+          <form id="cg-customers-form" class="fg-form">
+            <input type="text" name="network" placeholder="CIDR ou IP, ex: 177.86.16.0/24" required>
+            <input type="text" name="prefix" placeholder="rótulo (customer_prefix)" required>
+            <input type="text" name="name" placeholder="nome (opcional)">
+            <button type="submit" class="fg-btn">Adicionar</button>
+          </form>
+          <div id="cg-customers"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
+        </section>
+        <section class="fg-panel-section">
+          <h2>Whitelist</h2>
+          <form id="cg-whitelist-form" class="fg-form">
+            <input type="text" name="ip" placeholder="IP" required>
+            <button type="submit" class="fg-btn">Adicionar</button>
+          </form>
+          <div id="cg-whitelist"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
+        </section>
+      </div>
     </div>
 
     <div class="fg-tab-panel" data-tab="clientguard">
@@ -742,95 +812,39 @@
         <div id="cg-suspicious"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
         <div id="cg-suspicious-detail"></div>
       </section>
-      <section class="fg-panel-section">
-        <h2>Configurações — Funções do ClientGuard</h2>
-        <p class="fg-kpi-sub">Liga/desliga cada detector e a explicação por IA individualmente. Desabilitar não apaga sinais já abertos, só para de gerar novos a partir de agora.</p>
-        <div class="fg-toggle-list" id="cg-toggles"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
-        <div class="fg-toolbar">
-          <button class="fg-btn" id="cg-toggles-apply-btn" disabled>Aplicar novas configurações</button>
-        </div>
-      </section>
-      <section class="fg-panel-section">
-        <h2>Mitigação automática por detector (FlowSpec)</h2>
-        <p class="fg-kpi-sub">Cada sinal novo pode disparar sozinho, sem clique, uma regra BGP FlowSpec (proxy pro FlowGuard — mesma sessão BGP única com o roteador): <strong>Descartar</strong> bloqueia todo o tráfego do cliente; <strong>Limitar banda</strong> não derruba a navegação, só corta o excesso acima do normal daquele cliente (limite calculado sozinho a partir do histórico dele, maior peso pra DNS/amplificação); <strong>Desligado</strong> só registra o sinal, sem mitigar. Aplicar numa origem já mitigada só estende o TTL ou substitui por uma ação mais severa, nunca duplica regra. O antigo caminho via SSH/ACL direto no roteador fica só de suporte, sem novo gatilho automático — mitigações SSH já ativas de antes continuam expirando normalmente e aparecem na lista abaixo.</p>
-        <h3 style="margin-top:0.6rem;">Ação automática por detector</h3>
-        <div class="fg-toggle-list" id="cg-edge-auto"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
-        <div class="fg-toolbar">
-          <select id="cg-edge-default-ttl">
-            <option value="3600">TTL padrão: 1 hora</option>
-            <option value="21600">TTL padrão: 6 horas</option>
-            <option value="86400">TTL padrão: 24 horas</option>
-            <option value="2592000">TTL padrão: longa duração (30 dias)</option>
-          </select>
-          <button class="fg-btn" id="cg-edge-auto-apply-btn" disabled>Aplicar novas configurações</button>
-        </div>
-        <div class="fg-toolbar" style="margin-top:1rem;">
-          <h3 style="margin:0;">Mitigações ativas / histórico (FlowSpec e SSH legado)</h3>
-          <button class="fg-btn fg-btn-danger" id="cg-edge-revert-all-btn">Reverter todas as mitigações ativas</button>
-        </div>
-        <div id="cg-edge-list"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
-      </section>
-      <section class="fg-panel-section">
-        <h2>Bloquear IP manualmente</h2>
-        <p class="fg-kpi-sub">Bloqueia todo o tráfego de origem desse cliente via FlowSpec (BGP) — mesmo mecanismo do FlowGuard, pedido daqui pra facilitar quando o cliente é o problema.</p>
-        <div class="fg-toolbar">
-          <input type="text" id="cg-block-ip" placeholder="IP ou CIDR a bloquear, ex: 177.86.16.55">
-          <select id="cg-block-ttl">
-            <option value="3600">1 hora</option>
-            <option value="21600">6 horas</option>
-            <option value="86400">24 horas</option>
-            <option value="2592000">Longa duração (30 dias)</option>
-          </select>
-          <button class="fg-btn" id="cg-block-submit">Bloquear</button>
-        </div>
-        <div id="cg-blocks"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
-      </section>
-      <section class="fg-panel-section">
-        <h2>Redes de Clientes</h2>
-        <form id="cg-customers-form" class="fg-form">
-          <input type="text" name="network" placeholder="CIDR ou IP, ex: 177.86.16.0/24" required>
-          <input type="text" name="prefix" placeholder="rótulo (customer_prefix)" required>
-          <input type="text" name="name" placeholder="nome (opcional)">
-          <button type="submit" class="fg-btn">Adicionar</button>
-        </form>
-        <div id="cg-customers"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
-      </section>
-      <section class="fg-panel-section">
-        <h2>Whitelist</h2>
-        <form id="cg-whitelist-form" class="fg-form">
-          <input type="text" name="ip" placeholder="IP" required>
-          <button type="submit" class="fg-btn">Adicionar</button>
-        </form>
-        <div id="cg-whitelist"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
-      </section>
     </div>
 
     <div class="fg-tab-panel" data-tab="charts">
-      <section class="fg-panel-section">
-        <h2>Gráficos</h2>
-        <div class="fg-toolbar">
-          <select id="fg-chart-prefix"></select>
-          <div class="fg-toggle-group" id="fg-chart-window">
-            <button class="fg-toggle-btn" data-window="1h">1h</button>
-            <button class="fg-toggle-btn active" data-window="6h">6h</button>
-            <button class="fg-toggle-btn" data-window="24h">24h</button>
-            <button class="fg-toggle-btn" data-window="7d">7d</button>
-          </div>
+      <div class="fg-toolbar">
+        <select id="fg-chart-prefix"></select>
+        <div class="fg-toggle-group" id="fg-chart-window">
+          <button class="fg-toggle-btn" data-window="1h">1h</button>
+          <button class="fg-toggle-btn active" data-window="6h">6h</button>
+          <button class="fg-toggle-btn" data-window="24h">24h</button>
+          <button class="fg-toggle-btn" data-window="7d">7d</button>
         </div>
+      </div>
 
-        <h4 id="fg-chart-traffic-title">Tráfego — entrada x saída (com faixa de baseline)</h4>
+      <section class="fg-panel-section">
+        <h2><span id="fg-chart-traffic-title">Tráfego — entrada x saída (com faixa de baseline)</span></h2>
         <div class="fg-chart-box">
           <canvas id="fg-chart-traffic" class="fg-chart-lg" width="900" height="220"></canvas>
           <div class="fg-legend" id="fg-chart-traffic-legend"></div>
         </div>
+      </section>
 
-        <h4>Resumo por barramento</h4>
+      <section class="fg-panel-section">
+        <h2>Resumo por barramento</h2>
         <div id="fg-chart-summary"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
+      </section>
 
-        <h4 id="fg-chart-hosts-title">Top hosts no prefixo (quem está consumindo mais)</h4>
+      <section class="fg-panel-section">
+        <h2><span id="fg-chart-hosts-title">Top hosts no prefixo (quem está consumindo mais)</span></h2>
         <div id="flowguard-top-hosts"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
+      </section>
 
-        <h4>Tráfego por protocolo (histórico)</h4>
+      <section class="fg-panel-section">
+        <h2>Tráfego por protocolo (histórico)</h2>
         <div class="fg-chart-box">
           <canvas id="fg-chart-protocol" class="fg-chart-lg" width="900" height="220"></canvas>
           <div class="fg-legend">
@@ -840,8 +854,10 @@
             <span><i style="background:#8b949e"></i> Outro</span>
           </div>
         </div>
+      </section>
 
-        <h4>Linha do tempo de ataques</h4>
+      <section class="fg-panel-section">
+        <h2>Linha do tempo de ataques</h2>
         <div class="fg-chart-box">
           <canvas id="fg-chart-timeline" class="fg-chart-sm" width="900" height="140"></canvas>
         </div>

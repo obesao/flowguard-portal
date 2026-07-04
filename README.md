@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.31.0**
+**Versão atual: v1.32.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -85,6 +85,56 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.32.0 — 2026-07-04 — Reorganização de abas/painéis + "Recolher/Expandir tudo"
+Pedido do usuário: reduzir a aba ClientGuard (8 seções empilhadas, a mais
+lotada do portal) e reorganizar sem prejudicar a visualização. Mudanças:
+
+- **ClientGuard enxugada pra 3 seções** (Status, Top Clientes, Sinais
+  Suspeitos) — só o que é monitoramento ao vivo. As outras 4 seções
+  (Configurações — Funções, Mitigação automática por detector, Redes de
+  Clientes, Whitelist) migraram pra aba **Configuração**, atrás de um novo
+  toggle FlowGuard/ClientGuard (`#cfg-app-toggle`) — mesmo padrão que a aba
+  Regras já usava pra unificar os dois sistemas. Nenhum endpoint novo: os
+  dados desses 4 painéis já carregavam de forma independente da aba estar
+  visível (`loadClientGuardCfg`/`loadCgEdgeAuto`/`loadCgEdgeList` já rodavam
+  no login; só faltou somar `loadCgToggles` na mesma leva).
+- **"Bloquear IP manualmente" deixou de existir duplicado.** Existia uma
+  cópia quase idêntica na aba Regras (FlowGuard) e outra na ClientGuard,
+  ambas manipulando a MESMA sessão BGP FlowSpec real. Virou um formulário só
+  (na aba Regras) com um seletor "origem: FlowGuard/ClientGuard" que só
+  decide qual endpoint recebe o POST — a lista/remoção já era unificada
+  desde a v1.22.0 (histórico de interações com a borda), então nada se
+  perdeu ao apagar a tabela duplicada (`cg-blocks`) da ClientGuard.
+- **Aba Gráficos**: as 5 visualizações (tráfego, resumo por barramento, top
+  hosts, protocolo, timeline) viraram 5 seções colapsáveis próprias, em vez
+  de uma seção única com tudo dentro — o filtro de prefixo/janela ficou fora,
+  sempre visível, no topo da aba.
+- **Botão "Recolher tudo" / "Expandir tudo"** em qualquer aba com 2+ painéis
+  — complementa os painéis colapsáveis da v1.30.0.
+- **Badge de contagem na aba Regras** (nº de regras FlowSpec/RTBH ativas),
+  no mesmo padrão visual das badges de Ataques/ClientGuard, só que neutro
+  (cinza) em vez de vermelho — é uma contagem informativa, não um alerta.
+- **Divisor visual entre as abas do FlowGuard e a aba ClientGuard** na barra
+  de navegação — são dois sistemas distintos compartilhando a mesma barra;
+  de quebra, "Gráficos" (que é só do FlowGuard) passou a ficar agrupado
+  antes do divisor, não mais como última aba isolada.
+
+Bug real encontrado e corrigido no processo (mesma classe do bug do título
+do Modo Guerra, v1.26.0): os títulos dinâmicos dos gráficos "Tráfego" e "Top
+hosts" (`#fg-chart-traffic-title`/`#fg-chart-hosts-title`) são reescritos via
+`textContent` toda vez que o prefixo/janela muda — como isso mira o `<h2>`
+inteiro, apagava o botão de colapsar recém-adicionado a cada troca de
+filtro. Corrigido isolando o texto dinâmico num `<span>` próprio dentro do
+`<h2>`, que o JS já teria como alvo mesmo sem essa mudança (`getElementById`
+não se importa com profundidade).
+
+Validado com Playwright real: ClientGuard com 3 seções, Configuração com o
+toggle funcionando (4 seções do ClientGuard aparecem/somem corretamente),
+formulário de bloqueio único com os dois destinos, badge "N" na aba Regras
+batendo com `active_rules`, 5 seções colapsáveis em Gráficos sobrevivendo a
+uma troca de janela (que antes apagava 2 dos 5 botões), botão Recolher/
+Expandir tudo alternando corretamente em 2 cliques — 0 erros de console.
 
 ### v1.31.0 — 2026-07-04 — Selo de mitigação na aba Sinais Suspeitos (ClientGuard)
 Espelha o ClientGuard v1.22.0. Aba ClientGuard > Sinais Suspeitos ganha uma

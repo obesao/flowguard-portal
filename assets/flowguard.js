@@ -112,6 +112,8 @@
     cgEdgeAutoPending: {},
     rulesApp: "flowguard",
     rulesView: "active",
+    blockSource: "flowguard",
+    cfgApp: "flowguard",
     rulesFgData: [],
     rulesCgEdgeData: [],
     fgTogglesLoaded: {},
@@ -400,6 +402,43 @@
     });
   }
 
+  // botão "Recolher/Expandir tudo" por aba — só nas abas com 2+ painéis (não
+  // vale a pena numa aba com 1 seção só). Roda depois de initCollapsiblePanels
+  // (precisa do .fg-panel-body já existir). Pega qualquer profundidade
+  // (querySelectorAll sem :scope) porque a aba Configuração aninha as seções
+  // do ClientGuard dentro de um wrapper [data-cfg-app] pro toggle.
+  function initCollapseAllControls() {
+    document.querySelectorAll(".fg-tab-panel").forEach(function (tabPanel) {
+      var sections = tabPanel.querySelectorAll("section.fg-panel-section");
+      if (sections.length < 2) return;
+
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "fg-btn fg-collapse-all-btn";
+
+      function refreshLabel() {
+        var anyExpanded = Array.prototype.some.call(
+          tabPanel.querySelectorAll("section.fg-panel-section"),
+          function (s) { return !s.classList.contains("fg-panel-collapsed"); }
+        );
+        btn.textContent = anyExpanded ? "Recolher tudo" : "Expandir tudo";
+        return anyExpanded;
+      }
+
+      btn.addEventListener("click", function () {
+        var anyExpanded = refreshLabel();
+        tabPanel.querySelectorAll("section.fg-panel-section").forEach(function (s) {
+          setPanelCollapsed(s, anyExpanded);
+          localStorage.setItem(panelStorageKey(s), anyExpanded ? "1" : "0");
+        });
+        refreshLabel();
+      });
+
+      refreshLabel();
+      tabPanel.insertBefore(btn, tabPanel.firstChild);
+    });
+  }
+
   // --- tabs ---------------------------------------------------------------
 
   function initTabs() {
@@ -418,6 +457,17 @@
 
   function updateAttacksBadge(count) {
     var badge = document.getElementById("fg-attacks-badge");
+    if (!badge) return;
+    if (count > 0) {
+      badge.style.display = "inline-block";
+      badge.textContent = count;
+    } else {
+      badge.style.display = "none";
+    }
+  }
+
+  function updateRulesBadge(count) {
+    var badge = document.getElementById("fg-rules-badge");
     if (!badge) return;
     if (count > 0) {
       badge.style.display = "inline-block";
@@ -523,6 +573,7 @@
       kpiCard("Daemon", daemonHtml, daemonSub);
 
     updateAttacksBadge(s.active_attacks);
+    updateRulesBadge(s.active_rules);
   }
 
   // --- sparklines -----------------------------------------------------------
@@ -637,7 +688,7 @@
           "<td class=\"" + sevClass + "\">" + escapeHtml(a.severity) + "</td>" +
           "<td>" + fmtBps(a.bps_peak || 0) + "</td>" +
           "<td>" + (a.pps_peak || 0).toLocaleString("pt-BR") + " pps</td>" +
-          "<td>" + (a.mitigated ? "sim" : "não") + "</td>" +
+          "<td>" + fgAttackMitigationBadgeHtml(a.mitigation) + "</td>" +
           '<td><div class="fg-menu">' +
           '<button class="fg-btn" data-menu-toggle>Ações ▾</button>' +
           '<div class="fg-menu-list" hidden>' +
@@ -655,7 +706,7 @@
 
     el.innerHTML =
       "<table><thead><tr><th>Início</th><th>Duração</th><th>Alvo</th><th>Cliente</th><th>Tipo</th><th>Severidade</th>" +
-      "<th>Pico (bps)</th><th>Pico (pps)</th><th>Mitigado</th><th>Ações</th></tr></thead><tbody>" +
+      "<th>Pico (bps)</th><th>Pico (pps)</th><th>Mitigação</th><th>Ações</th></tr></thead><tbody>" +
       rows +
       "</tbody></table>" +
       paginationHtml("attacks", p.page, p.totalPages, p.total);
@@ -1265,8 +1316,22 @@
     if (delAllBtn) delAllBtn.addEventListener("click", onRulesDelAllClick);
     var cgRevertAllBtn = document.getElementById("rules-cg-edge-revert-all-btn");
     if (cgRevertAllBtn) cgRevertAllBtn.addEventListener("click", onRulesCgEdgeRevertAllClick);
+
+    var blockSourceToggle = document.getElementById("fg-block-source-toggle");
+    if (blockSourceToggle) {
+      blockSourceToggle.addEventListener("click", function (ev) {
+        var btn = ev.target.closest(".fg-toggle-btn");
+        if (!btn) return;
+        state.blockSource = btn.getAttribute("data-source");
+        blockSourceToggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { b.classList.toggle("active", b === btn); });
+      });
+    }
   }
 
+  // formulário único (ex-duplicado: FlowGuard tinha o seu, ClientGuard tinha
+  // uma cópia quase idêntica) — o seletor de origem só decide qual endpoint
+  // recebe o POST; nos dois casos é a MESMA sessão BGP FlowSpec real, e o
+  // resultado aparece no histórico unificado da própria aba Regras
   function onBlockSubmit() {
     var input = document.getElementById("fg-block-ip");
     var ttlSelect = document.getElementById("fg-block-ttl");
@@ -1277,13 +1342,31 @@
       return;
     }
     btn.disabled = true;
-    postJson(RULES_ENDPOINT, { src_prefix: ip, action: "discard", ttl_s: Number(ttlSelect.value) })
+    var request = state.blockSource === "clientguard"
+      ? postJson(CG_BLOCK_ENDPOINT, { ip: ip, ttl_s: Number(ttlSelect.value) })
+      : postJson(RULES_ENDPOINT, { src_prefix: ip, action: "discard", ttl_s: Number(ttlSelect.value) });
+    request
       .then(function (resp) {
         showToast(resp.ok ? "IP bloqueado: " + ip : resp.error, resp.ok ? "success" : "error");
         if (resp.ok) input.value = "";
         loadRulesUnified();
       })
       .finally(function () { btn.disabled = false; });
+  }
+
+  function initCfgAppToggle() {
+    var appToggle = document.getElementById("cfg-app-toggle");
+    if (!appToggle) return;
+    appToggle.addEventListener("click", function (ev) {
+      var btn = ev.target.closest(".fg-toggle-btn");
+      if (!btn) return;
+      state.cfgApp = btn.getAttribute("data-app");
+      appToggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { b.classList.toggle("active", b === btn); });
+      var fgSection = document.querySelector('[data-cfg-app="flowguard"]');
+      var cgSection = document.querySelector('[data-cfg-app="clientguard"]');
+      if (fgSection) fgSection.hidden = state.cfgApp !== "flowguard";
+      if (cgSection) cgSection.hidden = state.cfgApp !== "clientguard";
+    });
   }
 
   // --- modo guerra: SSH em vários equipamentos de uma vez -----------------
@@ -2488,20 +2571,45 @@
   // bloqueando mais", a causa exata não importa pro operador aqui.
   function cgMitigationBadgeHtml(mitigation) {
     if (!mitigation) {
-      return '<span class="cg-mitigation-badge none">sem mitigação</span>';
+      return '<span class="fg-mitigation-badge none">sem mitigação</span>';
     }
     var mech = CG_MITIGATION_MECHANISM_LABELS[mitigation.mechanism] || mitigation.mechanism;
     var since = "desde " + fmtDateTime(mitigation.ts_applied);
     if (mitigation.status === "active") {
-      return '<span class="cg-mitigation-badge active" title="Mitigação ativa (' + since +
+      return '<span class="fg-mitigation-badge active" title="Mitigação ativa (' + since +
         ')">🛡 ativa (' + escapeHtml(mech) + ")</span>";
     }
     if (mitigation.status === "failed") {
-      return '<span class="cg-mitigation-badge failed" title="Última tentativa de mitigação falhou (' + since +
+      return '<span class="fg-mitigation-badge failed" title="Última tentativa de mitigação falhou (' + since +
         ')">✖ falhou (' + escapeHtml(mech) + ")</span>";
     }
-    return '<span class="cg-mitigation-badge inactive" title="Já teve mitigação, não está mais em vigor (' +
+    return '<span class="fg-mitigation-badge inactive" title="Já teve mitigação, não está mais em vigor (' +
       since + ')">encerrada (' + escapeHtml(mech) + ")</span>";
+  }
+
+  // Equivalente ao badge acima, pro lado FlowGuard (aba Ataques) — mesma ideia
+  // ("esse ataque já tem regra de mitigação, e está em vigor agora?"), mas o
+  // formato de mitigation vem de storage.get_latest_flowspec_rule_for_attack
+  // (action/active/created_at em vez de status/mechanism/ts_applied do
+  // ClientGuard) — o FlowGuard não persiste tentativa "failed" hoje (só grava
+  // uma regra quando o anúncio BGP dá certo), por isso não existe esse estado
+  // aqui, diferente do ClientGuard.
+  var FG_MITIGATION_ACTION_LABELS = { rtbh: "RTBH" };
+  function fgAttackMitigationBadgeHtml(mitigation) {
+    if (!mitigation) {
+      return '<span class="fg-mitigation-badge none">sem mitigação</span>';
+    }
+    var actionLabel = FG_MITIGATION_ACTION_LABELS[mitigation.action] ||
+      (mitigation.action && mitigation.action.startsWith("rate-limit:")
+        ? "limitado a " + Math.round(parseInt(mitigation.action.split(":")[1], 10) / 1e6) + " Mbps"
+        : "discard");
+    var since = "desde " + fmtDateTime(mitigation.created_at);
+    if (mitigation.active) {
+      return '<span class="fg-mitigation-badge active" title="Mitigação ativa (' + since +
+        ')">🛡 ativa (' + escapeHtml(actionLabel) + ")</span>";
+    }
+    return '<span class="fg-mitigation-badge inactive" title="Já teve mitigação, não está mais em vigor (' +
+      since + ')">encerrada (' + escapeHtml(actionLabel) + ")</span>";
   }
 
   // ordem fixa de exibição das funções na aba Configurações — mesmas chaves de
@@ -2835,70 +2943,6 @@
     el.innerHTML = "<table><thead><tr><th>IP</th><th></th></tr></thead><tbody>" + rows + "</tbody></table>";
   }
 
-  function renderCgBlocks(data) {
-    var el = document.getElementById("cg-blocks");
-    if (!el) return;
-    if (!data.ok) {
-      showError(el, data.error || "erro desconhecido");
-      return;
-    }
-    if (!data.blocks.length) {
-      el.innerHTML = '<p class="fg-ok">Nenhum IP bloqueado no momento.</p>';
-      return;
-    }
-    var rows = data.blocks
-      .map(function (r) {
-        return (
-          '<tr data-rule-id="' + r.id + '"><td>' + escapeHtml(r.src_prefix) + "</td><td>" +
-          escapeHtml(r.action) + "</td><td>" + new Date(r.expires_at * 1000).toLocaleString() +
-          '</td><td><button class="fg-btn" data-action="del-block">Remover</button></td></tr>'
-        );
-      })
-      .join("");
-    el.innerHTML =
-      "<table><thead><tr><th>IP/rede bloqueado</th><th>Ação</th><th>Expira</th><th></th></tr></thead><tbody>" +
-      rows + "</tbody></table>";
-  }
-
-  function loadCgBlocks() {
-    if (!getToken()) return;
-    getJson(CG_BLOCK_ENDPOINT).then(renderCgBlocks).catch(function (err) {
-      showError(document.getElementById("cg-blocks"), "falha ao consultar bloqueios");
-      console.error("flowguard.js:", err);
-    });
-  }
-
-  function onCgBlocksClick(ev) {
-    var btn = ev.target.closest("button[data-action='del-block']");
-    if (!btn) return;
-    var row = btn.closest("tr[data-rule-id]");
-    if (!row) return;
-    btn.disabled = true;
-    postJson(CG_BLOCK_ENDPOINT, { id: Number(row.getAttribute("data-rule-id")) }).then(function (resp) {
-      showToast(resp.ok ? "Bloqueio removido" : resp.error, resp.ok ? "success" : "error");
-      loadCgBlocks();
-    });
-  }
-
-  function onCgBlockSubmit() {
-    var input = document.getElementById("cg-block-ip");
-    var ttlSelect = document.getElementById("cg-block-ttl");
-    var btn = document.getElementById("cg-block-submit");
-    var ip = (input.value || "").trim();
-    if (!ip) {
-      showToast("Informe um IP ou CIDR", "error");
-      return;
-    }
-    btn.disabled = true;
-    postJson(CG_BLOCK_ENDPOINT, { ip: ip, ttl_s: Number(ttlSelect.value) })
-      .then(function (resp) {
-        showToast(resp.ok ? "Cliente bloqueado: " + ip : resp.error, resp.ok ? "success" : "error");
-        if (resp.ok) input.value = "";
-        loadCgBlocks();
-      })
-      .finally(function () { btn.disabled = false; });
-  }
-
   function loadClientGuardCfg() {
     if (!getToken()) return;
     getJson(CG_CFG_ENDPOINT).then(function (data) {
@@ -3225,7 +3269,6 @@
     loadClientGuardStatus();
     loadCgTop();
     loadClientGuardSuspicious();
-    loadCgBlocks();
     loadCgToggles();
     loadCgEdgeAuto();
     loadCgEdgeList();
@@ -4483,6 +4526,7 @@
 
     initLogin();
     initCollapsiblePanels();
+    initCollapseAllControls();
     initTabs();
     initSortHandlers();
     initAttacksControls();
@@ -4516,6 +4560,7 @@
     if (rulesDetailEl) rulesDetailEl.addEventListener("click", onRulesUnifiedClick);
 
     initRulesControls();
+    initCfgAppToggle();
 
     var blockSubmitBtn = document.getElementById("fg-block-submit");
     if (blockSubmitBtn) blockSubmitBtn.addEventListener("click", onBlockSubmit);
@@ -4598,12 +4643,6 @@
     var cgWhitelistEl = document.getElementById("cg-whitelist");
     if (cgWhitelistEl) cgWhitelistEl.addEventListener("click", onCgCfgClick);
 
-    var cgBlockSubmitBtn = document.getElementById("cg-block-submit");
-    if (cgBlockSubmitBtn) cgBlockSubmitBtn.addEventListener("click", onCgBlockSubmit);
-
-    var cgBlocksEl = document.getElementById("cg-blocks");
-    if (cgBlocksEl) cgBlocksEl.addEventListener("click", onCgBlocksClick);
-
     var cgTogglesEl = document.getElementById("cg-toggles");
     if (cgTogglesEl) cgTogglesEl.addEventListener("change", onCgTogglesChange);
 
@@ -4625,7 +4664,7 @@
     var cgEdgeRevertAllBtn = document.getElementById("cg-edge-revert-all-btn");
     if (cgEdgeRevertAllBtn) cgEdgeRevertAllBtn.addEventListener("click", onCgEdgeRevertAllClick);
 
-    if (getToken()) { loadClientGuardCfg(); loadCgBlocks(); loadCgEdgeAuto(); loadCgEdgeList(); }
+    if (getToken()) { loadClientGuardCfg(); loadCgToggles(); loadCgEdgeAuto(); loadCgEdgeList(); }
 
     initChartControls();
 

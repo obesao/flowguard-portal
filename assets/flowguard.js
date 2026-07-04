@@ -2479,6 +2479,31 @@
     dns_tunneling: "túnel DNS / exfiltração via DNS",
   };
 
+  var CG_MITIGATION_MECHANISM_LABELS = { flowspec: "FlowSpec", ssh: "SSH/ACL" };
+
+  // "esse cliente já participa de alguma mitigação, e está em vigor agora?" —
+  // pedido do usuário. "encerrada" cobre TTL vencido, revert manual e a
+  // reconciliação automática com o FlowGuard (ver flowspec_mitigation.
+  // reconcile_with_flowguard, no backend) — didaticamente é sempre "não está
+  // bloqueando mais", a causa exata não importa pro operador aqui.
+  function cgMitigationBadgeHtml(mitigation) {
+    if (!mitigation) {
+      return '<span class="cg-mitigation-badge none">sem mitigação</span>';
+    }
+    var mech = CG_MITIGATION_MECHANISM_LABELS[mitigation.mechanism] || mitigation.mechanism;
+    var since = "desde " + fmtDateTime(mitigation.ts_applied);
+    if (mitigation.status === "active") {
+      return '<span class="cg-mitigation-badge active" title="Mitigação ativa (' + since +
+        ')">🛡 ativa (' + escapeHtml(mech) + ")</span>";
+    }
+    if (mitigation.status === "failed") {
+      return '<span class="cg-mitigation-badge failed" title="Última tentativa de mitigação falhou (' + since +
+        ')">✖ falhou (' + escapeHtml(mech) + ")</span>";
+    }
+    return '<span class="cg-mitigation-badge inactive" title="Já teve mitigação, não está mais em vigor (' +
+      since + ')">encerrada (' + escapeHtml(mech) + ")</span>";
+  }
+
   // ordem fixa de exibição das funções na aba Configurações — mesmas chaves de
   // configio.DEFAULT_FEATURE_TOGGLES no backend do ClientGuard
   var CG_TOGGLE_META = [
@@ -2665,14 +2690,14 @@
           "<td>" + escapeHtml(r.src_ip) + "</td><td>" + escapeHtml(r.customer_prefix || "-") + "</td><td>" +
           escapeHtml(CG_SIGNAL_LABELS[r.signal_type] || r.signal_type) + "</td><td>" +
           Math.round((r.confidence || 0) * 100) + "%</td><td>" + fmtDateTime(r.ts_detected) + "</td><td>" +
-          fmtDateTime(r.ts_last_seen) + "</td>" +
+          fmtDateTime(r.ts_last_seen) + "</td><td>" + cgMitigationBadgeHtml(r.mitigation) + "</td>" +
           "<td>" + resolveBtn + edgeBtn + '<button class="fg-btn" data-action="detail">Detalhes</button></td></tr>'
         );
       })
       .join("");
     el.innerHTML =
       "<table><thead><tr><th>src_ip</th><th>Cliente</th><th>Sinal</th><th>Confiança</th><th>Detectado</th>" +
-      "<th>Última vez</th><th>Ações</th></tr></thead><tbody>" + body + "</tbody></table>";
+      "<th>Última vez</th><th>Mitigação</th><th>Ações</th></tr></thead><tbody>" + body + "</tbody></table>";
   }
 
   function loadClientGuardSuspicious() {
@@ -2708,6 +2733,7 @@
       '<button class="fg-btn" data-action="close-detail">Fechar</button></div>' +
       '<p class="fg-kpi-sub">Tipo: ' + escapeHtml(CG_SIGNAL_LABELS[row.signal_type] || row.signal_type) +
       " · Confiança: " + Math.round((row.confidence || 0) * 100) + "% · Evidência: " + escapeHtml(evidence) + "</p>" +
+      '<p class="fg-kpi-sub">Mitigação: ' + cgMitigationBadgeHtml(row.mitigation) + "</p>" +
       aiHtml +
       "</div>";
     el.scrollIntoView({ behavior: "smooth", block: "start" });

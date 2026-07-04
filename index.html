@@ -87,6 +87,20 @@
       .fg-warmode-badge.on { animation: none; }
     }
 
+    /* selo "esse cliente já participa de alguma mitigação?" na aba Sinais
+       Suspeitos do ClientGuard — none=nunca mitigado (neutro), active=mitigação
+       em vigor (verde), inactive=já teve mitigação mas não está mais em vigor
+       (âmbar — vale atenção, sobretudo com o sinal ainda aberto), failed=
+       tentativa de mitigação falhou (vermelho) */
+    .cg-mitigation-badge {
+      display: inline-block; font-size: 0.78rem; padding: 0.15rem 0.5rem; border-radius: 999px;
+      border: 1px solid var(--fg-border); white-space: nowrap;
+    }
+    .cg-mitigation-badge.none { color: var(--fg-text-muted); }
+    .cg-mitigation-badge.active { color: var(--fg-success); border-color: var(--fg-success); }
+    .cg-mitigation-badge.inactive { color: var(--fg-warning); border-color: var(--fg-warning); }
+    .cg-mitigation-badge.failed { color: var(--fg-danger); border-color: var(--fg-danger); }
+
     .fg-wrap { max-width: 100%; }
 
     .fg-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.8rem; margin-bottom: 1.2rem; }

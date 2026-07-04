@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.30.0**
+**Versão atual: v1.31.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -85,6 +85,23 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.31.0 — 2026-07-04 — Selo de mitigação na aba Sinais Suspeitos (ClientGuard)
+Espelha o ClientGuard v1.22.0. Aba ClientGuard > Sinais Suspeitos ganha uma
+coluna "Mitigação" — selo verde "🛡 ativa (FlowSpec/SSH-ACL)" quando o
+`src_ip` está mesmo bloqueado agora, âmbar "encerrada" quando já teve
+mitigação mas não está mais em vigor (TTL vencido, revert manual, ou a
+reconciliação automática com o FlowGuard corrigindo um registro que tinha
+ficado desatualizado — ver v1.21.0 do ClientGuard), vermelho "✖ falhou"
+quando a última tentativa não deu certo, e cinza neutro "sem mitigação"
+quando nunca houve nenhuma. Mesmo selo replicado no painel de detalhe do
+sinal. Zero endpoint novo — o campo já vem populado em `clientguard-suspicious.sh`
+(mesma chamada de sempre pro socket).
+
+Validado com Playwright real: coluna renderizando "🛡 ativa" corretamente
+pra clientes com mitigação FlowSpec ativa (conferido contra o daemon real),
+e as 4 variações visuais (ativa/encerrada/falhou/sem mitigação) com cores
+distintas e legíveis no tema escuro — 0 erros de console.
 
 ### v1.30.0 — 2026-07-04 — Painéis colapsáveis (todas as abas)
 Pedido do usuário: opção de colapsar painéis pra otimizar a visualização do

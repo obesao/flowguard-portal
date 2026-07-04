@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.36.0**
+**Versão atual: v1.37.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -85,6 +85,54 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.37.0 — 2026-07-04 — Cockpit customizável na aba Visão Geral
+Pedido do usuário: dashboard completo, dinâmico e colorido tipo "cockpit" na
+Visão Geral, customizável. As 2 seções antigas (Tráfego em Tempo Real, Meus
+Prefixos) viraram uma grade de 9 widgets coloridos (`.fg-cockpit-grid`):
+Tráfego (reaproveita as sparklines existentes), Ataques Ativos (com
+detalhamento por severidade), BGP, Mitigações de Borda, Modo Guerra,
+ClientGuard, Meus Prefixos (reaproveita a tabela/busca existentes), Regras
+Ativas e Daemon. Cada widget tem uma cor de acento própria (borda superior) —
+não a paleta de severidade, que continua intocada.
+
+**Regra de ouro seguida à risca: nenhum widget dispara fetch próprio** — só
+lê `state.status`/`state.attacks`/`state.rulesFgData`/`state.rulesCgEdgeData`/
+`state.cgStatus`/`warmodeActive`, todos já populados pelo poll de 5s
+existente. Duas pré-condições precisaram ser corrigidas pra isso ser
+verdade: `loadStatus()` não guardava a resposta pra reaproveitar (só
+renderizava na hora) — passou a gravar em `state.status`; e o status do
+ClientGuard só era consultado quando a própria aba ClientGuard era aberta —
+`loadClientGuardStatus()` entrou no `poll()` principal.
+
+**Customização**: botão "Personalizar" liga um modo de edição — checkbox
+de visibilidade + alça de arrastar (`⠿`) aparecem em cada card; reordenar
+usa Drag and Drop nativo do HTML5 (sem lib nenhuma). Layout (ordem,
+visibilidade, tamanho) persiste em `localStorage`
+(`fg-cockpit-layout`) por navegador; se o catálogo de widgets mudar no
+código no futuro (novo widget, ou um removido), a reconciliação na carga
+não trava com id órfão nem esconde o widget novo por engano.
+
+**3 bugs reais encontrados e corrigidos durante a validação com Playwright:**
+1. Card de tamanho `md` usava `grid-column: span 2` incondicional — numa
+   tela que só cabe 1 coluna (mobile), isso força uma coluna implícita
+   extra e estoura a largura da página. Corrigido restringindo o `span 2` a
+   `@media (min-width: 700px)`.
+2. Os checkboxes de visibilidade apareciam mesmo fora do modo de edição —
+   `.fg-cockpit-visibility { display: flex }` tinha a mesma especificidade
+   do `[hidden]` do navegador, e regra de autor sempre vence a do user-agent
+   independente de especificidade. Corrigido com `.fg-cockpit-visibility[hidden] { display: none }` explícito.
+3. De passagem, achado um overflow horizontal pré-existente no topbar em
+   mobile (390px) — o grupo de botões à direita (selo Modo Guerra, timer,
+   3 botões, Sair) não tinha `flex-wrap`, sem relação com o cockpit mas
+   quebrava o mesmo critério de "sem scroll horizontal" que este trabalho
+   já vinha seguindo — corrigido de graça.
+
+Validado com Playwright real: 9 cards renderizando com dado real do poll;
+busca em "Meus Prefixos" continua funcionando dentro do card; 0 requisições
+de rede novas em 6s de observação (só o poll de sempre); esconder 1 widget +
+reordenar + reload → layout customizado sobrevive; mobile (390px) com
+`scrollWidth === clientWidth`; 0 erros de console.
 
 ### v1.36.0 — 2026-07-04 — Remove duplicação entre as 2 tabelas do ClientGuard na aba Regras
 Pedido do usuário: "Bloqueio via FlowSpec" e "Mitigação automática/manual na

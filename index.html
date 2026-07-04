@@ -360,6 +360,39 @@
     .fg-hbar { position: absolute; left: 0; top: 0; bottom: 0; background: var(--fg-accent); opacity: 0.35; border-radius: 4px 0 0 4px; }
     .fg-hbar-label { position: relative; z-index: 1; font-size: 0.78rem; padding: 0 0.5rem; line-height: 1.4rem; }
 
+    /* cockpit (Visão Geral) — grade de widgets customizável (ver initCockpit
+       em flowguard.js). Cada card tem uma cor de acento fixa por widget
+       (--cockpit-accent, setado inline por card), não a paleta de severidade. */
+    .fg-cockpit-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem; margin-bottom: 1.2rem; align-items: start; }
+    .fg-cockpit-card {
+      background: var(--fg-bg-panel); border: 1px solid var(--fg-border); border-radius: 8px;
+      padding: 1rem; border-top: 3px solid var(--cockpit-accent, var(--fg-accent));
+    }
+    /* "span 2" força uma coluna implícita extra (achado real: overflow
+       horizontal em mobile) quando a tela só cabe 1 coluna de 240px — só
+       aplica o span a partir de uma largura que já garante 2+ colunas reais */
+    @media (min-width: 700px) {
+      .fg-cockpit-card[data-size="md"] { grid-column: span 2; }
+    }
+    .fg-cockpit-card[data-size="lg"] { grid-column: 1 / -1; }
+    .fg-cockpit-card[hidden] { display: none; }
+    .fg-cockpit-card-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; }
+    .fg-cockpit-card-head h3 { margin: 0; font-size: 0.95rem; flex: 1; }
+    /* [hidden] explícito pra vencer o display:flex logo abaixo — regra do
+       autor sempre bate o UA stylesheet mesmo com especificidade igual
+       (achado real: checkboxes apareciam fora do modo edição sem isso) */
+    .fg-cockpit-visibility[hidden] { display: none; }
+    .fg-cockpit-visibility { display: flex; align-items: center; margin: 0; cursor: pointer; }
+    .fg-cockpit-visibility input { width: 1rem; height: 1rem; cursor: pointer; }
+    .fg-cockpit-drag-handle { cursor: grab; color: var(--fg-text-muted); font-size: 1.1rem; line-height: 1; user-select: none; }
+    .fg-cockpit-grid.fg-cockpit-editing-mode .fg-cockpit-card { border-style: dashed; }
+    .fg-cockpit-card.fg-cockpit-dragging { opacity: 0.4; }
+    .fg-cockpit-card.fg-cockpit-dragover { outline: 2px dashed var(--fg-accent); outline-offset: 2px; }
+
+    .fg-cockpit-big-number { font-size: 1.8rem; font-weight: bold; line-height: 1.2; }
+    .fg-cockpit-sev-row { display: flex; gap: 0.6rem; flex-wrap: wrap; font-size: 0.78rem; margin-top: 0.3rem; }
+    .fg-cockpit-mini-kpis { display: flex; gap: 1.5rem; }
+
     /* skeletons — estado inicial de "Carregando..." antes do 1º fetch responder */
     @keyframes fg-shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
     .fg-skeleton-lines { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.2rem 0; }
@@ -405,7 +438,7 @@
   <div id="fg-app" class="fg-wrap" style="display: none;">
     <div class="fg-topbar">
       <h1 style="font-size: 1.3rem; margin: 0;">FlowGuard — POX Network</h1>
-      <div style="display:flex; gap:0.6rem; align-items:center;">
+      <div style="display:flex; gap:0.6rem; align-items:center; flex-wrap:wrap;">
         <span id="fg-warmode-badge" class="fg-warmode-badge off" title="Estado do Modo Guerra">WARMODE-OFF</span>
         <span id="fg-warmode-timer" class="fg-warmode-timer" hidden>00:00:00</span>
         <button id="fg-warmode-open-btn" class="fg-btn fg-btn-danger" title="Clique para ativar o Modo Guerra"><span class="fg-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3Z"/><path d="M12 9v5"/><path d="M12 17h.01"/></svg></span>Modo Guerra</button>
@@ -570,17 +603,11 @@
     </div>
 
     <div class="fg-tab-panel active" data-tab="overview">
-      <section class="fg-panel-section">
-        <h2>Tráfego em Tempo Real</h2>
-        <div id="flowguard-sparklines"></div>
-      </section>
-      <section class="fg-panel-section">
-        <h2>Meus Prefixos</h2>
-        <div class="fg-toolbar">
-          <input type="text" id="fg-top-prefixes-search" placeholder="filtrar por prefixo...">
-        </div>
-        <div id="flowguard-top-prefixes"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
-      </section>
+      <div class="fg-toolbar">
+        <button class="fg-btn" id="fg-cockpit-customize-btn"><span class="fg-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="9" cy="18" r="2"/></svg></span>Personalizar</button>
+        <span class="fg-kpi-sub" id="fg-cockpit-edit-hint" hidden>Arraste os cards pelo título pra reordenar, desmarque pra esconder. Clique em "Concluir" quando terminar.</span>
+      </div>
+      <div class="fg-cockpit-grid" id="fg-cockpit-grid"></div>
     </div>
 
     <div class="fg-tab-panel" data-tab="attacks">

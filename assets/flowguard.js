@@ -79,6 +79,9 @@
     attacks: [],
     attacksView: "active",
     attacksWindow: "24h",
+    status: null,
+    cgStatus: null,
+    cockpitEditing: false,
     sort: {
       topPrefixes: { key: "bps", dir: "desc" },
       flows: { key: "bps", dir: "desc" },
@@ -477,6 +480,267 @@
     } else {
       badge.style.display = "none";
     }
+  }
+
+  // --- cockpit (aba Visão Geral, customizável) ------------------------------
+  // Regra de ouro: nenhum widget dispara fetch próprio — só lê o que o poll()
+  // de 5s já trouxe (state.status/state.attacks/state.rulesFgData/
+  // state.rulesCgEdgeData/state.cgStatus/warmodeActive). "traffic" e
+  // "topPrefixes" reaproveitam os elementos/renderers que já existiam nessa
+  // aba (renderSparklines, renderTopPrefixesFiltered) — só mudaram de moldura.
+
+  var COCKPIT_STORAGE_KEY = "fg-cockpit-layout";
+
+  var COCKPIT_WIDGETS = [
+    { id: "traffic", title: "Tráfego em Tempo Real", size: "lg", accent: "var(--fg-accent)" },
+    { id: "attacks", title: "Ataques Ativos", size: "sm", accent: "var(--fg-danger)" },
+    { id: "bgp", title: "BGP (ExaBGP)", size: "sm", accent: "var(--fg-success)" },
+    { id: "mitigations", title: "Mitigações de Borda", size: "sm", accent: "var(--fg-orange)" },
+    { id: "warmode", title: "Modo Guerra", size: "sm", accent: "var(--fg-danger)" },
+    { id: "clientguard", title: "ClientGuard", size: "md", accent: "#a371f7" },
+    { id: "topPrefixes", title: "Meus Prefixos", size: "lg", accent: "var(--fg-accent)" },
+    { id: "rules", title: "Regras Ativas (FlowSpec/RTBH)", size: "sm", accent: "var(--fg-warning)" },
+    { id: "daemon", title: "Daemon", size: "sm", accent: "var(--fg-success)" },
+  ];
+
+  function cockpitLoadLayout() {
+    var fallback = COCKPIT_WIDGETS.map(function (w) { return { id: w.id, visible: true, size: null }; });
+    try {
+      var saved = JSON.parse(localStorage.getItem(COCKPIT_STORAGE_KEY) || "null");
+      if (!Array.isArray(saved) || !saved.length) return fallback;
+      var known = COCKPIT_WIDGETS.map(function (w) { return w.id; });
+      var savedIds = saved.map(function (s) { return s.id; });
+      // reconcilia com o catálogo atual: widget novo no código (ainda não
+      // salvo) entra visível no fim; id órfão (widget removido) é descartado
+      var ordered = saved.filter(function (s) { return known.indexOf(s.id) !== -1; });
+      known.forEach(function (id) {
+        if (savedIds.indexOf(id) === -1) ordered.push({ id: id, visible: true, size: null });
+      });
+      return ordered.length ? ordered : fallback;
+    } catch (e) {
+      return fallback;
+    }
+  }
+
+  function cockpitPersistCurrentOrder() {
+    var grid = document.getElementById("fg-cockpit-grid");
+    if (!grid) return;
+    var layout = Array.prototype.map.call(grid.querySelectorAll(".fg-cockpit-card"), function (card) {
+      return {
+        id: card.getAttribute("data-widget-id"),
+        visible: !card.hidden,
+        size: card.getAttribute("data-size"),
+      };
+    });
+    localStorage.setItem(COCKPIT_STORAGE_KEY, JSON.stringify(layout));
+  }
+
+  function cockpitWidgetBodyHtml(id) {
+    if (id === "traffic") return '<div id="flowguard-sparklines"></div>';
+    if (id === "topPrefixes") {
+      return (
+        '<div class="fg-toolbar"><input type="text" id="fg-top-prefixes-search" placeholder="filtrar por prefixo..."></div>' +
+        '<div id="flowguard-top-prefixes"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span>' +
+        '<span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>'
+      );
+    }
+    return (
+      '<div id="fg-cockpit-body-' + id + '"><span class="fg-skeleton-lines fg-skeleton-sm">' +
+      '<span class="fg-skeleton-line"></span></span></div>'
+    );
+  }
+
+  function cockpitCardHtml(w, size, visible) {
+    return (
+      '<div class="fg-cockpit-card" data-widget-id="' + w.id + '" data-size="' + size + '" style="--cockpit-accent:' + w.accent + '"' +
+      (visible ? "" : " hidden") + ">" +
+      '<div class="fg-cockpit-card-head">' +
+      '<label class="fg-cockpit-visibility" hidden><input type="checkbox"' + (visible ? " checked" : "") + '></label>' +
+      '<span class="fg-cockpit-drag-handle" hidden>⠿</span>' +
+      "<h3>" + escapeHtml(w.title) + "</h3>" +
+      "</div>" +
+      '<div class="fg-cockpit-card-body">' + cockpitWidgetBodyHtml(w.id) + "</div>" +
+      "</div>"
+    );
+  }
+
+  function cockpitEnableDragForCard(card) {
+    card.addEventListener("dragstart", function (ev) {
+      ev.dataTransfer.setData("text/plain", card.getAttribute("data-widget-id"));
+      ev.dataTransfer.effectAllowed = "move";
+      card.classList.add("fg-cockpit-dragging");
+    });
+    card.addEventListener("dragend", function () {
+      card.classList.remove("fg-cockpit-dragging");
+    });
+    card.addEventListener("dragover", function (ev) {
+      if (!state.cockpitEditing) return;
+      ev.preventDefault();
+      card.classList.add("fg-cockpit-dragover");
+    });
+    card.addEventListener("dragleave", function () {
+      card.classList.remove("fg-cockpit-dragover");
+    });
+    card.addEventListener("drop", function (ev) {
+      ev.preventDefault();
+      card.classList.remove("fg-cockpit-dragover");
+      if (!state.cockpitEditing) return;
+      var draggedId = ev.dataTransfer.getData("text/plain");
+      var grid = document.getElementById("fg-cockpit-grid");
+      var draggedCard = grid.querySelector('.fg-cockpit-card[data-widget-id="' + draggedId + '"]');
+      if (!draggedCard || draggedCard === card) return;
+      var cards = Array.prototype.slice.call(grid.querySelectorAll(".fg-cockpit-card"));
+      var draggedIndex = cards.indexOf(draggedCard);
+      var targetIndex = cards.indexOf(card);
+      if (draggedIndex < targetIndex) grid.insertBefore(draggedCard, card.nextSibling);
+      else grid.insertBefore(draggedCard, card);
+      cockpitPersistCurrentOrder();
+    });
+  }
+
+  function cockpitSetEditing(editing) {
+    state.cockpitEditing = editing;
+    var grid = document.getElementById("fg-cockpit-grid");
+    if (!grid) return;
+    grid.classList.toggle("fg-cockpit-editing-mode", editing);
+    grid.querySelectorAll(".fg-cockpit-card").forEach(function (card) {
+      card.draggable = editing;
+      var vis = card.querySelector(".fg-cockpit-visibility");
+      var handle = card.querySelector(".fg-cockpit-drag-handle");
+      if (vis) vis.hidden = !editing;
+      if (handle) handle.hidden = !editing;
+    });
+    var btn = document.getElementById("fg-cockpit-customize-btn");
+    if (btn) btn.textContent = editing ? "Concluir personalização" : "Personalizar";
+    var hint = document.getElementById("fg-cockpit-edit-hint");
+    if (hint) hint.hidden = !editing;
+    if (!editing) cockpitPersistCurrentOrder();
+  }
+
+  function initCockpit() {
+    var grid = document.getElementById("fg-cockpit-grid");
+    if (!grid) return;
+    var widgetsById = {};
+    COCKPIT_WIDGETS.forEach(function (w) { widgetsById[w.id] = w; });
+    var layout = cockpitLoadLayout();
+
+    grid.innerHTML = layout
+      .map(function (entry) {
+        var w = widgetsById[entry.id];
+        if (!w) return "";
+        return cockpitCardHtml(w, entry.size || w.size, entry.visible !== false);
+      })
+      .join("");
+
+    grid.querySelectorAll(".fg-cockpit-card").forEach(cockpitEnableDragForCard);
+
+    grid.addEventListener("change", function (ev) {
+      var checkbox = ev.target.closest(".fg-cockpit-visibility input");
+      if (!checkbox) return;
+      var card = checkbox.closest(".fg-cockpit-card");
+      card.hidden = !checkbox.checked;
+      cockpitPersistCurrentOrder();
+    });
+
+    var customizeBtn = document.getElementById("fg-cockpit-customize-btn");
+    if (customizeBtn) {
+      customizeBtn.addEventListener("click", function () { cockpitSetEditing(!state.cockpitEditing); });
+    }
+
+    cockpitRefreshAll();
+  }
+
+  function cockpitSetBody(id, html) {
+    var el = document.getElementById("fg-cockpit-body-" + id);
+    if (el) el.innerHTML = html;
+  }
+
+  function cockpitRenderAttacks() {
+    var s = state.status;
+    var total = s && s.ok && s.stats ? s.stats.active_attacks : null;
+    var body =
+      '<div class="fg-cockpit-big-number ' + (total ? "fg-sev-critical" : "fg-ok") + '">' + (total == null ? "-" : total) + "</div>" +
+      '<div class="fg-kpi-sub">' + (total ? "requer atenção" : "tudo normal") + "</div>";
+    // detalhe por severidade só é confiável quando o snapshot em state.attacks
+    // é mesmo da view "active" (o filtro é compartilhado com a aba Ataques,
+    // não é exclusivo do cockpit) — na "Histórico" simplesmente omite, pra
+    // não mostrar severidade de um recorte que não é o de ataques ativos
+    if (state.attacksView === "active" && state.attacks && state.attacks.length) {
+      var counts = { critical: 0, high: 0, medium: 0, info: 0 };
+      state.attacks.forEach(function (a) { if (counts[a.severity] != null) counts[a.severity]++; });
+      var order = ["critical", "high", "medium", "info"];
+      var sevLabels = { critical: "crítico", high: "alto", medium: "médio", info: "info" };
+      var breakdown = order
+        .filter(function (sv) { return counts[sv] > 0; })
+        .map(function (sv) { return '<span class="fg-sev-' + sv + '">' + counts[sv] + " " + sevLabels[sv] + "</span>"; })
+        .join(" · ");
+      if (breakdown) body += '<div class="fg-cockpit-sev-row">' + breakdown + "</div>";
+    }
+    cockpitSetBody("attacks", body);
+  }
+
+  function cockpitRenderBgp() {
+    var s = state.status;
+    if (!s || !s.ok) { cockpitSetBody("bgp", '<p class="fg-kpi-sub">sem dado</p>'); return; }
+    var bgpMain = s.bgp || {};
+    var bgpPppoe = s.bgp_pppoe || {};
+    var pppoeConfigured = bgpPppoe.peer_state && bgpPppoe.peer_state !== "unconfigured";
+    var html = bgpPeerRow("NE8000BGP", bgpMain);
+    if (pppoeConfigured) html += bgpPeerRow("NE8000-PPPOE", bgpPppoe);
+    cockpitSetBody("bgp", html);
+  }
+
+  function cockpitRenderMitigations() {
+    var active = (state.rulesCgEdgeData || []).filter(function (m) { return m.status === "active"; }).length;
+    cockpitSetBody("mitigations",
+      '<div class="fg-cockpit-big-number' + (active ? " fg-sev-high" : " fg-ok") + '">' + active + "</div>" +
+      '<div class="fg-kpi-sub">ClientGuard · FlowSpec/SSH</div>');
+  }
+
+  function cockpitRenderWarmode() {
+    var html = warmodeActive
+      ? '<div class="fg-cockpit-big-number fg-sev-critical">ATIVO</div><div class="fg-kpi-sub">há ' +
+        fmtWarmodeElapsed(Date.now() / 1000 - (warmodeStartedAt || Date.now() / 1000)) + "</div>"
+      : '<div class="fg-cockpit-big-number fg-ok">desligado</div>';
+    cockpitSetBody("warmode", html);
+  }
+
+  function cockpitRenderClientGuard() {
+    var s = state.cgStatus;
+    if (!s) { cockpitSetBody("clientguard", '<p class="fg-kpi-sub">carregando...</p>'); return; }
+    cockpitSetBody("clientguard",
+      '<div class="fg-cockpit-mini-kpis">' +
+      '<div><div class="fg-cockpit-big-number">' + s.distinct_src_ips + '</div><div class="fg-kpi-sub">clientes ativos</div></div>' +
+      '<div><div class="fg-cockpit-big-number' + (s.open_signals ? " fg-sev-high" : " fg-ok") + '">' + s.open_signals +
+      '</div><div class="fg-kpi-sub">sinais abertos</div></div>' +
+      "</div>");
+  }
+
+  function cockpitRenderRules() {
+    var active = (state.rulesFgData || []).filter(function (r) { return r.active; }).length;
+    cockpitSetBody("rules", '<div class="fg-cockpit-big-number">' + active + '</div><div class="fg-kpi-sub">FlowSpec/RTBH</div>');
+  }
+
+  function cockpitRenderDaemon() {
+    var s = state.status;
+    if (!s || !s.ok || !s.daemon || !s.daemon.alive) {
+      cockpitSetBody("daemon", '<span class="fg-dot fg-dot-down"></span>indisponível');
+      return;
+    }
+    cockpitSetBody("daemon",
+      '<span class="fg-dot fg-dot-up"></span>ativo<div class="fg-kpi-sub">uptime ' +
+      fmtUptime(s.daemon.uptime_s) + " · pid " + s.daemon.pid + "</div>");
+  }
+
+  function cockpitRefreshAll() {
+    if (!document.getElementById("fg-cockpit-grid")) return;
+    cockpitRenderAttacks();
+    cockpitRenderBgp();
+    cockpitRenderMitigations();
+    cockpitRenderWarmode();
+    cockpitRenderClientGuard();
+    cockpitRenderRules();
+    cockpitRenderDaemon();
   }
 
   // --- KPIs ---------------------------------------------------------------
@@ -1246,6 +1510,7 @@
       }
       state.rulesFgData = data.rules;
       applyRulesFilter();
+      cockpitRefreshAll();
     }).catch(function (err) {
       showError(document.getElementById("rules-fg-list"), "falha ao consultar regras");
       console.error("flowguard.js:", err);
@@ -1258,6 +1523,7 @@
       }
       state.rulesCgEdgeData = data.mitigations;
       applyRulesFilter();
+      cockpitRefreshAll();
     }).catch(function (err) {
       showError(document.getElementById("rules-cg-edge-list"), "falha ao consultar mitigações de borda");
       console.error("flowguard.js:", err);
@@ -1625,6 +1891,7 @@
       warmodeActive = !!data.active;
       warmodeStartedAt = data.started_at || null;
       updateWarmodeUi();
+      cockpitRefreshAll();
     }).catch(function (err) {
       console.error("flowguard.js:", err);
     });
@@ -2734,7 +3001,9 @@
 
   function loadClientGuardStatus() {
     getJson(CG_STATUS_ENDPOINT).then(function (data) {
-      renderCgKpis(data.ok ? data.status : null);
+      state.cgStatus = data.ok ? data.status : null; // reaproveitado pelo widget ClientGuard do cockpit
+      renderCgKpis(state.cgStatus);
+      cockpitRefreshAll();
     }).catch(function (err) {
       showError(document.getElementById("cg-kpis"), "falha ao consultar status do ClientGuard");
       console.error("flowguard.js:", err);
@@ -4063,6 +4332,7 @@
 
   function loadStatus() {
     getJson(STATUS_ENDPOINT).then(function (data) {
+      state.status = data; // reaproveitado pelo cockpit (bgp/daemon/active_attacks) sem fetch novo
       renderKpis(data);
       if (data.ok) {
         state.topPrefixes = data.top_prefixes;
@@ -4071,6 +4341,7 @@
       } else {
         showError(document.getElementById("flowguard-top-prefixes"), data.error);
       }
+      cockpitRefreshAll();
     }).catch(function (err) {
       showError(document.getElementById("fg-kpis"), "falha ao consultar status");
       console.error("flowguard.js:", err);
@@ -4088,6 +4359,7 @@
       }
       state.attacks = data.attacks;
       renderAttacksFiltered();
+      cockpitRefreshAll();
     }).catch(function (err) {
       showError(document.getElementById("flowguard-attacks"), "falha ao consultar ataques");
       console.error("flowguard.js:", err);
@@ -4482,6 +4754,9 @@
     loadFlows();
     loadRulesUnified();
     loadWarmodeStatus();
+    // status do ClientGuard não era polado fora da própria aba dele — o
+    // widget do cockpit precisa disso mesmo se o operador nunca abrir a aba
+    loadClientGuardStatus();
   }
 
   function initLogin() {
@@ -4554,6 +4829,7 @@
     initActionMenus();
     initWarmode();
     initRouterCfg();
+    initCockpit();
 
     var topSearch = document.getElementById("fg-top-prefixes-search");
     if (topSearch) topSearch.addEventListener("input", function () { state.filter.topPrefixes = topSearch.value; state.page.topPrefixes = 1; renderTopPrefixesFiltered(); });

@@ -87,6 +87,15 @@ try:
     conn = storage.connect(cfg["database"]["path"])
     history = os.environ.get("HISTORY") in ("1", "true", "True")
     rules = storage.list_flowspec_rules(conn, active_only=not history)
+    # pedido do usuário: mostrar em qual equipamento cada regra foi anunciada —
+    # este script lê o SQLite direto (sem passar pelo socket do daemon), então
+    # a mesma resolução peer->equipamento de BgpManager._device_for_peer
+    # precisa ser replicada aqui (config.yaml já está carregado mesmo assim).
+    bgp_cfg = cfg.get("bgp", {})
+    for rule in rules:
+        peer = rule.get("peer") or "main"
+        key = "peer_device_main" if peer == "main" else f"peer_device_{peer}"
+        rule["device_name"] = bgp_cfg.get(key) or ("NE8000BGP" if peer == "main" else peer)
     print(json.dumps({"ok": True, "rules": rules}))
 except Exception as exc:
     print(json.dumps({"ok": False, "error": str(exc)}))

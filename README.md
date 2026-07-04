@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.34.0**
+**Versão atual: v1.35.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -85,6 +85,29 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.35.0 — 2026-07-04 — Etiquetas de mecanismo/equipamento/gatilho/status na aba Regras
+Pedido do usuário: nas 3 tabelas da aba Regras (RTBH/FlowSpec do FlowGuard,
+FlowSpec do ClientGuard via proxy, e mitigação direta SSH/ACL+FlowSpec do
+ClientGuard), mostrar como cada regra foi feita — mesmo padrão já usado na
+aba Sinais Suspeitos (v1.31.0/v1.22.0 do ClientGuard).
+
+- **Novas colunas "Equipamento" e "Gatilho"** nas tabelas de FlowSpec/RTBH
+  (`renderFlowspecRulesTable`, usada tanto por `rules-fg-list` quanto por
+  `rules-cg-flowspec-list`) — dados vêm de `flowspec_rules.device_name`/
+  `trigger_type`, novos no backend (ver FlowGuard v1.25.0).
+- **Coluna "Equipamento"** na tabela de mitigação direta do ClientGuard
+  (`renderRulesCgEdgeTable`) — já tinha Mecanismo/Gatilho/Status, só faltava
+  o equipamento (ver ClientGuard v1.23.0).
+- **"Status" virou selo colorido** (`.fg-mitigation-badge`, mesma paleta
+  verde/âmbar já usada nas outras abas) em vez de texto plano — "ativa"
+  (verde), "expirada"/"removida" (âmbar). Mesmas 2 colunas novas + status
+  também adicionadas ao painel de detalhe de cada regra.
+
+Validado com Playwright real contra o daemon: regras automáticas recém-criadas
+(FlowGuard e ClientGuard) mostrando o nome do equipamento de borda
+correspondente (roteador principal e peer PPPoE/CGNAT) e gatilho
+("automático") corretos nas 3 tabelas, 0 erros de console.
 
 ### v1.34.0 — 2026-07-04 — "Mitigações ativas/histórico" do ClientGuard: deduplicada e com motivo
 Pedido do usuário: a lista "Mitigações ativas / histórico (FlowSpec e SSH

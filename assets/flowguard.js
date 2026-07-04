@@ -950,9 +950,20 @@
   }
 
   function fmtRuleStatus(r) {
-    if (r.active) return '<span class="fg-ok">ativa</span>';
+    if (r.active) return '<span class="fg-mitigation-badge active">ativa</span>';
     var now = Math.floor(Date.now() / 1000);
-    return r.expires_at && r.expires_at <= now ? "expirada" : "removida";
+    var label = r.expires_at && r.expires_at <= now ? "expirada" : "removida";
+    return '<span class="fg-mitigation-badge inactive">' + label + "</span>";
+  }
+
+  // pedido do usuário: mostrar em qual equipamento a regra foi anunciada e se
+  // foi disparada automaticamente (engine de detecção) ou manualmente (operador)
+  function fmtRuleDevice(r) {
+    return escapeHtml(r.device_name || "-");
+  }
+
+  function fmtRuleTrigger(r) {
+    return r.trigger_type === "auto" ? "automático" : "manual";
   }
 
   function fmtRulePorts(r) {
@@ -976,7 +987,8 @@
           '<tr data-rule-id="' + r.id + '"><td>' + r.id + "</td><td>" + fmtDateTime(r.created_at) + "</td><td>" +
           fmtRuleType(r) + "</td><td>" + escapeHtml(r.src_prefix || "-") + "</td><td>" +
           escapeHtml(r.dst_prefix || "-") + "</td><td>" + escapeHtml(String(r.protocol || "-")) + "</td><td>" +
-          fmtRulePorts(r) + "</td><td>" + escapeHtml(r.label || "-") + "</td><td>" +
+          fmtRulePorts(r) + "</td><td>" + fmtRuleDevice(r) + "</td><td>" + fmtRuleTrigger(r) + "</td><td>" +
+          escapeHtml(r.label || "-") + "</td><td>" +
           (r.attack_id ? "#" + r.attack_id : "-") + "</td><td>" + fmtRuleStatus(r) + "</td><td>" +
           (r.expires_at ? new Date(r.expires_at * 1000).toLocaleString() : "-") + "</td><td>" +
           '<button class="fg-btn" data-action="detail-flowspec-rule">Detalhes</button> ' + delBtn + "</td></tr>"
@@ -985,8 +997,8 @@
       .join("");
     el.innerHTML =
       "<table><thead><tr><th>ID</th><th>Criada em</th><th>Tipo</th><th>Origem</th><th>Destino</th>" +
-      "<th>Protocolo</th><th>Portas</th><th>Rótulo</th><th>Ataque</th><th>Status</th><th>Expira</th>" +
-      "<th>Ação</th></tr></thead><tbody>" + rows + "</tbody></table>";
+      "<th>Protocolo</th><th>Portas</th><th>Equipamento</th><th>Gatilho</th><th>Rótulo</th><th>Ataque</th>" +
+      "<th>Status</th><th>Expira</th><th>Ação</th></tr></thead><tbody>" + rows + "</tbody></table>";
   }
 
   // --- verificação ao vivo no roteador (SSH, só leitura) --------------------
@@ -1056,6 +1068,8 @@
       '<div class="fg-card"><h3>Detalhes da regra #' + r.id + "</h3>" +
       "<table><tbody>" +
       "<tr><td>Tipo</td><td>" + fmtRuleType(r) + "</td></tr>" +
+      "<tr><td>Equipamento</td><td>" + fmtRuleDevice(r) + "</td></tr>" +
+      "<tr><td>Gatilho</td><td>" + fmtRuleTrigger(r) + "</td></tr>" +
       "<tr><td>Origem</td><td>" + escapeHtml(r.src_prefix || "-") + "</td></tr>" +
       "<tr><td>Destino</td><td>" + escapeHtml(r.dst_prefix || "-") + "</td></tr>" +
       "<tr><td>Protocolo</td><td>" + escapeHtml(String(r.protocol || "-")) + "</td></tr>" +
@@ -1118,6 +1132,7 @@
           "<td>" + escapeHtml(m.src_ip) + "</td>" +
           "<td>" + escapeHtml(reason) + "</td>" +
           "<td>" + (mechanism === "flowspec" ? "FlowSpec" : "SSH (legado)") + "</td>" +
+          "<td>" + escapeHtml(m.device_name || "-") + "</td>" +
           "<td>" + (m.trigger_type === "auto" ? "automático" : "manual") + "</td>" +
           "<td>" + fmtDateTime(m.ts_applied) + (when ? '<div class="fg-kpi-sub">' + escapeHtml(when) + "</div>" : "") + "</td>" +
           "<td>" + '<button class="fg-btn" data-action="detail-edge-mitigation">Detalhes</button> ' + revertBtn + "</td></tr>"
@@ -1125,8 +1140,8 @@
       })
       .join("");
     el.innerHTML =
-      "<table><thead><tr><th>Status</th><th>Cliente</th><th>Motivo</th><th>Mecanismo</th><th>Gatilho</th>" +
-      "<th>Aplicada em</th><th></th></tr></thead><tbody>" + rows + "</tbody></table>" +
+      "<table><thead><tr><th>Status</th><th>Cliente</th><th>Motivo</th><th>Mecanismo</th><th>Equipamento</th>" +
+      "<th>Gatilho</th><th>Aplicada em</th><th></th></tr></thead><tbody>" + rows + "</tbody></table>" +
       paginationHtml(pageKey, p.page, p.totalPages, p.total);
   }
 
@@ -1136,6 +1151,7 @@
     var baseRows =
       "<tr><td>Motivo</td><td>" + escapeHtml(edgeMitigationReason(m) || "-") + "</td></tr>" +
       "<tr><td>Mecanismo</td><td>" + (mechanism === "flowspec" ? "BGP FlowSpec" : "SSH/ACL (legado)") + "</td></tr>" +
+      "<tr><td>Equipamento</td><td>" + escapeHtml(m.device_name || "-") + "</td></tr>" +
       "<tr><td>IP mitigado</td><td>" + escapeHtml(m.src_ip) + "</td></tr>" +
       "<tr><td>Status</td><td>" + (RULES_EDGE_STATUS_LABELS[m.status] || m.status) + "</td></tr>" +
       "<tr><td>Gatilho</td><td>" + (m.trigger_type === "auto" ? "automático" : "manual") + "</td></tr>" +

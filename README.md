@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.29.0**
+**Versão atual: v1.30.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -85,6 +85,28 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.30.0 — 2026-07-04 — Painéis colapsáveis (todas as abas)
+Pedido do usuário: opção de colapsar painéis pra otimizar a visualização do
+portal. Implementado de forma genérica (`initCollapsiblePanels()`) em vez de
+editar as 19 seções (`.fg-panel-section`) uma por uma: no carregamento, cada
+`<h2>` de seção ganha um botão ▾/▸, e tudo que vem depois do `<h2>` vira um
+"corpo" que esconde/mostra — populações futuras via `innerHTML` em elementos
+por id continuam funcionando normal, só ficaram um nível mais fundo no DOM.
+Clicar em qualquer lugar do título (não só no botão) já colapsa/expande.
+Estado persistido em `localStorage` por chave `aba + texto do título` —
+sobrevive a reload e não interfere com o polling de 5s que já existia.
+
+Detalhe importante: `jumpToAttack()` (clique num ataque na timeline dos
+Gráficos, pula pro histórico filtrado da aba Ataques) agora força a expansão
+de qualquer painel colapsado daquela aba antes de aplicar o filtro — sem
+isso, se o operador tivesse colapsado "Ataques" antes, o salto cairia numa
+lista invisível.
+
+Validado com Playwright real: 19 seções, 19 botões de colapsar aplicados,
+colapsar "Meus Prefixos" esconde o corpo e persiste depois de um reload
+completo da página, KPIs/polling continuam atualizando normalmente com os
+painéis movidos pra dentro do wrapper, 0 erros de console.
 
 ### v1.29.0 — 2026-07-04 — Configuração do Modo Guerra: cards colapsáveis, ativar/desativar, testar conexão, histórico
 Pedido do usuário: melhorias na tela "Configuração do Modo Guerra" — cada

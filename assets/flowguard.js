@@ -335,6 +335,71 @@
     });
   }
 
+  // --- painéis colapsáveis --------------------------------------------------
+  // Genérico: não exige tocar em cada uma das 19 seções (.fg-panel-section)
+  // espalhadas pelas abas — no init, cada uma ganha um botão no <h2> e tudo
+  // depois dele vira o "corpo" que colapsa. Populações futuras por innerHTML
+  // continuam funcionando normal (são feitas em elementos por id, que só
+  // ficaram um nível mais fundo no DOM). Estado persistido em localStorage
+  // por chave estável (aba + texto do h2), sobrevive a reload/poll.
+
+  function panelStorageKey(section) {
+    var tab = section.closest(".fg-tab-panel");
+    var tabName = tab ? tab.getAttribute("data-tab") : "global";
+    var h2 = section.querySelector(":scope > h2");
+    var title = h2 ? h2.textContent.trim() : "";
+    return "fg-panel-collapsed::" + tabName + "::" + title;
+  }
+
+  function setPanelCollapsed(section, collapsed) {
+    var body = section.querySelector(":scope > .fg-panel-body");
+    var btn = section.querySelector(":scope > h2 .fg-panel-collapse-btn");
+    if (!body) return;
+    body.hidden = collapsed;
+    section.classList.toggle("fg-panel-collapsed", collapsed);
+    if (btn) btn.textContent = collapsed ? "▸" : "▾";
+  }
+
+  // usado por jumpToAttack (clique num ataque no gráfico) — se o operador
+  // tinha colapsado "Ataques" antes, o salto pra lá precisa expandir de novo,
+  // senão a lista/filtro aplicado fica invisível
+  function expandPanelSectionsIn(tabPanelEl) {
+    if (!tabPanelEl) return;
+    tabPanelEl.querySelectorAll(".fg-panel-section.fg-panel-collapsed").forEach(function (section) {
+      setPanelCollapsed(section, false);
+      localStorage.setItem(panelStorageKey(section), "0");
+    });
+  }
+
+  function initCollapsiblePanels() {
+    document.querySelectorAll("section.fg-panel-section").forEach(function (section) {
+      var h2 = section.querySelector(":scope > h2");
+      if (!h2 || h2.querySelector(".fg-panel-collapse-btn")) return;
+
+      var body = document.createElement("div");
+      body.className = "fg-panel-body";
+      while (h2.nextSibling) body.appendChild(h2.nextSibling);
+      section.appendChild(body);
+
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "fg-panel-collapse-btn";
+      btn.setAttribute("aria-label", "Recolher ou expandir este painel");
+      btn.textContent = "▾";
+      h2.appendChild(btn);
+      h2.classList.add("fg-panel-h2-collapsible");
+
+      var key = panelStorageKey(section);
+      if (localStorage.getItem(key) === "1") setPanelCollapsed(section, true);
+
+      h2.addEventListener("click", function () {
+        var collapsed = !body.hidden;
+        setPanelCollapsed(section, collapsed);
+        localStorage.setItem(key, collapsed ? "1" : "0");
+      });
+    });
+  }
+
   // --- tabs ---------------------------------------------------------------
 
   function initTabs() {
@@ -3604,6 +3669,7 @@
     document.querySelectorAll(".fg-tab-panel").forEach(function (p) {
       p.classList.toggle("active", p.getAttribute("data-tab") === "attacks");
     });
+    expandPanelSectionsIn(document.querySelector('.fg-tab-panel[data-tab="attacks"]'));
     var viewToggle = document.getElementById("fg-attacks-view-toggle");
     if (viewToggle) {
       viewToggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) {
@@ -4390,6 +4456,7 @@
     if (!document.getElementById("fg-kpis")) return;
 
     initLogin();
+    initCollapsiblePanels();
     initTabs();
     initSortHandlers();
     initAttacksControls();

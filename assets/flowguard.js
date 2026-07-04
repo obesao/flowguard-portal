@@ -962,6 +962,17 @@
     return escapeHtml(r.device_name || "-");
   }
 
+  // "ClientGuard auto: port_scan_vertical" -> "scan vertical" (reaproveita
+  // CG_SIGNAL_LABELS, mesmo texto amigável já usado na aba Sinais Suspeitos);
+  // rótulos do FlowGuard ("ban 177.86.17.0/24") não têm ":", caem no fallback
+  // e continuam mostrando o rótulo cru, sem mudança pra essa tabela.
+  function fmtRuleLabel(r) {
+    var label = r.label || "";
+    if (!label) return "-";
+    var key = label.indexOf(":") >= 0 ? label.split(":").pop().trim() : null;
+    return escapeHtml((key && CG_SIGNAL_LABELS[key]) || label);
+  }
+
   function fmtRuleTrigger(r) {
     return r.trigger_type === "auto" ? "automático" : "manual";
   }
@@ -988,7 +999,7 @@
           fmtRuleType(r) + "</td><td>" + escapeHtml(r.src_prefix || "-") + "</td><td>" +
           escapeHtml(r.dst_prefix || "-") + "</td><td>" + escapeHtml(String(r.protocol || "-")) + "</td><td>" +
           fmtRulePorts(r) + "</td><td>" + fmtRuleDevice(r) + "</td><td>" + fmtRuleTrigger(r) + "</td><td>" +
-          escapeHtml(r.label || "-") + "</td><td>" +
+          fmtRuleLabel(r) + "</td><td>" +
           (r.attack_id ? "#" + r.attack_id : "-") + "</td><td>" + fmtRuleStatus(r) + "</td><td>" +
           (r.expires_at ? new Date(r.expires_at * 1000).toLocaleString() : "-") + "</td><td>" +
           '<button class="fg-btn" data-action="detail-flowspec-rule">Detalhes</button> ' + delBtn + "</td></tr>"
@@ -1076,7 +1087,7 @@
       "<tr><td>Portas</td><td>" + fmtRulePorts(r) + "</td></tr>" +
       "<tr><td>TCP flags</td><td>" + escapeHtml(r.tcp_flags || "-") + "</td></tr>" +
       "<tr><td>Tamanho de pacote</td><td>" + escapeHtml(r.pkt_len || "-") + "</td></tr>" +
-      "<tr><td>Rótulo</td><td>" + escapeHtml(r.label || "-") + "</td></tr>" +
+      "<tr><td>Rótulo</td><td>" + fmtRuleLabel(r) + "</td></tr>" +
       "<tr><td>Aplicação de origem</td><td>" + (r.origin === "clientguard" ? "ClientGuard" : "FlowGuard") + "</td></tr>" +
       "<tr><td>Ataque associado</td><td>" + (r.attack_id ? "#" + r.attack_id : "-") + "</td></tr>" +
       "<tr><td>Criada em</td><td>" + fmtDateTime(r.created_at) + "</td></tr>" +
@@ -1210,7 +1221,11 @@
       if (wantActive) cgFlowspec = cgFlowspec.filter(function (r) { return !!r.active; });
       renderFlowspecRulesTable(cgFlowspec, "rules-cg-flowspec-list");
 
-      var cgEdge = state.rulesCgEdgeData.slice();
+      // mechanism='flowspec' aqui é a MESMA regra já listada acima (em
+      // rules-cg-flowspec-list, vinda de flowspec_rules) — mostrar de novo
+      // duplicava toda mitigação automática via FlowSpec nas duas tabelas.
+      // Esta tabela agora é só o que não tem equivalente lá: SSH/ACL legado.
+      var cgEdge = state.rulesCgEdgeData.filter(function (m) { return m.mechanism !== "flowspec"; });
       if (wantActive) cgEdge = cgEdge.filter(function (m) { return m.status === "active"; });
       renderRulesCgEdgeTable(cgEdge, "rules-cg-edge-list");
     } else {

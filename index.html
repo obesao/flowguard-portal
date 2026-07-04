@@ -654,16 +654,16 @@
             <button class="fg-toggle-btn" data-view="history">Histórico completo</button>
           </div>
           <button class="fg-btn fg-btn-danger" id="fg-rules-del-all-btn">Apagar todas as regras ativas</button>
-          <button class="fg-btn fg-btn-danger" id="rules-cg-edge-revert-all-btn">Reverter todas as mitigações do ClientGuard</button>
+          <button class="fg-btn fg-btn-danger" id="rules-cg-edge-revert-all-btn" title="Reverte TODAS as mitigações do ClientGuard, tanto FlowSpec (tabela de cima) quanto SSH/ACL (tabela de baixo)">Reverter todas as mitigações do ClientGuard</button>
         </div>
         <div data-rules-app="flowguard">
           <h3>RTBH e FlowSpec (BGP)</h3>
           <div id="rules-fg-list"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
         </div>
         <div data-rules-app="clientguard" hidden>
-          <h3>Bloqueio via FlowSpec (proxy BGP pro FlowGuard)</h3>
+          <h3>Bloqueio via FlowSpec (proxy BGP pro FlowGuard) — manual e automático</h3>
           <div id="rules-cg-flowspec-list"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
-          <h3 style="margin-top:1rem;">Mitigação automática/manual na borda (FlowSpec + SSH legado)</h3>
+          <h3 style="margin-top:1rem;">Mitigação direta na borda (SSH/ACL legado)</h3>
           <div id="rules-cg-edge-list"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
         </div>
         <div id="rules-detail"></div>

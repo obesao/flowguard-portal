@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.35.0**
+**Versão atual: v1.36.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -85,6 +85,32 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.36.0 — 2026-07-04 — Remove duplicação entre as 2 tabelas do ClientGuard na aba Regras
+Pedido do usuário: "Bloqueio via FlowSpec" e "Mitigação automática/manual na
+borda" mostravam a MESMA mitigação duas vezes — toda vez que uma mitigação
+automática do ClientGuard usava FlowSpec (a maioria, hoje), ela aparecia como
+regra em `flowspec_rules` (tabela de cima) **e** como mitigação em
+`edge_mitigations` (tabela de baixo, que reúne SSH E FlowSpec). A tabela de
+cima já tinha ficado autossuficiente com a v1.35.0 (equipamento/gatilho
+próprios, não precisa mais olhar pra `edge_mitigations`), então:
+
+- Tabela de baixo (`rules-cg-edge-list`) agora filtra `mechanism !== "flowspec"`
+  — só mostra o que não tem equivalente em cima: mitigação direta via
+  SSH/ACL legado. Renomeada pra "Mitigação direta na borda (SSH/ACL legado)".
+- Tabela de cima ganhou rótulo amigável ("scan horizontal"/"scan vertical" em
+  vez de `"ClientGuard auto: port_scan_horizontal"` cru) — mesmo texto já
+  usado na aba Sinais Suspeitos, aplicado ao campo `label` que já vinha do
+  backend (nenhum dado novo, só reaproveita `CG_SIGNAL_LABELS`).
+- Botão "Reverter todas as mitigações do ClientGuard" ganhou um tooltip
+  deixando claro que afeta as duas tabelas (FlowSpec e SSH/ACL), já que
+  visualmente ele fica ao lado de só uma agora.
+
+Validado com Playwright real: tabela de baixo mostrando "Nenhuma mitigação
+de borda registrada" (nenhum SSH/ACL ativo hoje, só FlowSpec — confirma que
+não haveria mais linhas duplicadas), tabela de cima com rótulos amigáveis e
+sem nenhuma regressão na tabela equivalente do FlowGuard (que reaproveita a
+mesma função de renderização), 0 erros de console.
 
 ### v1.35.0 — 2026-07-04 — Etiquetas de mecanismo/equipamento/gatilho/status na aba Regras
 Pedido do usuário: nas 3 tabelas da aba Regras (RTBH/FlowSpec do FlowGuard,

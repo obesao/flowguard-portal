@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.38.0**
+**Versão atual: v1.39.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -85,6 +85,29 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.39.0 — 2026-07-04 — Selo "sem proteção" quando ataque/sinal segue ativo com mitigação encerrada
+Pedido do usuário: um ataque (FlowGuard) ou sinal suspeito (ClientGuard)
+continuava marcado como ativo/aberto mesmo muito depois do TTL da mitigação
+já ter vencido, sem nenhuma pista visual de que a proteção tinha caído.
+
+O selo de mitigação (já existente nas abas Ataques e Sinais Suspeitos) agora
+recebe o estado do próprio ataque/sinal: quando ele segue ativo/aberto mas a
+última mitigação não está mais em vigor, o selo muda de "encerrada" (neutro,
+cinza) pra "⚠ sem proteção" (vermelho, mesma classe visual de "falhou").
+Continua "encerrada" normal quando o ataque/sinal já fechou de verdade — só
+o caso "ainda te atacando e sem bloqueio" fica em destaque.
+
+Trabalho pareado com a correção equivalente no backend do FlowGuard e do
+ClientGuard (fechamento automático por inatividade, rede de segurança —
+ver changelogs dos dois projetos), que reduz a frequência desse estado mas
+não o elimina (é esperado: enquanto o atacante mandar tráfego, o ataque
+segue "ativo" de verdade, mesmo sem mitigação).
+
+Validado ao vivo contra os daemons reais após reinício de ambos: o selo "⚠
+sem proteção" apareceu corretamente nos sinais cuja mitigação a reconciliação
+automática do ClientGuard tinha acabado de reverter, tanto na tabela quanto
+no painel de detalhe, sem erro de console.
 
 ### v1.38.0 — 2026-07-04 — Filtros na aba Regras e em todas as telas com muitos hosts
 Pedido do usuário: filtros por tipo, por hora e por host/status na aba

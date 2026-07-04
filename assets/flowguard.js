@@ -960,7 +960,7 @@
           "<td class=\"" + sevClass + "\">" + escapeHtml(a.severity) + "</td>" +
           "<td>" + fmtBps(a.bps_peak || 0) + "</td>" +
           "<td>" + (a.pps_peak || 0).toLocaleString("pt-BR") + " pps</td>" +
-          "<td>" + fgAttackMitigationBadgeHtml(a.mitigation) + "</td>" +
+          "<td>" + fgAttackMitigationBadgeHtml(a.mitigation, !a.ts_end) + "</td>" +
           '<td><div class="fg-menu">' +
           '<button class="fg-btn" data-menu-toggle>Ações ▾</button>' +
           '<div class="fg-menu-list" hidden>' +
@@ -2992,7 +2992,10 @@
   // reconciliação automática com o FlowGuard (ver flowspec_mitigation.
   // reconcile_with_flowguard, no backend) — didaticamente é sempre "não está
   // bloqueando mais", a causa exata não importa pro operador aqui.
-  function cgMitigationBadgeHtml(mitigation) {
+  // rowOpen = o sinal em si ainda está "aberto" (resolved=0) — mesma ideia do
+  // equivalente no FlowGuard (fgAttackMitigationBadgeHtml): sinal aberto com
+  // mitigação já encerrada significa cliente SEM proteção agora, não histórico.
+  function cgMitigationBadgeHtml(mitigation, rowOpen) {
     if (!mitigation) {
       return '<span class="fg-mitigation-badge none">sem mitigação</span>';
     }
@@ -3006,6 +3009,10 @@
       return '<span class="fg-mitigation-badge failed" title="Última tentativa de mitigação falhou (' + since +
         ')">✖ falhou (' + escapeHtml(mech) + ")</span>";
     }
+    if (rowOpen) {
+      return '<span class="fg-mitigation-badge failed" title="Mitigação encerrada (' + since +
+        ') mas o sinal continua aberto — sem proteção agora">⚠ sem proteção (' + escapeHtml(mech) + ")</span>";
+    }
     return '<span class="fg-mitigation-badge inactive" title="Já teve mitigação, não está mais em vigor (' +
       since + ')">encerrada (' + escapeHtml(mech) + ")</span>";
   }
@@ -3018,7 +3025,11 @@
   // uma regra quando o anúncio BGP dá certo), por isso não existe esse estado
   // aqui, diferente do ClientGuard.
   var FG_MITIGATION_ACTION_LABELS = { rtbh: "RTBH" };
-  function fgAttackMitigationBadgeHtml(mitigation) {
+  // rowOpen = o ataque em si ainda está "ativo" (ts_end NULL) — pedido do usuário:
+  // um ataque que segue ativo com a mitigação já encerrada (TTL vencido, revert
+  // manual) precisa ficar visualmente diferente de "encerrada" genérico, porque
+  // nesse caso o cliente está SEM proteção agora, não é só histórico.
+  function fgAttackMitigationBadgeHtml(mitigation, rowOpen) {
     if (!mitigation) {
       return '<span class="fg-mitigation-badge none">sem mitigação</span>';
     }
@@ -3030,6 +3041,10 @@
     if (mitigation.active) {
       return '<span class="fg-mitigation-badge active" title="Mitigação ativa (' + since +
         ')">🛡 ativa (' + escapeHtml(actionLabel) + ")</span>";
+    }
+    if (rowOpen) {
+      return '<span class="fg-mitigation-badge failed" title="Mitigação encerrada (' + since +
+        ') mas o ataque continua ativo — sem proteção agora">⚠ sem proteção (' + escapeHtml(actionLabel) + ")</span>";
     }
     return '<span class="fg-mitigation-badge inactive" title="Já teve mitigação, não está mais em vigor (' +
       since + ')">encerrada (' + escapeHtml(actionLabel) + ")</span>";
@@ -3239,7 +3254,7 @@
           "<td>" + escapeHtml(r.src_ip) + "</td><td>" + escapeHtml(r.customer_prefix || "-") + "</td><td>" +
           escapeHtml(CG_SIGNAL_LABELS[r.signal_type] || r.signal_type) + "</td><td>" +
           Math.round((r.confidence || 0) * 100) + "%</td><td>" + fmtDateTime(r.ts_detected) + "</td><td>" +
-          fmtDateTime(r.ts_last_seen) + "</td><td>" + cgMitigationBadgeHtml(r.mitigation) + "</td>" +
+          fmtDateTime(r.ts_last_seen) + "</td><td>" + cgMitigationBadgeHtml(r.mitigation, !r.resolved) + "</td>" +
           "<td>" + resolveBtn + edgeBtn + '<button class="fg-btn" data-action="detail">Detalhes</button></td></tr>'
         );
       })
@@ -3290,7 +3305,7 @@
       '<button class="fg-btn" data-action="close-detail">Fechar</button></div>' +
       '<p class="fg-kpi-sub">Tipo: ' + escapeHtml(CG_SIGNAL_LABELS[row.signal_type] || row.signal_type) +
       " · Confiança: " + Math.round((row.confidence || 0) * 100) + "% · Evidência: " + escapeHtml(evidence) + "</p>" +
-      '<p class="fg-kpi-sub">Mitigação: ' + cgMitigationBadgeHtml(row.mitigation) + "</p>" +
+      '<p class="fg-kpi-sub">Mitigação: ' + cgMitigationBadgeHtml(row.mitigation, !row.resolved) + "</p>" +
       aiHtml +
       "</div>";
     el.scrollIntoView({ behavior: "smooth", block: "start" });

@@ -4,101 +4,132 @@
   <meta charset="utf-8">
   <title>Portal POX Network</title>
   <style>
+    :root {
+      --fg-bg: #0d1117;
+      --fg-bg-panel: #161b22;
+      --fg-bg-elevated: #21262d;
+      --fg-border: #30363d;
+      --fg-text: #c9d1d9;
+      --fg-text-muted: #8b949e;
+      --fg-accent: #58a6ff;
+      --fg-danger: #f85149;
+      --fg-danger-hover: #ff7b72;
+      --fg-success: #3fb950;
+      --fg-orange: #ffa657;
+      --fg-warning: #d29922;
+      --fg-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
     * { box-sizing: border-box; }
-    body { font-family: sans-serif; background: #0d1117; color: #c9d1d9; margin: 2rem; }
-    section, .fg-card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; }
+    body { font-family: var(--fg-font); background: var(--fg-bg); color: var(--fg-text); margin: 2rem; }
+    section, .fg-card { background: var(--fg-bg-panel); border: 1px solid var(--fg-border); border-radius: 8px; }
     h2 { margin-top: 0; }
     h4 { margin: 1rem 0 0.5rem; }
+
+    a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible,
+    textarea:focus-visible, [tabindex]:focus-visible {
+      outline: 2px solid var(--fg-accent); outline-offset: 2px;
+    }
 
     #fg-login-screen { max-width: 340px; margin: 4rem auto 0; }
     #fg-login-screen .fg-card { padding: 1.5rem; }
     #fg-login-form { display: flex; flex-direction: column; gap: 0.7rem; margin-top: 1rem; }
-    #fg-login-form input { background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; padding: 0.5rem 0.6rem; }
+    #fg-login-form input { background: var(--fg-bg); color: var(--fg-text); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.5rem 0.6rem; }
     #fg-login-status { font-size: 0.85rem; min-height: 1.1em; }
 
-    .fg-topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    .fg-topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.6rem; }
 
     .fg-wrap { max-width: 100%; }
 
     .fg-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.8rem; margin-bottom: 1.2rem; }
-    .fg-card { padding: 0.9rem 1rem; }
-    .fg-card .fg-kpi-label { font-size: 0.78rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.03em; }
+    .fg-card { padding: 0.9rem 1rem; border-top: 2px solid var(--fg-accent); transition: border-color 0.15s ease; }
+    .fg-card .fg-kpi-label { font-size: 0.78rem; color: var(--fg-text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
     .fg-card .fg-kpi-value { font-size: 1.5rem; font-weight: bold; margin-top: 0.2rem; }
     .fg-dot { display: inline-block; width: 0.55rem; height: 0.55rem; border-radius: 50%; margin-right: 0.4rem; }
-    .fg-dot-up { background: #3fb950; }
-    .fg-dot-down { background: #f85149; }
-    .fg-kpi-sub { font-size: 0.75rem; color: #8b949e; margin-top: 0.1rem; }
+    .fg-dot-up { background: var(--fg-success); }
+    .fg-dot-down { background: var(--fg-danger); }
+    .fg-kpi-sub { font-size: 0.75rem; color: var(--fg-text-muted); margin-top: 0.1rem; }
     /* card BGP mostra 1 linha por sessão (main + pppoe) — fonte menor que o
        valor normal de KPI (1.5rem) pra caber "NE8000-PPPOE Down/Idle" no card */
     .fg-bgp-peer { font-size: 0.92rem; font-weight: 600; line-height: 1.6; white-space: nowrap; }
 
-    .fg-tabs { display: flex; gap: 0.3rem; margin-bottom: 1rem; border-bottom: 1px solid #30363d; }
+    .fg-tabs { display: flex; gap: 0.3rem; margin-bottom: 1rem; border-bottom: 1px solid var(--fg-border); flex-wrap: wrap; }
     .fg-tab-btn {
-      background: transparent; border: none; color: #8b949e; padding: 0.6rem 1rem; cursor: pointer;
+      background: transparent; border: none; color: var(--fg-text-muted); padding: 0.6rem 1rem; cursor: pointer;
       font-size: 0.95rem; border-bottom: 2px solid transparent; display: flex; align-items: center; gap: 0.4rem;
+      transition: color 0.15s ease, border-color 0.15s ease;
     }
-    .fg-tab-btn.active { color: #c9d1d9; border-bottom-color: #58a6ff; }
-    .fg-tab-btn:hover { color: #c9d1d9; }
-    .fg-badge { background: #f85149; color: white; font-size: 0.7rem; border-radius: 999px; padding: 0.05rem 0.45rem; }
+    .fg-tab-btn.active { color: var(--fg-text); border-bottom-color: var(--fg-accent); }
+    .fg-tab-btn:hover { color: var(--fg-text); }
+    .fg-badge { background: var(--fg-danger); color: white; font-size: 0.7rem; border-radius: 999px; padding: 0.05rem 0.45rem; }
 
     .fg-tab-panel { display: none; }
-    .fg-tab-panel.active { display: block; }
+    .fg-tab-panel.active { display: block; animation: fg-fade-in 0.15s ease; }
+    @keyframes fg-fade-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
+    @media (prefers-reduced-motion: reduce) {
+      .fg-tab-panel.active, .fg-toast, .fg-skeleton-line, .fg-skeleton-card { animation: none !important; }
+    }
 
     section.fg-panel-section { padding: 1rem; margin-bottom: 1.2rem; }
 
     .fg-toolbar { display: flex; gap: 0.6rem; align-items: center; margin-bottom: 0.8rem; flex-wrap: wrap; }
     .fg-toolbar input[type="text"], .fg-toolbar select {
-      background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; padding: 0.35rem 0.6rem;
+      background: var(--fg-bg); color: var(--fg-text); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.35rem 0.6rem;
     }
     .fg-toggle-group { display: flex; gap: 0.3rem; }
-    .fg-toggle-btn { background: #21262d; color: #8b949e; border: 1px solid #30363d; border-radius: 6px; padding: 0.3rem 0.7rem; cursor: pointer; }
-    .fg-toggle-btn.active { background: #30363d; color: #c9d1d9; }
+    .fg-toggle-btn { background: var(--fg-bg-elevated); color: var(--fg-text-muted); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.3rem 0.7rem; cursor: pointer; transition: background 0.15s ease, color 0.15s ease; }
+    .fg-toggle-btn.active { background: var(--fg-border); color: var(--fg-text); }
 
     .fg-statusbar { display: flex; gap: 1.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
-    .fg-statusbar span { background: #21262d; padding: 0.4rem 0.8rem; border-radius: 6px; }
+    .fg-statusbar span { background: var(--fg-bg-elevated); padding: 0.4rem 0.8rem; border-radius: 6px; }
 
     table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-    table th, table td { text-align: left; padding: 0.32rem 0.55rem; border-bottom: 1px solid #30363d; white-space: nowrap; }
+    table th, table td { text-align: left; padding: 0.32rem 0.55rem; border-bottom: 1px solid var(--fg-border); white-space: nowrap; }
     table td.fg-wrap-cell { white-space: normal; }
     table th[data-sort-key] { cursor: pointer; user-select: none; }
-    table th[data-sort-key]:hover { color: #58a6ff; }
+    table th[data-sort-key]:hover { color: var(--fg-accent); }
     table th.fg-sorted::after { content: " ▾"; }
     table th.fg-sorted.fg-sorted-asc::after { content: " ▴"; }
 
-    .fg-pagination { display: flex; align-items: center; gap: 0.8rem; margin-top: 0.6rem; font-size: 0.82rem; color: #8b949e; }
+    .fg-pagination { display: flex; align-items: center; gap: 0.8rem; margin-top: 0.6rem; font-size: 0.82rem; color: var(--fg-text-muted); }
     .fg-pagination .fg-btn:disabled { opacity: 0.4; cursor: default; }
 
     .fg-menu { position: relative; display: inline-block; }
     .fg-menu-list {
-      position: absolute; right: 0; top: 100%; margin-top: 0.2rem; background: #21262d; border: 1px solid #30363d;
+      position: absolute; right: 0; top: 100%; margin-top: 0.2rem; background: var(--fg-bg-elevated); border: 1px solid var(--fg-border);
       border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 20; min-width: 170px; padding: 0.3rem;
     }
     .fg-menu-list[hidden] { display: none; }
     .fg-menu-list button {
-      display: block; width: 100%; text-align: left; background: transparent; border: none; color: #c9d1d9;
+      display: block; width: 100%; text-align: left; background: transparent; border: none; color: var(--fg-text);
       padding: 0.35rem 0.5rem; border-radius: 4px; cursor: pointer; font-size: 0.82rem; white-space: nowrap;
     }
-    .fg-menu-list button:hover { background: #30363d; }
-    .fg-menu-hint { display: block; padding: 0.3rem 0.5rem; font-size: 0.72rem; color: #8b949e; white-space: normal; max-width: 220px; }
+    .fg-menu-list button:hover { background: var(--fg-border); }
+    .fg-menu-hint { display: block; padding: 0.3rem 0.5rem; font-size: 0.72rem; color: var(--fg-text-muted); white-space: normal; max-width: 220px; }
 
-    .fg-error { color: #f85149; }
-    .fg-ok { color: #3fb950; }
-    .fg-sev-critical { color: #f85149; font-weight: bold; }
-    .fg-sev-high { color: #ffa657; font-weight: bold; }
-    .fg-sev-medium { color: #d29922; }
-    .fg-sev-info { color: #8b949e; }
+    .fg-error { color: var(--fg-danger); }
+    .fg-ok { color: var(--fg-success); }
+    .fg-sev-critical { color: var(--fg-danger); font-weight: bold; }
+    .fg-sev-high { color: var(--fg-orange); font-weight: bold; }
+    .fg-sev-medium { color: var(--fg-warning); }
+    .fg-sev-info { color: var(--fg-text-muted); }
 
-    .fg-btn { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; padding: 0.2rem 0.6rem; cursor: pointer; }
+    .fg-btn { background: var(--fg-bg-elevated); color: var(--fg-text); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.2rem 0.6rem; cursor: pointer; transition: background 0.15s ease; }
     .fg-btn:disabled { opacity: 0.5; cursor: default; }
-    .fg-btn:hover { background: #30363d; }
-    .fg-btn-danger { background: #f85149; color: #0d1117; border-color: #f85149; font-weight: bold; }
-    .fg-btn-danger:hover { background: #ff7b72; }
+    .fg-btn:hover { background: var(--fg-border); }
+    .fg-btn-danger { background: var(--fg-danger); color: var(--fg-bg); border-color: var(--fg-danger); font-weight: bold; }
+    .fg-btn-danger:hover { background: var(--fg-danger-hover); }
     .fg-btn-danger:disabled { opacity: 0.5; cursor: default; }
 
+    .fg-icon { display: inline-flex; vertical-align: -2px; margin-right: 0.35rem; }
+    .fg-icon svg { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    h2 .fg-icon, h3 .fg-icon { vertical-align: -3px; margin-right: 0.4rem; }
+
     /* mitigação/regra FlowSpec ativa nas caixas de resumo do topo — chama atenção
-       mesmo sem entrar na aba Regras */
-    .fg-card-danger { border-color: #f85149; }
-    .fg-card-danger .fg-kpi-value { color: #f85149; }
+       mesmo sem entrar na aba Regras; precisa vencer o acento neutro de .fg-card
+       (mesma especificidade, mas definida depois no arquivo) */
+    .fg-card-danger { border-color: var(--fg-danger); }
+    .fg-card-danger .fg-kpi-value { color: var(--fg-danger); }
 
     .fg-modal-overlay {
       position: fixed; inset: 0; background: rgba(1,4,9,0.75); z-index: 500;
@@ -106,81 +137,83 @@
     }
     .fg-modal-overlay[hidden] { display: none; }
     .fg-modal {
-      background: #161b22; border: 1px solid #f85149; border-radius: 8px; padding: 1.2rem 1.5rem;
+      background: var(--fg-bg-panel); border: 1px solid var(--fg-danger); border-radius: 8px; padding: 1.2rem 1.5rem;
       max-width: 640px; width: 100%; max-height: 85vh; overflow-y: auto;
     }
-    .fg-warmode-device-row { display: flex; justify-content: space-between; padding: 0.4rem 0; border-bottom: 1px solid #30363d; }
-    .fg-warmode-result { margin-top: 0.6rem; padding: 0.6rem 0.8rem; border-radius: 6px; background: #0d1117; border: 1px solid #30363d; }
-    .fg-warmode-result.ok { border-color: #3fb950; }
-    .fg-warmode-result.fail { border-color: #f85149; }
+    .fg-warmode-device-row { display: flex; justify-content: space-between; padding: 0.4rem 0; border-bottom: 1px solid var(--fg-border); }
+    .fg-warmode-result { margin-top: 0.6rem; padding: 0.6rem 0.8rem; border-radius: 6px; background: var(--fg-bg); border: 1px solid var(--fg-border); }
+    .fg-warmode-result.ok { border-color: var(--fg-success); }
+    .fg-warmode-result.fail { border-color: var(--fg-danger); }
     .fg-warmode-result pre { white-space: pre-wrap; font-size: 0.78rem; margin: 0.4rem 0 0; max-height: 200px; overflow-y: auto; }
 
-    .fg-rc-job { margin-top: 0.6rem; padding: 0.6rem 0.8rem; border-radius: 6px; background: #0d1117; border: 1px solid #d29922; }
-    .fg-rc-job.status-confirmed, .fg-rc-job.status-reverted, .fg-rc-job.status-auto_reverted { border-color: #3fb950; }
+    .fg-rc-job { margin-top: 0.6rem; padding: 0.6rem 0.8rem; border-radius: 6px; background: var(--fg-bg); border: 1px solid var(--fg-warning); }
+    .fg-rc-job.status-confirmed, .fg-rc-job.status-reverted, .fg-rc-job.status-auto_reverted { border-color: var(--fg-success); }
     .fg-rc-job pre { white-space: pre-wrap; font-size: 0.78rem; margin: 0.4rem 0; max-height: 160px; overflow-y: auto; }
-    .fg-rc-countdown { font-weight: bold; color: #d29922; }
+    .fg-rc-countdown { font-weight: bold; color: var(--fg-warning); }
     .fg-rc-fields { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.6rem 0; }
-    .fg-rc-fields label { font-size: 0.82rem; color: #8b949e; display: flex; flex-direction: column; gap: 0.2rem; }
-    .fg-rc-fields input, .fg-rc-fields select { background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; padding: 0.35rem 0.5rem; }
+    .fg-rc-fields label { font-size: 0.82rem; color: var(--fg-text-muted); display: flex; flex-direction: column; gap: 0.2rem; }
+    .fg-rc-fields input, .fg-rc-fields select { background: var(--fg-bg); color: var(--fg-text); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.35rem 0.5rem; }
 
-    .fg-wm-device { background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 0.8rem; margin-bottom: 0.8rem; }
+    .fg-wm-device { background: var(--fg-bg); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.8rem; margin-bottom: 0.8rem; }
     .fg-wm-device-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
-    .fg-wm-device-grid input { background: #161b22; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; padding: 0.3rem 0.5rem; width: 100%; }
-    .fg-wm-device textarea { width: 100%; background: #161b22; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; padding: 0.4rem 0.5rem; margin-top: 0.5rem; font-family: monospace; font-size: 0.82rem; min-height: 70px; }
-    .fg-wm-device label { font-size: 0.72rem; color: #8b949e; display: block; margin-bottom: 0.15rem; }
+    .fg-wm-device-grid input { background: var(--fg-bg-panel); color: var(--fg-text); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.3rem 0.5rem; width: 100%; }
+    .fg-wm-device textarea { width: 100%; background: var(--fg-bg-panel); color: var(--fg-text); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.4rem 0.5rem; margin-top: 0.5rem; font-family: monospace; font-size: 0.82rem; min-height: 70px; }
+    .fg-wm-device label { font-size: 0.72rem; color: var(--fg-text-muted); display: block; margin-bottom: 0.15rem; }
     .fg-wm-device .fg-wm-row-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
 
-    .fg-spark { display: inline-flex; align-items: center; gap: 0.5rem; background: #21262d; padding: 0.4rem 0.8rem; border-radius: 6px; margin: 0 0.5rem 0.5rem 0; }
+    .fg-spark { display: inline-flex; align-items: center; gap: 0.5rem; background: var(--fg-bg-elevated); padding: 0.4rem 0.8rem; border-radius: 6px; margin: 0 0.5rem 0.5rem 0; }
     .fg-spark-label { font-weight: bold; font-size: 0.8rem; }
-    .fg-spark-value { font-size: 0.8rem; color: #8b949e; }
+    .fg-spark-value { font-size: 0.8rem; color: var(--fg-text-muted); }
 
-    .fg-ai-panel { background: #21262d; border-radius: 6px; padding: 0.8rem; margin-top: 0.8rem; }
+    .fg-ai-panel { background: var(--fg-bg-elevated); border-radius: 6px; padding: 0.8rem; margin-top: 0.8rem; }
     .fg-ai-panel pre { white-space: pre-wrap; font-family: inherit; }
-    #rules-detail pre { white-space: pre-wrap; font-size: 0.78rem; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 0.6rem 0.8rem; max-height: 240px; overflow-y: auto; }
+    #rules-detail pre { white-space: pre-wrap; font-size: 0.78rem; background: var(--fg-bg); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.6rem 0.8rem; max-height: 240px; overflow-y: auto; }
     #rules-detail table { margin-bottom: 0.8rem; }
-    #rules-detail table td:first-child { color: #8b949e; width: 180px; }
+    #rules-detail table td:first-child { color: var(--fg-text-muted); width: 180px; }
     .fg-panel-header { display: flex; justify-content: space-between; align-items: center; }
     .fg-panel-header h4 { margin: 0; }
 
     .fg-form { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; margin: 0.8rem 0 1.5rem; }
     .fg-form input[type="text"], .fg-form input:not([type]), .fg-form input[type="number"] {
-      background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; padding: 0.3rem 0.5rem;
+      background: var(--fg-bg); color: var(--fg-text); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.3rem 0.5rem;
     }
     .fg-form label { font-size: 0.85rem; }
 
     .fg-toggle-list { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.8rem 0; }
     .fg-toggle-item {
-      display: flex; align-items: center; gap: 0.6rem; background: #161b22; border: 1px solid #30363d;
+      display: flex; align-items: center; gap: 0.6rem; background: var(--fg-bg-panel); border: 1px solid var(--fg-border);
       border-radius: 6px; padding: 0.5rem 0.7rem;
     }
     .fg-toggle-item input[type="checkbox"] { width: 1.05rem; height: 1.05rem; flex-shrink: 0; cursor: pointer; }
     .fg-toggle-item.disabled { opacity: 0.55; }
     .fg-toggle-item label { cursor: pointer; }
     .fg-toggle-item .fg-toggle-name { font-weight: 600; }
-    .fg-toggle-item .fg-toggle-desc { font-size: 0.75rem; color: #8b949e; }
+    .fg-toggle-item .fg-toggle-desc { font-size: 0.75rem; color: var(--fg-text-muted); }
     .fg-toggle-item label { flex: 1; }
     .fg-toggle-item .fg-toggle-select {
-      background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px;
+      background: var(--fg-bg); color: var(--fg-text); border: 1px solid var(--fg-border); border-radius: 6px;
       padding: 0.3rem 0.5rem; flex-shrink: 0;
     }
 
     #fg-mitigation-cfg table select, #fg-mitigation-cfg table input[type="number"] {
-      background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; padding: 0.25rem 0.4rem;
+      background: var(--fg-bg); color: var(--fg-text); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.25rem 0.4rem;
     }
     #fg-mitigation-cfg table input[type="number"] { width: 6rem; }
-    #fg-mitigation-cfg table td.fg-muted { color: #8b949e; }
+    #fg-mitigation-cfg table td.fg-muted { color: var(--fg-text-muted); }
 
     #fg-toast-container { position: fixed; bottom: 1.2rem; right: 1.2rem; display: flex; flex-direction: column; gap: 0.5rem; z-index: 999; }
     .fg-toast {
-      background: #21262d; border: 1px solid #30363d; border-radius: 6px; padding: 0.6rem 1rem;
+      background: var(--fg-bg-elevated); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.6rem 1rem;
       font-size: 0.85rem; max-width: 320px; box-shadow: 0 2px 8px rgba(0,0,0,0.4); opacity: 1; transition: opacity 0.3s;
+      animation: fg-toast-in 0.2s ease;
     }
-    .fg-toast-success { border-color: #3fb950; }
-    .fg-toast-error { border-color: #f85149; }
+    @keyframes fg-toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .fg-toast-success { border-color: var(--fg-success); }
+    .fg-toast-error { border-color: var(--fg-danger); }
     .fg-toast-out { opacity: 0; }
 
     .fg-chart-box { margin-bottom: 1.5rem; position: relative; }
-    .fg-chart-box canvas { display: block; width: 100%; background: #0d1117; border-radius: 6px; cursor: crosshair; }
+    .fg-chart-box canvas { display: block; width: 100%; background: var(--fg-bg); border-radius: 6px; cursor: crosshair; }
     .fg-chart-box canvas.fg-chart-lg { height: 260px; }
     .fg-chart-box canvas.fg-chart-sm { height: 160px; }
     .fg-legend { display: flex; gap: 1rem; margin-top: 0.5rem; flex-wrap: wrap; font-size: 0.8rem; }
@@ -188,20 +221,48 @@
     .fg-legend i { display: inline-block; width: 0.8rem; height: 0.4rem; border-radius: 2px; }
 
     .fg-chart-tooltip {
-      position: fixed; pointer-events: none; background: #21262d; border: 1px solid #30363d;
+      position: fixed; pointer-events: none; background: var(--fg-bg-elevated); border: 1px solid var(--fg-border);
       border-radius: 6px; padding: 0.5rem 0.7rem; font-size: 0.78rem; z-index: 1000;
       box-shadow: 0 2px 8px rgba(0,0,0,0.5); max-width: 280px; line-height: 1.5;
     }
     .fg-chart-tooltip[hidden] { display: none; }
-    .fg-chart-tooltip .fg-tt-title { font-weight: bold; margin-bottom: 0.2rem; color: #c9d1d9; }
+    .fg-chart-tooltip .fg-tt-title { font-weight: bold; margin-bottom: 0.2rem; color: var(--fg-text); }
     .fg-chart-tooltip .fg-tt-row { display: flex; justify-content: space-between; gap: 0.8rem; white-space: nowrap; }
     .fg-chart-tooltip .fg-tt-swatch { display: inline-block; width: 0.6rem; height: 0.6rem; border-radius: 2px; margin-right: 0.35rem; }
 
-    .fg-trend { font-size: 0.72rem; color: #8b949e; margin-left: 0.4rem; }
+    .fg-trend { font-size: 0.72rem; color: var(--fg-text-muted); margin-left: 0.4rem; }
 
-    .fg-hbar-wrap { position: relative; background: #21262d; border-radius: 4px; height: 1.4rem; min-width: 160px; max-width: 320px; overflow: hidden; }
-    .fg-hbar { position: absolute; left: 0; top: 0; bottom: 0; background: #58a6ff; opacity: 0.35; border-radius: 4px 0 0 4px; }
+    .fg-hbar-wrap { position: relative; background: var(--fg-bg-elevated); border-radius: 4px; height: 1.4rem; min-width: 160px; max-width: 320px; overflow: hidden; }
+    .fg-hbar { position: absolute; left: 0; top: 0; bottom: 0; background: var(--fg-accent); opacity: 0.35; border-radius: 4px 0 0 4px; }
     .fg-hbar-label { position: relative; z-index: 1; font-size: 0.78rem; padding: 0 0.5rem; line-height: 1.4rem; }
+
+    /* skeletons — estado inicial de "Carregando..." antes do 1º fetch responder */
+    @keyframes fg-shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+    .fg-skeleton-lines { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.2rem 0; }
+    .fg-skeleton-lines.fg-skeleton-sm { gap: 0.3rem; }
+    .fg-skeleton-line {
+      display: block; height: 0.9rem; border-radius: 4px;
+      background: linear-gradient(90deg, var(--fg-bg-elevated) 25%, var(--fg-border) 37%, var(--fg-bg-elevated) 63%);
+      background-size: 400% 100%; animation: fg-shimmer 1.4s ease infinite;
+    }
+    .fg-skeleton-sm .fg-skeleton-line { height: 0.75rem; }
+    .fg-skeleton-line:nth-child(1) { width: 70%; }
+    .fg-skeleton-line:nth-child(2) { width: 92%; }
+    .fg-skeleton-line:nth-child(3) { width: 55%; }
+    .fg-skeleton-card {
+      height: 68px; border-radius: 8px; border: 1px solid var(--fg-border);
+      background: linear-gradient(90deg, var(--fg-bg-panel) 25%, var(--fg-bg-elevated) 37%, var(--fg-bg-panel) 63%);
+      background-size: 400% 100%; animation: fg-shimmer 1.4s ease infinite;
+    }
+
+    /* responsividade — telas estreitas priorizam ler a tabela por completo
+       (quebra de linha) em vez de recortar; densidade compacta de Ataques/Top
+       Prefixos/Flows continua intacta em telas normais */
+    @media (max-width: 760px) {
+      body { margin: 1rem; }
+      table th, table td { white-space: normal; }
+      .fg-form, .fg-toolbar { gap: 0.4rem; }
+    }
   </style>
 </head>
 <body>
@@ -221,21 +282,21 @@
     <div class="fg-topbar">
       <h1 style="font-size: 1.3rem; margin: 0;">FlowGuard — POX Network</h1>
       <div style="display:flex; gap:0.6rem; align-items:center;">
-        <button id="fg-warmode-open-btn" class="fg-btn fg-btn-danger">🚨 Modo Guerra</button>
-        <button id="fg-warmode-revert-open-btn" class="fg-btn" title="Roda os comandos de reversão em todos os equipamentos, desfazendo o que o Modo Guerra aplicou">🔙 Sair do Modo Guerra</button>
-        <button id="fg-warmode-cfg-open-btn" class="fg-btn" title="Configurar equipamentos do Modo Guerra">⚙️ Modo Guerra</button>
-        <button id="fg-routercfg-open-btn" class="fg-btn" title="Editar configuração do roteador de borda via templates validados">🔧 Config. Roteador</button>
+        <button id="fg-warmode-open-btn" class="fg-btn fg-btn-danger"><span class="fg-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3Z"/><path d="M12 9v5"/><path d="M12 17h.01"/></svg></span>Modo Guerra</button>
+        <button id="fg-warmode-revert-open-btn" class="fg-btn" title="Roda os comandos de reversão em todos os equipamentos, desfazendo o que o Modo Guerra aplicou"><span class="fg-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v1"/></svg></span>Sair do Modo Guerra</button>
+        <button id="fg-warmode-cfg-open-btn" class="fg-btn" title="Configurar equipamentos do Modo Guerra"><span class="fg-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg></span>Modo Guerra</button>
+        <button id="fg-routercfg-open-btn" class="fg-btn" title="Editar configuração do roteador de borda via templates validados"><span class="fg-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>Config. Roteador</button>
         <button id="fg-logout-btn" class="fg-btn">Sair</button>
       </div>
     </div>
 
     <div id="fg-warmode-overlay" class="fg-modal-overlay" hidden>
       <div class="fg-modal">
-        <h2 id="fg-warmode-title" style="color:#f85149;">🚨 Modo Guerra</h2>
+        <h2 id="fg-warmode-title" style="color:#f85149;"><span class="fg-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3Z"/><path d="M12 9v5"/><path d="M12 17h.01"/></svg></span>Modo Guerra</h2>
         <p class="fg-kpi-sub">Protegido pela mesma senha da configuração do Modo Guerra.</p>
 
         <div id="fg-warmode-exec-needs-setup" hidden>
-          <p class="fg-error">Nenhuma senha do Modo Guerra configurada ainda. Defina uma em "⚙️ Modo Guerra" antes de executar.</p>
+          <p class="fg-error">Nenhuma senha do Modo Guerra configurada ainda. Defina uma em "Modo Guerra" (ícone de engrenagem) antes de executar.</p>
         </div>
 
         <div id="fg-warmode-exec-lock" hidden>
@@ -248,7 +309,7 @@
 
         <div id="fg-warmode-exec-content" hidden>
           <p id="fg-warmode-exec-desc" class="fg-kpi-sub">Executa os comandos configurados via SSH, em paralelo, em todos os equipamentos abaixo — reais, agora, sem confirmação adicional depois do próximo clique.</p>
-          <div id="fg-warmode-devices">Carregando...</div>
+          <div id="fg-warmode-devices"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
           <div id="fg-warmode-results"></div>
           <div style="display:flex; gap:0.6rem; margin-top:1rem;">
             <button id="fg-warmode-confirm-btn" class="fg-btn fg-btn-danger">Confirmar e executar agora</button>
@@ -273,7 +334,7 @@
 
     <div id="fg-warmode-cfg-overlay" class="fg-modal-overlay" hidden>
       <div class="fg-modal">
-        <h2>⚙️ Configuração do Modo Guerra</h2>
+        <h2><span class="fg-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg></span>Configuração do Modo Guerra</h2>
         <p class="fg-kpi-sub">Protegida por uma senha própria, separada do login do portal.</p>
 
         <div id="fg-warmode-cfg-setup" hidden>
@@ -323,11 +384,11 @@
 
     <div id="fg-routercfg-overlay" class="fg-modal-overlay" hidden>
       <div class="fg-modal">
-        <h2>🔧 Configuração do Roteador de Borda</h2>
+        <h2><span class="fg-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>Configuração do Roteador de Borda</h2>
         <p class="fg-kpi-sub">Protegido pela mesma senha do Modo Guerra. Edição só por templates validados — sem CLI livre.</p>
 
         <div id="fg-rc-needs-setup" hidden>
-          <p class="fg-error">Nenhuma senha do Modo Guerra configurada ainda. Defina uma em "⚙️ Modo Guerra" antes de usar esta tela.</p>
+          <p class="fg-error">Nenhuma senha do Modo Guerra configurada ainda. Defina uma em "Modo Guerra" (ícone de engrenagem) antes de usar esta tela.</p>
         </div>
 
         <div id="fg-rc-lock" hidden>
@@ -344,7 +405,7 @@
           <h3 style="margin-top:1rem;">Configuração real do roteador (BGP)</h3>
           <p class="fg-kpi-sub">Lê peers e prefixos anunciados de verdade via SSH, pra escolher no template abaixo em vez de digitar IP na mão.</p>
           <div class="fg-toolbar">
-            <button id="fg-rc-discover-btn" class="fg-btn">🔍 Ler configuração atual (BGP)</button>
+            <button id="fg-rc-discover-btn" class="fg-btn"><span class="fg-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></span>Ler configuração atual (BGP)</button>
           </div>
           <div id="fg-rc-discovery-summary"></div>
 
@@ -361,7 +422,7 @@
           <div id="fg-rc-preview"></div>
 
           <h3 style="margin-top:1.2rem;">Histórico</h3>
-          <div id="fg-rc-history">Carregando...</div>
+          <div id="fg-rc-history"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
         </div>
 
         <div style="display:flex; gap:0.6rem; margin-top:1rem;">
@@ -392,7 +453,7 @@
         <div class="fg-toolbar">
           <input type="text" id="fg-top-prefixes-search" placeholder="filtrar por prefixo...">
         </div>
-        <div id="flowguard-top-prefixes">Carregando...</div>
+        <div id="flowguard-top-prefixes"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
       </section>
     </div>
 
@@ -420,7 +481,7 @@
           <input type="text" id="fg-attacks-prefix-filter" placeholder="filtrar por prefixo/cliente...">
           <button class="fg-btn fg-btn-danger" id="fg-clear-suspicious-btn">Limpar hosts suspeitos</button>
         </div>
-        <div id="flowguard-attacks">Carregando...</div>
+        <div id="flowguard-attacks"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
         <div id="flowguard-attack-detail"></div>
       </section>
     </div>
@@ -431,7 +492,7 @@
         <div class="fg-toolbar">
           <input type="text" id="fg-flows-search" placeholder="filtrar por prefixo ou porta...">
         </div>
-        <div id="flowguard-flows">Carregando...</div>
+        <div id="flowguard-flows"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
       </section>
     </div>
 
@@ -467,13 +528,13 @@
         </div>
         <div data-rules-app="flowguard">
           <h3>RTBH e FlowSpec (BGP)</h3>
-          <div id="rules-fg-list">Carregando...</div>
+          <div id="rules-fg-list"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
         </div>
         <div data-rules-app="clientguard" hidden>
           <h3>Bloqueio via FlowSpec (proxy BGP pro FlowGuard)</h3>
-          <div id="rules-cg-flowspec-list">Carregando...</div>
+          <div id="rules-cg-flowspec-list"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
           <h3 style="margin-top:1rem;">Mitigação automática/manual na borda (FlowSpec + SSH legado)</h3>
-          <div id="rules-cg-edge-list">Carregando...</div>
+          <div id="rules-cg-edge-list"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
         </div>
         <div id="rules-detail"></div>
       </section>
@@ -481,9 +542,9 @@
 
     <div class="fg-tab-panel" data-tab="cfg">
       <section class="fg-panel-section">
-        <h2>📱 Alertas via WhatsApp</h2>
+        <h2><span class="fg-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg></span>Alertas via WhatsApp</h2>
         <p class="fg-kpi-sub">Conexão compartilhada por FlowGuard e ClientGuard (Evolution API self-hosted) — só existe UM número conectado, usado pelos dois.</p>
-        <div id="fg-wa-status" class="fg-kpi-sub">Carregando...</div>
+        <div id="fg-wa-status" class="fg-kpi-sub"><span class="fg-skeleton-lines fg-skeleton-sm"><span class="fg-skeleton-line"></span></span></div>
         <div id="fg-wa-qr-wrap" style="display:none; margin: 0.6rem 0;">
           <img id="fg-wa-qr-img" alt="QR code do WhatsApp" style="width:220px;height:220px;border:1px solid #30363d;border-radius:6px;background:#fff;padding:6px;">
           <p class="fg-kpi-sub">Escaneie em WhatsApp → Aparelhos conectados → Conectar um aparelho. Expira em ~30-60s.</p>
@@ -514,7 +575,7 @@
       <section class="fg-panel-section">
         <h2>Funções de Detecção</h2>
         <p class="fg-kpi-sub">Liga/desliga cada tipo de ataque detectado individualmente. Desabilitar não fecha ataques já ativos, só para de abrir/atualizar novos a partir de agora.</p>
-        <div class="fg-toggle-list" id="fg-toggles">Carregando...</div>
+        <div class="fg-toggle-list" id="fg-toggles"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
         <div class="fg-toolbar">
           <button class="fg-btn" id="fg-toggles-apply-btn" disabled>Aplicar novas configurações</button>
         </div>
@@ -522,21 +583,21 @@
       <section class="fg-panel-section">
         <h2>Mitigação</h2>
         <p class="fg-kpi-sub">Estratégia sugerida (botão "Aplicar Sugestão" na aba Ataques) por tipo de ataque — RTBH bloqueia o prefixo inteiro via BGP; Descartar (FlowSpec) derruba só o tráfego que casa o padrão do ataque; Limitar banda (FlowSpec) não derruba nada, só limita a velocidade desse tráfego. O botão "Mitigar" continua sempre RTBH, como ação manual de emergência.</p>
-        <div id="fg-mitigation-cfg">Carregando...</div>
+        <div id="fg-mitigation-cfg"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
         <div class="fg-toolbar">
           <button class="fg-btn" id="fg-mitigation-save-btn" disabled>Salvar configurações de mitigação</button>
         </div>
       </section>
       <section class="fg-panel-section">
         <h2>Configuração</h2>
-        <div id="flowguard-cfg">Carregando...</div>
+        <div id="flowguard-cfg"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
       </section>
     </div>
 
     <div class="fg-tab-panel" data-tab="clientguard">
       <section class="fg-panel-section">
         <h2>ClientGuard — Status</h2>
-        <div class="fg-kpis" id="cg-kpis">Carregando...</div>
+        <div class="fg-kpis" id="cg-kpis"><div class="fg-skeleton-card"></div><div class="fg-skeleton-card"></div><div class="fg-skeleton-card"></div><div class="fg-skeleton-card"></div></div>
       </section>
       <section class="fg-panel-section">
         <h2>Top Clientes por Consumo de Dados</h2>
@@ -548,7 +609,7 @@
             <button class="fg-toggle-btn" data-window-s="604800">7d</button>
           </div>
         </div>
-        <div id="cg-top">Carregando...</div>
+        <div id="cg-top"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
         <div id="cg-client-detail"></div>
       </section>
       <section class="fg-panel-section">
@@ -560,13 +621,13 @@
           </div>
           <button class="fg-btn fg-btn-danger" id="cg-clear-suspicious-btn">Limpar hosts suspeitos</button>
         </div>
-        <div id="cg-suspicious">Carregando...</div>
+        <div id="cg-suspicious"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
         <div id="cg-suspicious-detail"></div>
       </section>
       <section class="fg-panel-section">
         <h2>Configurações — Funções do ClientGuard</h2>
         <p class="fg-kpi-sub">Liga/desliga cada detector e a explicação por IA individualmente. Desabilitar não apaga sinais já abertos, só para de gerar novos a partir de agora.</p>
-        <div class="fg-toggle-list" id="cg-toggles">Carregando...</div>
+        <div class="fg-toggle-list" id="cg-toggles"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
         <div class="fg-toolbar">
           <button class="fg-btn" id="cg-toggles-apply-btn" disabled>Aplicar novas configurações</button>
         </div>
@@ -575,7 +636,7 @@
         <h2>Mitigação automática por detector (FlowSpec)</h2>
         <p class="fg-kpi-sub">Cada sinal novo pode disparar sozinho, sem clique, uma regra BGP FlowSpec (proxy pro FlowGuard — mesma sessão BGP única com o roteador): <strong>Descartar</strong> bloqueia todo o tráfego do cliente; <strong>Limitar banda</strong> não derruba a navegação, só corta o excesso acima do normal daquele cliente (limite calculado sozinho a partir do histórico dele, maior peso pra DNS/amplificação); <strong>Desligado</strong> só registra o sinal, sem mitigar. Aplicar numa origem já mitigada só estende o TTL ou substitui por uma ação mais severa, nunca duplica regra. O antigo caminho via SSH/ACL direto no roteador fica só de suporte, sem novo gatilho automático — mitigações SSH já ativas de antes continuam expirando normalmente e aparecem na lista abaixo.</p>
         <h3 style="margin-top:0.6rem;">Ação automática por detector</h3>
-        <div class="fg-toggle-list" id="cg-edge-auto">Carregando...</div>
+        <div class="fg-toggle-list" id="cg-edge-auto"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
         <div class="fg-toolbar">
           <select id="cg-edge-default-ttl">
             <option value="3600">TTL padrão: 1 hora</option>
@@ -589,7 +650,7 @@
           <h3 style="margin:0;">Mitigações ativas / histórico (FlowSpec e SSH legado)</h3>
           <button class="fg-btn fg-btn-danger" id="cg-edge-revert-all-btn">Reverter todas as mitigações ativas</button>
         </div>
-        <div id="cg-edge-list">Carregando...</div>
+        <div id="cg-edge-list"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
       </section>
       <section class="fg-panel-section">
         <h2>Bloquear IP manualmente</h2>
@@ -604,7 +665,7 @@
           </select>
           <button class="fg-btn" id="cg-block-submit">Bloquear</button>
         </div>
-        <div id="cg-blocks">Carregando...</div>
+        <div id="cg-blocks"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
       </section>
       <section class="fg-panel-section">
         <h2>Redes de Clientes</h2>
@@ -614,7 +675,7 @@
           <input type="text" name="name" placeholder="nome (opcional)">
           <button type="submit" class="fg-btn">Adicionar</button>
         </form>
-        <div id="cg-customers">Carregando...</div>
+        <div id="cg-customers"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
       </section>
       <section class="fg-panel-section">
         <h2>Whitelist</h2>
@@ -622,7 +683,7 @@
           <input type="text" name="ip" placeholder="IP" required>
           <button type="submit" class="fg-btn">Adicionar</button>
         </form>
-        <div id="cg-whitelist">Carregando...</div>
+        <div id="cg-whitelist"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
       </section>
     </div>
 
@@ -646,10 +707,10 @@
         </div>
 
         <h4>Resumo por barramento</h4>
-        <div id="fg-chart-summary">Carregando...</div>
+        <div id="fg-chart-summary"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
 
         <h4 id="fg-chart-hosts-title">Top hosts no prefixo (quem está consumindo mais)</h4>
-        <div id="flowguard-top-hosts">Carregando...</div>
+        <div id="flowguard-top-hosts"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
 
         <h4>Tráfego por protocolo (histórico)</h4>
         <div class="fg-chart-box">

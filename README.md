@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.23.0**
+**Versão atual: v1.24.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -66,6 +66,11 @@ mesmo host, cada um com seu próprio socket Unix de controle:
     campo de interface (não só os de BGP) passa a usar essa lista real.
     Templates novos: criar/remover VLAN, VLAN numa porta trunk, IP numa
     interface, criar/remover sub-interface 802.1Q.
+12. **Refinamentos visuais/UX** — paleta unificada em variáveis CSS, fonte de
+    sistema, ícones SVG no lugar de emoji nos botões/títulos, transição suave
+    ao trocar de aba/toast, estados de carregamento com skeleton animado,
+    contorno de foco visível pra navegação por teclado, e tabelas legíveis
+    (quebra de linha em vez de recorte) em telas estreitas.
 
 ## Estrutura
 
@@ -80,6 +85,32 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.24.0 — 2026-07-04 — Refinamentos visuais/UX
+Passe de polimento visual pedido pelo usuário ("melhorias gráficas"),
+implementado só em `index.html` (zero mudança em `assets/flowguard.js` —
+havia trabalho em progresso não commitado nesse arquivo, isolado desta
+mudança de propósito). Escopo: (1) paleta hardcoded (dezenas de `#0d1117`,
+`#30363d` etc. repetidos) virou variáveis `:root { --fg-bg, --fg-border, ... }`
+— zero mudança visual, facilita qualquer ajuste de tema futuro; (2)
+`font-family: sans-serif` trocado por uma stack de fontes de sistema; (3)
+emoji nos botões/títulos do topo (🚨/🔙/⚙️/🔧/🔍/📱) substituídos por ícones
+SVG inline (`currentColor`, sem dependência externa) — renderização
+consistente entre SOs/navegadores; (4) transição suave (CSS `@keyframes`,
+sem JS) ao trocar de aba e ao aparecer um toast; (5) placeholders estáticos
+"Carregando..." (23 ocorrências) viraram skeleton animado (shimmer) —
+`.fg-skeleton-lines`/`.fg-skeleton-card`; (6) contorno de foco visível
+(`:focus-visible`) em links/botões/inputs, pra navegação por teclado; (7)
+`@media (max-width: 760px)`: tabelas passam a quebrar linha em vez de
+recortar texto, topbar/tabs ganham `flex-wrap`. Acento sutil (borda superior)
+nos cards de KPI, cedendo pra vermelho quando `.fg-card-danger` está ativo
+(mitigação/regra ativa) — checada a especificidade CSS pra garantir que o
+estado de alerta sempre vence o acento neutro. Paleta de severidade
+(crítico/alto/médio) não foi alterada, por decisão de sessão anterior (ver
+changelog de Gráficos interativos). Validado com Playwright real: desktop
+(1440px, 7 abas) e mobile (390px, sem overflow horizontal em nenhuma aba,
+`scrollWidth === clientWidth`), 0 erros de console em ambos, card de KPI em
+estado de alerta confirmado mantendo borda vermelha.
 
 ### v1.23.0 — 2026-07-03 — Botão "Sair do Modo Guerra" (reversão dos comandos)
 Usuário pediu um botão ao lado do "🚨 Modo Guerra" pra reverter os comandos

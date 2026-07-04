@@ -678,10 +678,28 @@
           </div>
           <div class="fg-toggle-group" id="rules-view-toggle">
             <button class="fg-toggle-btn active" data-view="active">Ativas</button>
-            <button class="fg-toggle-btn" data-view="history">Histórico completo</button>
+            <button class="fg-toggle-btn" data-view="inactive">Inativas</button>
+            <button class="fg-toggle-btn" data-view="all">Todas</button>
           </div>
           <button class="fg-btn fg-btn-danger" id="fg-rules-del-all-btn">Apagar todas as regras ativas</button>
           <button class="fg-btn fg-btn-danger" id="rules-cg-edge-revert-all-btn" title="Reverte TODAS as mitigações do ClientGuard, tanto FlowSpec (tabela de cima) quanto SSH/ACL (tabela de baixo)">Reverter todas as mitigações do ClientGuard</button>
+        </div>
+        <div class="fg-toolbar">
+          <input type="text" id="rules-host-filter" placeholder="filtrar por host/IP...">
+          <select id="rules-type-filter">
+            <option value="">todos os tipos</option>
+            <option value="rtbh">RTBH (blackhole)</option>
+            <option value="discard">FlowSpec: descarte</option>
+            <option value="rate-limit">FlowSpec: rate-limit</option>
+            <option value="redirect">FlowSpec: redirect</option>
+          </select>
+          <div class="fg-toggle-group" id="rules-window-filter">
+            <button class="fg-toggle-btn active" data-window="">qualquer período</button>
+            <button class="fg-toggle-btn" data-window="1h">1h</button>
+            <button class="fg-toggle-btn" data-window="6h">6h</button>
+            <button class="fg-toggle-btn" data-window="24h">24h</button>
+            <button class="fg-toggle-btn" data-window="7d">7d</button>
+          </div>
         </div>
         <div data-rules-app="flowguard">
           <h3>RTBH e FlowSpec (BGP)</h3>
@@ -818,6 +836,7 @@
             <button class="fg-toggle-btn" data-window-s="86400">24h</button>
             <button class="fg-toggle-btn" data-window-s="604800">7d</button>
           </div>
+          <input type="text" id="cg-top-search" placeholder="filtrar por IP ou cliente...">
         </div>
         <div id="cg-top"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
         <div id="cg-client-detail"></div>
@@ -829,6 +848,7 @@
             <button class="fg-toggle-btn active" data-view="open">Abertos</button>
             <button class="fg-toggle-btn" data-view="history">Resolvidos</button>
           </div>
+          <input type="text" id="cg-suspicious-search" placeholder="filtrar por IP, cliente ou tipo de sinal...">
           <button class="fg-btn fg-btn-danger" id="cg-clear-suspicious-btn">Limpar hosts suspeitos</button>
         </div>
         <div id="cg-suspicious"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>

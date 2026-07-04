@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.37.0**
+**Versão atual: v1.38.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -85,6 +85,42 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.38.0 — 2026-07-04 — Filtros na aba Regras e em todas as telas com muitos hosts
+Pedido do usuário: filtros por tipo, por hora e por host/status na aba
+Regras, generalizado pra "todo lugar que tenha muitos hosts".
+
+**Aba Regras (Histórico de Interações com a Borda)** — nova barra de
+filtros abaixo dos toggles existentes, 100% client-side (mesma filosofia
+das outras abas — a lista de regras não chega perto do volume que
+justificaria filtro no backend):
+- **Host/IP**: busca substring em `src_prefix`/`dst_prefix` (regras
+  FlowSpec/RTBH) ou `src_ip` (mitigação de borda SSH legado).
+- **Tipo**: RTBH / FlowSpec descarte / rate-limit / redirect — não se
+  aplica à tabela de mitigação SSH (mecanismo é sempre SSH lá).
+- **Janela de tempo**: qualquer período / 1h / 6h / 24h / 7d, sobre
+  `created_at` (regras) ou `ts_applied` (mitigação de borda).
+- **Status**: o toggle "Ativas / Histórico completo" virou tri-state
+  **Ativas / Inativas / Todas** — antes não existia jeito de ver só o que
+  já saiu do ar sem misturar com o que ainda está ativo.
+
+Todos os filtros combinam entre si (AND) e se aplicam às 3 tabelas da
+aba (`rules-fg-list`, `rules-cg-flowspec-list`, `rules-cg-edge-list`),
+reaproveitando os helpers genéricos já existentes (`filterRows`).
+
+**ClientGuard — Sinais Suspeitos e Top Clientes**: as duas telas restantes
+com potencial de crescer bastante em número de hosts e que ainda não
+tinham nenhum filtro (achado ao mapear a base antes de implementar)
+ganharam busca por IP/cliente (Sinais Suspeitos também busca por tipo de
+sinal). A contagem do badge de sinais abertos continua sobre o total real
+(não filtrado) — a busca é só uma lente sobre a mesma lista.
+
+Validado com Playwright real contra os daemons ao vivo: filtro de host
+reduz corretamente a tabela (testado com IP real da base, todas as linhas
+restantes contêm o termo buscado), tri-state Ativas/Inativas/Todas retorna
+contagens diferentes e corretas, filtro de tipo/janela sem falso positivo,
+busca com termo inexistente zera a tabela com mensagem apropriada nas 4
+telas, 0 erros de console.
 
 ### v1.37.0 — 2026-07-04 — Cockpit customizável na aba Visão Geral
 Pedido do usuário: dashboard completo, dinâmico e colorido tipo "cockpit" na

@@ -91,6 +91,11 @@
       flows: "",
       attacksSeverity: "",
       attacksPrefix: "",
+      rulesHost: "",
+      rulesType: "",
+      rulesWindow: "",
+      cgTop: "",
+      cgSuspicious: "",
     },
     page: {
       topPrefixes: 1,
@@ -109,6 +114,7 @@
     kpiHistory: { bps: [], pps: [] },
     cgSuspiciousView: "open",
     cgSuspicious: [],
+    cgTop: [],
     cgTopWindow: 21600,
     cgTogglesLoaded: {},
     cgTogglesPending: {},
@@ -1472,32 +1478,78 @@
     el.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  // categoria de tipo pro filtro "Tipo" — mesmo agrupamento usado em
+  // fmtRuleType, mas devolvendo a chave curta usada no <select> em vez do
+  // rótulo pra exibição
+  function ruleTypeCategory(action) {
+    if (action === "rtbh") return "rtbh";
+    var a = String(action || "");
+    if (a.indexOf("rate-limit") === 0) return "rate-limit";
+    if (a.indexOf("redirect") === 0) return "redirect";
+    return "discard";
+  }
+
+  var RULES_WINDOW_SECONDS = { "1h": 3600, "6h": 21600, "24h": 86400, "7d": 604800 };
+
+  // filtro de janela de tempo é sobre created_at/ts_applied — puramente
+  // client-side, igual ao resto do filtro da aba Regras (ver nota acima)
+  function withinRulesWindow(ts) {
+    var windowKey = state.filter.rulesWindow;
+    if (!windowKey || !ts) return true;
+    var secs = RULES_WINDOW_SECONDS[windowKey];
+    return !secs || (Math.floor(Date.now() / 1000) - ts) <= secs;
+  }
+
+  // rulesView agora é tri-state (active/inactive/all) — antes só existia
+  // active/history(=tudo), sem jeito de ver só o que já saiu do ar
+  function ruleStatusMatches(active) {
+    if (state.rulesView === "active") return !!active;
+    if (state.rulesView === "inactive") return !active;
+    return true;
+  }
+
+  function edgeStatusMatches(status) {
+    if (state.rulesView === "active") return status === "active";
+    if (state.rulesView === "inactive") return status !== "active";
+    return true;
+  }
+
   function applyRulesFilter() {
-    var wantActive = state.rulesView === "active";
     var fgSection = document.querySelector('[data-rules-app="flowguard"]');
     var cgSection = document.querySelector('[data-rules-app="clientguard"]');
+    var hostNeedle = state.filter.rulesHost;
+    var typeFilter = state.filter.rulesType;
 
     if (state.rulesApp === "clientguard") {
       if (fgSection) fgSection.hidden = true;
       if (cgSection) cgSection.hidden = false;
 
       var cgFlowspec = state.rulesFgData.filter(function (r) { return r.origin === "clientguard"; });
-      if (wantActive) cgFlowspec = cgFlowspec.filter(function (r) { return !!r.active; });
+      cgFlowspec = cgFlowspec.filter(function (r) { return ruleStatusMatches(r.active); });
+      if (typeFilter) cgFlowspec = cgFlowspec.filter(function (r) { return ruleTypeCategory(r.action) === typeFilter; });
+      cgFlowspec = filterRows(cgFlowspec, hostNeedle, ["src_prefix", "dst_prefix"]);
+      cgFlowspec = cgFlowspec.filter(function (r) { return withinRulesWindow(r.created_at); });
       renderFlowspecRulesTable(cgFlowspec, "rules-cg-flowspec-list");
 
       // mechanism='flowspec' aqui é a MESMA regra já listada acima (em
       // rules-cg-flowspec-list, vinda de flowspec_rules) — mostrar de novo
       // duplicava toda mitigação automática via FlowSpec nas duas tabelas.
       // Esta tabela agora é só o que não tem equivalente lá: SSH/ACL legado.
+      // (filtro "Tipo" não se aplica aqui — mecanismo é sempre SSH)
       var cgEdge = state.rulesCgEdgeData.filter(function (m) { return m.mechanism !== "flowspec"; });
-      if (wantActive) cgEdge = cgEdge.filter(function (m) { return m.status === "active"; });
+      cgEdge = cgEdge.filter(function (m) { return edgeStatusMatches(m.status); });
+      cgEdge = filterRows(cgEdge, hostNeedle, ["src_ip"]);
+      cgEdge = cgEdge.filter(function (m) { return withinRulesWindow(m.ts_applied); });
       renderRulesCgEdgeTable(cgEdge, "rules-cg-edge-list");
     } else {
       if (fgSection) fgSection.hidden = false;
       if (cgSection) cgSection.hidden = true;
 
       var fgRules = state.rulesFgData.filter(function (r) { return r.origin !== "clientguard"; });
-      if (wantActive) fgRules = fgRules.filter(function (r) { return !!r.active; });
+      fgRules = fgRules.filter(function (r) { return ruleStatusMatches(r.active); });
+      if (typeFilter) fgRules = fgRules.filter(function (r) { return ruleTypeCategory(r.action) === typeFilter; });
+      fgRules = filterRows(fgRules, hostNeedle, ["src_prefix", "dst_prefix"]);
+      fgRules = fgRules.filter(function (r) { return withinRulesWindow(r.created_at); });
       renderFlowspecRulesTable(fgRules, "rules-fg-list");
     }
   }
@@ -1649,6 +1701,31 @@
     if (delAllBtn) delAllBtn.addEventListener("click", onRulesDelAllClick);
     var cgRevertAllBtn = document.getElementById("rules-cg-edge-revert-all-btn");
     if (cgRevertAllBtn) cgRevertAllBtn.addEventListener("click", onRulesCgEdgeRevertAllClick);
+
+    var hostFilter = document.getElementById("rules-host-filter");
+    if (hostFilter) {
+      hostFilter.addEventListener("input", function () {
+        state.filter.rulesHost = hostFilter.value.trim();
+        applyRulesFilter();
+      });
+    }
+    var typeFilter = document.getElementById("rules-type-filter");
+    if (typeFilter) {
+      typeFilter.addEventListener("change", function () {
+        state.filter.rulesType = typeFilter.value;
+        applyRulesFilter();
+      });
+    }
+    var windowFilter = document.getElementById("rules-window-filter");
+    if (windowFilter) {
+      windowFilter.addEventListener("click", function (ev) {
+        var btn = ev.target.closest(".fg-toggle-btn");
+        if (!btn) return;
+        state.filter.rulesWindow = btn.getAttribute("data-window");
+        windowFilter.querySelectorAll(".fg-toggle-btn").forEach(function (b) { b.classList.toggle("active", b === btn); });
+        applyRulesFilter();
+      });
+    }
 
     var blockSourceToggle = document.getElementById("fg-block-source-toggle");
     if (blockSourceToggle) {
@@ -3016,7 +3093,9 @@
     var el = document.getElementById("cg-top");
     if (!el) return;
     if (!rows.length) {
-      el.innerHTML = '<p class="fg-ok">Nenhum tráfego na janela selecionada.</p>';
+      el.innerHTML = '<p class="fg-ok">' +
+        (state.filter.cgTop ? "Nenhum cliente encontrado para o filtro atual." : "Nenhum tráfego na janela selecionada.") +
+        "</p>";
       return;
     }
     var body = rows
@@ -3040,15 +3119,27 @@
         showError(document.getElementById("cg-top"), data.error || "erro desconhecido");
         return;
       }
-      renderCgTop(data.top || []);
+      state.cgTop = data.top || [];
+      renderCgTopFiltered();
     }).catch(function (err) {
       showError(document.getElementById("cg-top"), "falha ao consultar top clientes");
       console.error("flowguard.js:", err);
     });
   }
 
+  function renderCgTopFiltered() {
+    renderCgTop(filterRows(state.cgTop, state.filter.cgTop, ["src_ip", "customer_prefix"]));
+  }
+
   function initCgTopWindowControls() {
     var toggle = document.getElementById("cg-top-window");
+    var search = document.getElementById("cg-top-search");
+    if (search) {
+      search.addEventListener("input", function () {
+        state.filter.cgTop = search.value.trim();
+        renderCgTopFiltered();
+      });
+    }
     if (!toggle) return;
     toggle.addEventListener("click", function (ev) {
       var btn = ev.target.closest(".fg-toggle-btn");
@@ -3128,9 +3219,11 @@
   function renderCgSuspicious(rows) {
     var el = document.getElementById("cg-suspicious");
     if (!el) return;
-    if (state.cgSuspiciousView === "open") updateCgBadge(rows.length);
     if (!rows.length) {
-      el.innerHTML = '<p class="fg-ok">Nenhum sinal ' + (state.cgSuspiciousView === "open" ? "aberto" : "resolvido") + ".</p>";
+      var emptyMsg = state.filter.cgSuspicious
+        ? "Nenhum sinal encontrado para o filtro atual."
+        : "Nenhum sinal " + (state.cgSuspiciousView === "open" ? "aberto" : "resolvido") + ".";
+      el.innerHTML = '<p class="fg-ok">' + emptyMsg + "</p>";
       return;
     }
     var body = rows
@@ -3164,11 +3257,19 @@
         return;
       }
       state.cgSuspicious = data.suspicious;
-      renderCgSuspicious(data.suspicious);
+      // contagem do badge é sobre o total não filtrado (a busca é só uma
+      // lente sobre a mesma lista, não deve mudar quantos sinais existem)
+      if (state.cgSuspiciousView === "open") updateCgBadge(data.suspicious.length);
+      renderCgSuspiciousFiltered();
     }).catch(function (err) {
       showError(document.getElementById("cg-suspicious"), "falha ao consultar sinais suspeitos");
       console.error("flowguard.js:", err);
     });
+  }
+
+  function renderCgSuspiciousFiltered() {
+    var rows = filterRows(state.cgSuspicious, state.filter.cgSuspicious, ["src_ip", "customer_prefix", "signal_type"]);
+    renderCgSuspicious(rows);
   }
 
   function renderCgSuspiciousDetail(row) {
@@ -3241,14 +3342,22 @@
 
   function initCgSuspiciousControls() {
     var toggle = document.getElementById("cg-suspicious-view-toggle");
-    if (!toggle) return;
-    toggle.addEventListener("click", function (ev) {
-      var btn = ev.target.closest(".fg-toggle-btn");
-      if (!btn) return;
-      state.cgSuspiciousView = btn.getAttribute("data-view");
-      toggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { b.classList.toggle("active", b === btn); });
-      loadClientGuardSuspicious();
-    });
+    if (toggle) {
+      toggle.addEventListener("click", function (ev) {
+        var btn = ev.target.closest(".fg-toggle-btn");
+        if (!btn) return;
+        state.cgSuspiciousView = btn.getAttribute("data-view");
+        toggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { b.classList.toggle("active", b === btn); });
+        loadClientGuardSuspicious();
+      });
+    }
+    var search = document.getElementById("cg-suspicious-search");
+    if (search) {
+      search.addEventListener("input", function () {
+        state.filter.cgSuspicious = search.value.trim();
+        renderCgSuspiciousFiltered();
+      });
+    }
   }
 
   // --- ClientGuard: redes de clientes + whitelist --------------------------

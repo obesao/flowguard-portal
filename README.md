@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.32.0**
+**Versão atual: v1.33.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -85,6 +85,20 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.33.0 — 2026-07-04 — Selo de mitigação na aba Ataques (FlowGuard)
+Espelha o FlowGuard v1.24.0 e o mesmo padrão já usado na aba Sinais Suspeitos
+do ClientGuard (v1.31.0). Coluna "Mitigação" (antes "Mitigado" sim/não) mostra
+🛡 verde "ativa (RTBH/discard/limitado a X Mbps)" quando o ataque tem regra
+em vigor agora, âmbar "encerrada" quando já teve mitigação mas ela saiu do
+ar (TTL, remoção manual, ou o `flowguard.service` reiniciar — ver auditoria
+do ClientGuard v1.21.0), ou cinza "sem mitigação". Mesmo selo no painel de
+detalhe do ataque. `.cg-mitigation-badge` (só ClientGuard) virou
+`.fg-mitigation-badge` (compartilhado pelas duas abas agora) — zero mudança
+visual, só renomeado pra refletir que deixou de ser exclusivo de uma aba.
+
+Validado com Playwright real e CLI: histórico de ataques mostrando "encerrada
+(RTBH)" pra um ataque cuja regra foi retirada, 0 erros de console.
 
 ### v1.32.0 — 2026-07-04 — Reorganização de abas/painéis + "Recolher/Expandir tudo"
 Pedido do usuário: reduzir a aba ClientGuard (8 seções empilhadas, a mais

@@ -111,6 +111,7 @@ try:
         if not attack:
             print(json.dumps({"ok": False, "error": "ataque não encontrado"}))
         else:
+            attack["mitigation"] = storage.get_latest_flowspec_rule_for_attack(conn, attack["id"])
             interval_s = cfg["database"]["aggregate_interval_s"]
             detail = storage.attack_detail(
                 conn, attack["dst_prefix"], attack["ts_start"], attack["ts_end"], limit=20, interval_s=interval_s,
@@ -130,6 +131,7 @@ try:
             attack["suggested_mitigation"] = flowspec.suggest_mitigation(
                 attack["attack_type"], attack["dst_prefix"], mitigation_profiles,
             )
+            attack["mitigation"] = storage.get_latest_flowspec_rule_for_attack(conn, attack["id"])
             # ataques encerrados já têm target_host persistido no fechamento
             # (ver storage.apply_attack_changes) — só ataques ainda ativos precisam
             # de lookup ao vivo aqui, e só sobre os últimos 5min (não a duração toda,

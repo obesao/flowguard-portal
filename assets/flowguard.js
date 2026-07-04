@@ -1291,15 +1291,27 @@
       .finally(function () { btn.disabled = false; });
   }
 
+  // usado tanto pelo clique no toggle quanto por onBlockSubmit — sem isso, um
+  // bloqueio manual via "ClientGuard" ficava invisível no Histórico logo
+  // abaixo até o usuário clicar manualmente no toggle correspondente.
+  function setRulesApp(app) {
+    state.rulesApp = app;
+    var appToggle = document.getElementById("rules-app-toggle");
+    if (appToggle) {
+      appToggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) {
+        b.classList.toggle("active", b.getAttribute("data-app") === app);
+      });
+    }
+    applyRulesFilter();
+  }
+
   function initRulesControls() {
     var appToggle = document.getElementById("rules-app-toggle");
     if (appToggle) {
       appToggle.addEventListener("click", function (ev) {
         var btn = ev.target.closest(".fg-toggle-btn");
         if (!btn) return;
-        state.rulesApp = btn.getAttribute("data-app");
-        appToggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { b.classList.toggle("active", b === btn); });
-        applyRulesFilter();
+        setRulesApp(btn.getAttribute("data-app"));
       });
     }
     var viewToggle = document.getElementById("rules-view-toggle");
@@ -1348,7 +1360,19 @@
     request
       .then(function (resp) {
         showToast(resp.ok ? "IP bloqueado: " + ip : resp.error, resp.ok ? "success" : "error");
-        if (resp.ok) input.value = "";
+        if (resp.ok) {
+          input.value = "";
+          // troca o Histórico pra mostrar a aplicação/aba certa (e "Ativas"),
+          // senão o bloqueio some do campo de visão até um clique manual
+          setRulesApp(state.blockSource);
+          var viewToggle = document.getElementById("rules-view-toggle");
+          if (viewToggle) {
+            state.rulesView = "active";
+            viewToggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) {
+              b.classList.toggle("active", b.getAttribute("data-view") === "active");
+            });
+          }
+        }
         loadRulesUnified();
       })
       .finally(function () { btn.disabled = false; });

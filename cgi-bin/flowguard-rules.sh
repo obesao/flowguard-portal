@@ -1,8 +1,11 @@
 #!/bin/sh
 # flowguard-rules.sh — GET lista regras FlowSpec/RTBH (?history=1 traz todo o
 # histórico, incluindo expiradas/removidas — default só as ativas); POST cria
-# (src_prefix/dst_prefix), remove uma regra (id) ou remove TODAS as ativas
-# (clear_all), proxied pro daemon via socket.
+# (src_prefix/dst_prefix), remove uma regra (id), remove TODAS as ativas
+# (clear_all) ou confere via SSH se uma regra está de fato no roteador
+# (verify_id — usado tanto pelas regras do FlowGuard quanto pelas mitigações
+# FlowSpec do ClientGuard, já que edge_mitigations.flowspec_rule_id é um id
+# desta mesma tabela flowspec_rules), proxied pro daemon via socket.
 
 . "$(dirname -- "$0")/lib.sh"
 
@@ -36,6 +39,11 @@ try:
     rule_id = body.get("id")
     if body.get("clear_all"):
         resp = control.send_command(sock_path, {"cmd": "flowspec_del_all"}, timeout=60.0)
+    elif body.get("verify_id"):
+        # Netmiko pode legitimamente levar 10-20s (conecta via SSH no roteador,
+        # roda um display, desconecta) — bem mais que os outros comandos deste
+        # script, que só falam com o socket local do daemon.
+        resp = control.send_command(sock_path, {"cmd": "rule_verify", "rule_id": body["verify_id"]}, timeout=35.0)
     elif rule_id:
         resp = control.send_command(sock_path, {"cmd": "flowspec_del", "rule_id": rule_id})
     elif body.get("src_prefix") or body.get("dst_prefix"):
@@ -54,7 +62,8 @@ try:
             payload["ttl_s"] = int(ttl_s)
         resp = control.send_command(sock_path, payload)
     else:
-        resp = {"ok": False, "error": "informe id (remover), clear_all (remover todas) ou src_prefix/dst_prefix (criar)"}
+        resp = {"ok": False, "error": "informe id (remover), clear_all (remover todas), "
+                                       "verify_id (conferir no roteador) ou src_prefix/dst_prefix (criar)"}
     print(json.dumps(resp))
 except Exception as exc:
     print(json.dumps({"ok": False, "error": str(exc)}))

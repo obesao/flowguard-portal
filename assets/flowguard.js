@@ -60,6 +60,13 @@
   // tamanho do pacote nunca fez parte do match (ver bgp/flowspec.py no backend)
   var MITIGATION_PKT_LEN_TYPES = { dns_amp: true, ntp_amp: true };
 
+  var MITIGATION_AUTO_MODE_LABELS = {
+    off: "Desligado",
+    suggestion: "Automático (Aplicar Sugestão)",
+    rtbh: "Automático (Mitigar / RTBH)",
+  };
+  var MITIGATION_AUTO_MODE_KEYS = ["off", "suggestion", "rtbh"];
+
   var state = {
     topPrefixes: [],
     flows: [],
@@ -846,6 +853,67 @@
       "<th>Ação</th></tr></thead><tbody>" + rows + "</tbody></table>";
   }
 
+  // --- verificação ao vivo no roteador (SSH, só leitura) --------------------
+  // "Detalhes" por si só só reformata o que já está gravado localmente — isso
+  // aqui de fato consulta o equipamento (mesmas credenciais do Modo Guerra)
+  // pra confirmar que a regra está mesmo anunciada, achado real desta base:
+  // já existiu regra marcada "revertida"/"falhou" no banco que continuava
+  // ativa de verdade na borda.
+  var VERIFY_STATUS_LABELS = {
+    found: "🟢 confirmado no roteador",
+    found_mismatch: "🟡 encontrado, mas com diferenças (veja o detalhe abaixo)",
+    not_found: "🔴 não encontrado no roteador",
+    inconclusive: "⚪ inconclusivo — saída do equipamento não reconhecida pelo parser",
+    error: "⚪ falha ao consultar o roteador",
+  };
+
+  function verifyPanelHtml(ruleId, note) {
+    return (
+      '<div class="rule-verify-panel" data-rule-id="' + ruleId + '">' +
+      '<p class="fg-kpi-sub">' + note + "</p>" +
+      '<button class="fg-btn" data-action="verify-rule">Verificar no roteador</button>' +
+      '<div class="rule-verify-result"></div></div>'
+    );
+  }
+
+  function renderVerifyResult(el, resp) {
+    if (!resp.ok) {
+      el.innerHTML = '<p class="fg-error">' + escapeHtml(resp.error || "falha ao verificar") + "</p>";
+      return;
+    }
+    var check = resp.router_check || {};
+    var bgp = resp.bgp_session || {};
+    var statusLabel = VERIFY_STATUS_LABELS[check.match_status] || (check.match_status || "-");
+    var bgpLine = (bgp.peer_state === "up" ? "🟢 Up" : "🔴 Down/Idle") +
+      (bgp.peer_ip ? " (" + escapeHtml(bgp.peer_ip) + ")" : "");
+    el.innerHTML =
+      "<table><tbody>" +
+      "<tr><td>Resultado</td><td>" + escapeHtml(statusLabel) + "</td></tr>" +
+      "<tr><td>Detalhe</td><td>" + escapeHtml(check.detail || "-") + "</td></tr>" +
+      "<tr><td>Equipamento consultado</td><td>" + escapeHtml(resp.device_name || "-") +
+      " (peer " + escapeHtml(resp.peer || "-") + ")</td></tr>" +
+      "<tr><td>Sessão BGP (ExaBGP)</td><td>" + bgpLine + "</td></tr>" +
+      "</tbody></table>" +
+      (check.command ? "<h4>Comando executado no roteador</h4><pre>" + escapeHtml(check.command) + "</pre>" : "") +
+      (check.raw_output ? "<h4>Saída bruta do roteador</h4><pre>" + escapeHtml(check.raw_output) + "</pre>" : "");
+  }
+
+  function onVerifyRuleClick(btn) {
+    var panel = btn.closest(".rule-verify-panel");
+    if (!panel) return;
+    var ruleId = Number(panel.getAttribute("data-rule-id"));
+    var resultEl = panel.querySelector(".rule-verify-result");
+    btn.disabled = true;
+    resultEl.innerHTML = '<p class="fg-kpi-sub">Consultando o roteador via SSH — pode levar até 20-30s...</p>';
+    postJson(RULES_ENDPOINT, { verify_id: ruleId })
+      .then(function (resp) { renderVerifyResult(resultEl, resp); })
+      .catch(function (err) {
+        resultEl.innerHTML = '<p class="fg-error">falha ao verificar</p>';
+        console.error("flowguard.js:", err);
+      })
+      .finally(function () { btn.disabled = false; });
+  }
+
   function renderFlowspecRuleDetail(r) {
     var el = document.getElementById("rules-detail");
     el.innerHTML =
@@ -865,6 +933,8 @@
       "<tr><td>Expira em</td><td>" + (r.expires_at ? new Date(r.expires_at * 1000).toLocaleString() : "-") + "</td></tr>" +
       "<tr><td>Status</td><td>" + fmtRuleStatus(r) + "</td></tr>" +
       "</tbody></table>" +
+      verifyPanelHtml(r.id, "Conecta via SSH no roteador (mesmas credenciais do Modo Guerra) e confere se " +
+        "esta regra está de fato anunciada — não confia só no que está gravado aqui.") +
       '<button class="fg-btn" id="rules-detail-close-btn">Fechar</button></div>';
     el.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -929,7 +999,11 @@
         "<tr><td>Regra FlowSpec (id no FlowGuard)</td><td>" + (m.flowspec_rule_id || "-") + "</td></tr>" +
         "<tr><td>Match</td><td>" + escapeHtml(matchDesc) + "</td></tr>" +
         "<tr><td>Ação</td><td>" + (m.rate_limit_bps ? "Limitar banda a " + fmtBps(m.rate_limit_bps) : "Descartar") + "</td></tr>" +
-        "</tbody></table>";
+        "</tbody></table>" +
+        (m.flowspec_rule_id
+          ? verifyPanelHtml(m.flowspec_rule_id, "Confere no roteador a regra FlowSpec #" + m.flowspec_rule_id +
+              " no FlowGuard — é o mesmo mecanismo, o ClientGuard só pede pro FlowGuard anunciar.")
+          : "");
     } else {
       var applyCommands = m.apply_commands ? JSON.parse(m.apply_commands) : null;
       var revertCommands = m.revert_commands ? JSON.parse(m.revert_commands) : null;
@@ -1045,6 +1119,11 @@
     var closeDetailBtn = ev.target.closest("#rules-detail-close-btn");
     if (closeDetailBtn) {
       document.getElementById("rules-detail").innerHTML = "";
+      return;
+    }
+    var verifyBtn = ev.target.closest("button[data-action='verify-rule']");
+    if (verifyBtn) {
+      onVerifyRuleClick(verifyBtn);
     }
   }
 
@@ -3889,6 +3968,10 @@
         ? "<td><input type=\"number\" min=\"1\" step=\"1\" data-field=\"pkt_len_min\" value=\"" +
           (p.pkt_len_min != null ? p.pkt_len_min : "") + "\"> bytes</td>"
         : '<td class="fg-muted">— (não se aplica)</td>';
+      var autoMode = p.auto_mode || "off";
+      var autoOptions = MITIGATION_AUTO_MODE_KEYS.map(function (k) {
+        return '<option value="' + k + '"' + (k === autoMode ? " selected" : "") + '>' + MITIGATION_AUTO_MODE_LABELS[k] + "</option>";
+      }).join("");
       return (
         '<tr data-attack-type="' + meta.key + '">' +
         "<td>" + escapeHtml(meta.label) + "</td>" +
@@ -3896,12 +3979,13 @@
         pktCell +
         '<td><input type="number" min="1" step="1" data-field="rate_limit_mbps" value="' +
         (p.rate_limit_mbps != null ? p.rate_limit_mbps : "") + '"> Mbps</td>' +
+        '<td><select data-field="auto_mode">' + autoOptions + "</select></td>" +
         "</tr>"
       );
     }).join("");
     el.innerHTML =
       "<table><thead><tr><th>Tipo de ataque</th><th>Estratégia</th><th>Limiar de pacote</th>" +
-      "<th>Limite de banda</th></tr></thead><tbody>" + rows + "</tbody></table>";
+      "<th>Limite de banda</th><th>Automático</th></tr></thead><tbody>" + rows + "</tbody></table>";
   }
 
   function loadFgMitigation() {
@@ -3932,12 +4016,15 @@
     if (!row) return;
     var attackType = row.getAttribute("data-attack-type");
     var raw = ev.target.value;
-    if (field !== "kind" && raw === "") return; // campo numérico vazio: ignora até digitar algo
-    var value = field === "kind" ? raw : Number(raw);
-    if (field !== "kind" && isNaN(value)) return;
+    var isTextField = field === "kind" || field === "auto_mode";
+    if (!isTextField && raw === "") return; // campo numérico vazio: ignora até digitar algo
+    var value = isTextField ? raw : Number(raw);
+    if (!isTextField && isNaN(value)) return;
 
     var original = state.fgMitigationLoaded[attackType] || {};
-    var originalValue = field === "kind" ? (original.kind || "discard") : original[field];
+    var originalValue = field === "kind" ? (original.kind || "discard")
+      : field === "auto_mode" ? (original.auto_mode || "off")
+      : original[field];
 
     var pendingForType = state.fgMitigationPending[attackType] || {};
     if (value === originalValue) {

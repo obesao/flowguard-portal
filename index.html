@@ -582,7 +582,7 @@
       </section>
       <section class="fg-panel-section">
         <h2>Mitigação</h2>
-        <p class="fg-kpi-sub">Estratégia sugerida (botão "Aplicar Sugestão" na aba Ataques) por tipo de ataque — RTBH bloqueia o prefixo inteiro via BGP; Descartar (FlowSpec) derruba só o tráfego que casa o padrão do ataque; Limitar banda (FlowSpec) não derruba nada, só limita a velocidade desse tráfego. O botão "Mitigar" continua sempre RTBH, como ação manual de emergência.</p>
+        <p class="fg-kpi-sub">Estratégia sugerida (botão "Aplicar Sugestão" na aba Ataques) por tipo de ataque — RTBH bloqueia o prefixo inteiro via BGP; Descartar (FlowSpec) derruba só o tráfego que casa o padrão do ataque; Limitar banda (FlowSpec) não derruba nada, só limita a velocidade desse tráfego. O botão "Mitigar" continua sempre RTBH, como ação manual de emergência. A coluna "Automático" dispara a mitigação sozinha assim que o ataque abre, sem esperar clique manual — só tem efeito nos prefixos com "auto-mitigar" marcado na aba Monitor (as duas condições precisam estar ligadas).</p>
         <div id="fg-mitigation-cfg"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
         <div class="fg-toolbar">
           <button class="fg-btn" id="fg-mitigation-save-btn" disabled>Salvar configurações de mitigação</button>

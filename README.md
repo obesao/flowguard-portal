@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.24.0**
+**Versão atual: v1.25.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -85,6 +85,26 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.25.0 — 2026-07-04 — Mitigação automática + "Verificar no roteador" na aba Regras
+- **Mitigação automática** (FlowGuard v1.20.0): aba Configuração > Mitigação
+  ganhou uma coluna "Automático" (select desligado/perfil/RTBH direto) por
+  tipo de ataque, ao lado das já existentes (estratégia, limiar de pacote,
+  limite de banda) — mesmo padrão de pendência/salvar em lote das colunas
+  vizinhas. Só tem efeito nos prefixos com "auto-mitigar" marcado na aba
+  Monitor (texto explicativo atualizado na seção).
+- **"Verificar no roteador" na aba Regras**: cada regra FlowSpec/RTBH (do
+  FlowGuard, e as mitigações do ClientGuard que reaproveitam a mesma tabela)
+  ganhou um botão que conecta via SSH no equipamento real (mesmas credenciais
+  do Modo Guerra) e confere se a regra está de fato anunciada — não confia só
+  no que está gravado no banco local. Mostra resultado (confirmado/com
+  diferenças/não encontrado/inconclusivo), estado da sessão BGP correspondente
+  e, quando disponível, o comando e a saída bruta do roteador. Pode levar
+  10-30s (é uma conexão SSH de verdade), timeout do CGI (`flowguard-rules.sh`)
+  subido pra 35s só nesse caso.
+- FlowGuard agora fala com 2 sessões BGP simultâneas (roteador de borda
+  principal e o peer PPPoE/CGNAT) — reflexo disso no portal via o mecanismo de verificação
+  acima, que mostra qual peer/equipamento foi consultado.
 
 ### v1.24.0 — 2026-07-04 — Refinamentos visuais/UX
 Passe de polimento visual pedido pelo usuário ("melhorias gráficas"),

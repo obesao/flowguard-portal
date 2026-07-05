@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.39.0**
+**Versão atual: v1.40.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -85,6 +85,23 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.40.0 — 2026-07-04 — Toggle e mitigação do novo tipo "SYN flood"
+Espelha o FlowGuard v1.27.0 (pesquisa do FastNetMon + gap analysis). Nova
+entrada `syn_flood` em `FG_TOGGLE_META` — mesma lista já usada tanto pela
+seção "Funções de Detecção" quanto pela tabela "Mitigação" na aba
+Configuração, então uma linha só no frontend cobre as duas telas. Sem
+mudança de endpoint/CGI — os dados já vêm do backend, que só ganhou a
+chave nova.
+
+Validado com Playwright real contra um ataque `syn_flood` sintético de
+verdade em produção (ver changelog do `flowguard`): toggle "SYN flood"
+aparece com a descrição certa, linha na tabela de Mitigação mostra
+"Descartar (FlowSpec)" + automático "Desligado" (diferente de todo o
+resto, que já está em "Automático" em produção — decisão deliberada do
+lado do FlowGuard, não bug), ataque sintético visível na aba Ataques
+(view Ativos enquanto durou, Histórico depois que fechou sozinho), 0
+erros de console.
 
 ### v1.39.0 — 2026-07-04 — Selo "sem proteção" quando ataque/sinal segue ativo com mitigação encerrada
 Pedido do usuário: um ataque (FlowGuard) ou sinal suspeito (ClientGuard)

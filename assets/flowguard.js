@@ -50,6 +50,7 @@
     { key: "ssdp_amp", label: "Amplificação SSDP", desc: "resposta UDP/1900 em volume alto — reflexão via dispositivos UPnP/SSDP expostos." },
     { key: "memcached_amp", label: "Amplificação Memcached", desc: "resposta UDP/11211 em volume alto — reflexão via Memcached exposto (fator de amplificação altíssimo)." },
     { key: "cldap_amp", label: "Amplificação CLDAP", desc: "resposta UDP/389 em volume alto — reflexão via serviços CLDAP (Active Directory) expostos." },
+    { key: "syn_flood", label: "SYN flood", desc: "proporção de pacotes SYN puro (sem ACK) sobre o total de TCP do prefixo acima do limiar, só considerada com volume mínimo de tráfego TCP." },
     { key: "anomalia_baseline", label: "Anomalia de baseline", desc: "desvio estatístico (EWMA) do tráfego normal do prefixo — pega ataques pequenos demais pro limiar fixo global." },
   ];
 

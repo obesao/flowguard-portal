@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.41.0**
+**Versão atual: v1.42.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -85,6 +85,28 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.42.0 — 2026-07-05 — "sem proteção" não aparece mais pra host que já parou de ser atacado
+Pedido do usuário: mesmo com o indicador de atividade da v1.41.0, o selo de
+mitigação continuava mostrando "⚠ sem proteção" pra ataques/sinais que já
+não tinham atividade real há um tempo (🟡 sem atividade) — na prática já
+encerrados, só aguardando o fechamento automático por inatividade.
+
+Nova função `isGenuinelyActive(closed, tsLastSeen)`: "⚠ sem proteção" agora
+só aparece quando o mesmo critério do 🟢 (reconfirmação há menos de 90s)
+bate — senão o selo volta a "encerrada" (neutro), tanto na aba Ataques
+quanto em Sinais Suspeitos (tabela e painel de detalhe). Contraparte no CLI
+dos dois backends em commits próprios.
+
+**Auditoria à parte, sobre por que ainda aparecem hosts "sem mitigação"**:
+investigação nos dois sistemas encontrou causas legítimas, não bug — ver
+changelogs do FlowGuard (v1.29.0: tipo de ataque novo sem perfil de
+mitigação ainda + ataques antigos anteriores a uma mudança de config) e do
+ClientGuard (v1.26.0: orçamento de regras FlowSpec genuinamente saturado
+por volume real de scans concorrentes, confirmado no log de produção).
+
+Validado com Playwright real: 0 linhas "sem atividade" mostrando "sem
+proteção" nas duas telas, 0 erros de console.
 
 ### v1.41.0 — 2026-07-04 — Indicador "atividade recente" nas abas Ataques e Sinais Suspeitos
 Pedido do usuário: "ativo"/"aberto" sozinho não diz se está REALMENTE

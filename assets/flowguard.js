@@ -211,6 +211,17 @@
       fmtDateTime(tsLastSeen) + '">🟡 sem atividade há ' + fmtUptime(ageS) + "</div>";
   }
 
+  // pedido do usuário: se o ataque/sinal já não está mais acontecendo de
+  // verdade (🟡 sem atividade — ver fmtActivityFreshness acima), o selo de
+  // mitigação não deve mais gritar "⚠ sem proteção" (isso é alarme de "ainda
+  // te atacando sem bloqueio", não de "já te atacou uma vez sem bloqueio").
+  // "genuinamente ativo" = mesmo critério do 🟢 da função acima, não só
+  // ts_end/resolved nulo — closed vem de a.ts_end ou r.resolved.
+  function isGenuinelyActive(closed, tsLastSeen) {
+    if (closed || !tsLastSeen) return false;
+    return (Math.floor(Date.now() / 1000) - tsLastSeen) < ACTIVITY_FRESH_WINDOW_S;
+  }
+
   function fmtUptime(s) {
     s = Math.floor(s || 0);
     var h = Math.floor(s / 3600);
@@ -981,7 +992,7 @@
           "<td class=\"" + sevClass + "\">" + escapeHtml(a.severity) + "</td>" +
           "<td>" + fmtBps(a.bps_peak || 0) + "</td>" +
           "<td>" + (a.pps_peak || 0).toLocaleString("pt-BR") + " pps</td>" +
-          "<td>" + fgAttackMitigationBadgeHtml(a.mitigation, !a.ts_end) + "</td>" +
+          "<td>" + fgAttackMitigationBadgeHtml(a.mitigation, isGenuinelyActive(a.ts_end, a.ts_last_seen)) + "</td>" +
           '<td><div class="fg-menu">' +
           '<button class="fg-btn" data-menu-toggle>Ações ▾</button>' +
           '<div class="fg-menu-list" hidden>' +
@@ -3013,9 +3024,11 @@
   // reconciliação automática com o FlowGuard (ver flowspec_mitigation.
   // reconcile_with_flowguard, no backend) — didaticamente é sempre "não está
   // bloqueando mais", a causa exata não importa pro operador aqui.
-  // rowOpen = o sinal em si ainda está "aberto" (resolved=0) — mesma ideia do
-  // equivalente no FlowGuard (fgAttackMitigationBadgeHtml): sinal aberto com
-  // mitigação já encerrada significa cliente SEM proteção agora, não histórico.
+  // rowOpen = o sinal está GENUINAMENTE em andamento agora (ver
+  // isGenuinelyActive) — não basta resolved=0: um sinal aberto mas sem
+  // reconfirmação recente (🟡, já "acabou" na prática) não deve mostrar o
+  // alarme "sem proteção", só "encerrada" mesmo (mesma ideia do equivalente
+  // no FlowGuard, fgAttackMitigationBadgeHtml).
   function cgMitigationBadgeHtml(mitigation, rowOpen) {
     if (!mitigation) {
       return '<span class="fg-mitigation-badge none">sem mitigação</span>';
@@ -3046,10 +3059,10 @@
   // uma regra quando o anúncio BGP dá certo), por isso não existe esse estado
   // aqui, diferente do ClientGuard.
   var FG_MITIGATION_ACTION_LABELS = { rtbh: "RTBH" };
-  // rowOpen = o ataque em si ainda está "ativo" (ts_end NULL) — pedido do usuário:
-  // um ataque que segue ativo com a mitigação já encerrada (TTL vencido, revert
-  // manual) precisa ficar visualmente diferente de "encerrada" genérico, porque
-  // nesse caso o cliente está SEM proteção agora, não é só histórico.
+  // rowOpen = o ataque está GENUINAMENTE em andamento agora (ver
+  // isGenuinelyActive) — não basta ts_end NULL: um ataque tecnicamente "ativo"
+  // mas sem reconfirmação recente (🟡, já "acabou" na prática, só não fechou
+  // sozinho ainda) não deve mostrar o alarme "sem proteção", só "encerrada".
   function fgAttackMitigationBadgeHtml(mitigation, rowOpen) {
     if (!mitigation) {
       return '<span class="fg-mitigation-badge none">sem mitigação</span>';
@@ -3276,7 +3289,7 @@
           escapeHtml(CG_SIGNAL_LABELS[r.signal_type] || r.signal_type) + "</td><td>" +
           Math.round((r.confidence || 0) * 100) + "%</td><td>" + fmtDateTime(r.ts_detected) + "</td><td>" +
           fmtDateTime(r.ts_last_seen) + (r.resolved ? "" : fmtActivityFreshness(r.ts_last_seen)) + "</td><td>" +
-          cgMitigationBadgeHtml(r.mitigation, !r.resolved) + "</td>" +
+          cgMitigationBadgeHtml(r.mitigation, isGenuinelyActive(r.resolved, r.ts_last_seen)) + "</td>" +
           "<td>" + resolveBtn + edgeBtn + '<button class="fg-btn" data-action="detail">Detalhes</button></td></tr>'
         );
       })
@@ -3327,7 +3340,7 @@
       '<button class="fg-btn" data-action="close-detail">Fechar</button></div>' +
       '<p class="fg-kpi-sub">Tipo: ' + escapeHtml(CG_SIGNAL_LABELS[row.signal_type] || row.signal_type) +
       " · Confiança: " + Math.round((row.confidence || 0) * 100) + "% · Evidência: " + escapeHtml(evidence) + "</p>" +
-      '<p class="fg-kpi-sub">Mitigação: ' + cgMitigationBadgeHtml(row.mitigation, !row.resolved) + "</p>" +
+      '<p class="fg-kpi-sub">Mitigação: ' + cgMitigationBadgeHtml(row.mitigation, isGenuinelyActive(row.resolved, row.ts_last_seen)) + "</p>" +
       aiHtml +
       "</div>";
     el.scrollIntoView({ behavior: "smooth", block: "start" });

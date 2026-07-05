@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.40.0**
+**Versão atual: v1.41.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -85,6 +85,27 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.41.0 — 2026-07-04 — Indicador "atividade recente" nas abas Ataques e Sinais Suspeitos
+Pedido do usuário: "ativo"/"aberto" sozinho não diz se está REALMENTE
+acontecendo agora — validado ao vivo que, na prática, a maioria dos
+registros "ativos" já estava sem tráfego/evidência real há minutos ou
+horas, só ainda não tinham fechado sozinhos (rede de segurança de 6h,
+ver changelogs do FlowGuard/ClientGuard).
+
+Nova sub-linha embaixo de "Duração" (aba Ataques) e "Última vez" (aba Sinais
+Suspeitos), calculada a partir de `ts_last_seen` (já existente nos dois
+backends): 🟢 "em andamento" quando a última reconfirmação foi há menos de
+90s (~3 ciclos de agregação de 30s, com folga pra jitter), senão 🟡 "sem
+atividade há Xm/Xh". Só aparece pra registros ainda ativos/abertos — histórico
+não mostra (já tem `ts_end`/`resolved`, a informação já é factual ali).
+
+Mesmo padrão visual das sub-linhas já usadas na aba Regras (`.fg-kpi-sub`
+embaixo da célula principal), sem coluna nova. Contraparte no CLI dos dois
+projetos em commits próprios. Validado com Playwright real: badge 🟢
+aparece em ataques com tráfego confirmado há poucos segundos, 🟡 em sinais
+sem reconfirmação há 15-50min (a maioria dos sinais abertos no momento do
+teste, confirmando exatamente o padrão relatado), 0 erros de console.
 
 ### v1.40.0 — 2026-07-04 — Toggle e mitigação do novo tipo "SYN flood"
 Espelha o FlowGuard v1.27.0 (pesquisa do FastNetMon + gap analysis). Nova

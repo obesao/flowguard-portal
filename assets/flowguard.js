@@ -191,6 +191,26 @@
     return fmtUptime(end - a.ts_start);
   }
 
+  // pedido do usuário: "ativo"/"aberto" sozinho não diz se está REALMENTE
+  // acontecendo agora — um ataque/sinal fica "ativo" enquanto o atacante mandar
+  // tráfego (correto), mas nada avisava quando isso já tinha parado há muito
+  // tempo e o registro só ainda não fechou sozinho (ver close_stale_attacks/
+  // resolve_stale_signals no backend, que fecham depois de horas sem
+  // reconfirmação). ts_last_seen é atualizado a cada ciclo em que a condição
+  // ainda bate de verdade — janela "fresca" de 90s cobre ~3 ciclos de agregação
+  // (30s padrão nos dois daemons), com folga pra jitter.
+  var ACTIVITY_FRESH_WINDOW_S = 90;
+  function fmtActivityFreshness(tsLastSeen) {
+    if (!tsLastSeen) return "";
+    var ageS = Math.floor(Date.now() / 1000) - tsLastSeen;
+    if (ageS < ACTIVITY_FRESH_WINDOW_S) {
+      return '<div class="fg-kpi-sub" style="color:var(--fg-success)" title="Última reconfirmação há ' +
+        ageS + 's">🟢 em andamento</div>';
+    }
+    return '<div class="fg-kpi-sub" style="color:var(--fg-warning)" title="Sem reconfirmação desde ' +
+      fmtDateTime(tsLastSeen) + '">🟡 sem atividade há ' + fmtUptime(ageS) + "</div>";
+  }
+
   function fmtUptime(s) {
     s = Math.floor(s || 0);
     var h = Math.floor(s / 3600);
@@ -954,7 +974,7 @@
         return (
           '<tr data-attack-id="' + a.id + '" data-prefix="' + escapeHtml(a.dst_prefix) + '">' +
           "<td>" + fmtDateTime(a.ts_start) + "</td>" +
-          "<td>" + fmtAttackDuration(a) + "</td>" +
+          "<td>" + fmtAttackDuration(a) + (a.ts_end ? "" : fmtActivityFreshness(a.ts_last_seen)) + "</td>" +
           '<td class="fg-wrap-cell">' + targetHtml + "</td>" +
           "<td>" + escapeHtml(a.customer || "-") + "</td>" +
           "<td>" + escapeHtml(a.attack_type) + "</td>" +
@@ -3255,7 +3275,8 @@
           "<td>" + escapeHtml(r.src_ip) + "</td><td>" + escapeHtml(r.customer_prefix || "-") + "</td><td>" +
           escapeHtml(CG_SIGNAL_LABELS[r.signal_type] || r.signal_type) + "</td><td>" +
           Math.round((r.confidence || 0) * 100) + "%</td><td>" + fmtDateTime(r.ts_detected) + "</td><td>" +
-          fmtDateTime(r.ts_last_seen) + "</td><td>" + cgMitigationBadgeHtml(r.mitigation, !r.resolved) + "</td>" +
+          fmtDateTime(r.ts_last_seen) + (r.resolved ? "" : fmtActivityFreshness(r.ts_last_seen)) + "</td><td>" +
+          cgMitigationBadgeHtml(r.mitigation, !r.resolved) + "</td>" +
           "<td>" + resolveBtn + edgeBtn + '<button class="fg-btn" data-action="detail">Detalhes</button></td></tr>'
         );
       })

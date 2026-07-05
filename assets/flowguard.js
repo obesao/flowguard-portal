@@ -133,6 +133,8 @@
     fgTogglesPending: {},
     fgMitigationLoaded: {},
     fgMitigationPending: {},
+    fgDetectionCfg: {},
+    fgDetectionTemplates: {},
   };
 
   // Compartilhado pelas telas de toggles do ClientGuard e do FlowGuard — mostra quantas
@@ -2890,6 +2892,176 @@
     if (discoverySummaryEl) discoverySummaryEl.addEventListener("click", onRcDiscoverySummaryClick);
   }
 
+  // --- ajuste fino dos limiares de detecção (config.yaml::detection) ------
+
+  // type "mbps" converte bps<->Mbps só na exibição/edição (mesma conveniência já
+  // usada em fg-monitor-form::ddos_bps_threshold_mbps); "boolean" vira <select>.
+  var FG_DETECTION_CFG_FIELDS = [
+    { key: "ddos_bps_threshold", label: "DDoS — limiar de tráfego", type: "mbps", desc: "Acima disso (tráfego agregado do prefixo) conta como ataque volumétrico." },
+    { key: "ddos_pps_threshold", label: "DDoS — limiar de pacotes/s", type: "number", desc: "Acima disso (pps agregado do prefixo) conta como ataque volumétrico." },
+    { key: "syn_ratio_threshold", label: "SYN flood — proporção mínima", type: "number", desc: "Proporção de SYN puro sobre o total de TCP (0 a 1) pra contar como SYN flood." },
+    { key: "syn_min_pps_floor", label: "SYN flood — piso de pps TCP", type: "number", desc: "Só avalia a proporção de SYN acima desse piso de tráfego TCP total." },
+    { key: "dns_amp_factor", label: "Amplificação DNS — fator mínimo", type: "number", desc: "Fator de amplificação mínimo pra contar como abuso de DNS." },
+    { key: "scan_ports_per_sec", label: "Scan — portas/s", type: "number", desc: "Limiar de portas por segundo pra contar como varredura." },
+    { key: "scan_hosts_per_sec", label: "Scan — hosts/s", type: "number", desc: "Limiar de hosts por segundo pra contar como varredura." },
+    { key: "min_attack_duration_s", label: "Duração mínima pra abrir ataque (s)", type: "number", desc: "Segundos sustentados acima do limiar antes de considerar ataque de verdade." },
+    { key: "attack_stale_close_s", label: "Fechamento automático por inatividade (s)", type: "number", desc: "Fecha sozinho um ataque sem reconfirmação de tráfego há mais desse tempo." },
+    { key: "baseline_min_duration_s", label: "Baseline — duração mínima (s)", type: "number", desc: "Segundos sustentados de anomalia estatística antes de abrir ataque via baseline." },
+    { key: "window_short_s", label: "Janela curta (s)", type: "number", desc: "Janela curta de agregação usada por alguns cálculos internos." },
+    { key: "window_long_s", label: "Janela longa (s)", type: "number", desc: "Janela longa de agregação usada por alguns cálculos internos." },
+    { key: "baseline_enabled", label: "Anomalia de baseline — habilitada", type: "boolean", desc: "Liga/desliga a detecção por desvio estatístico (EWMA) do tráfego normal do prefixo." },
+    { key: "baseline_window_minutes", label: "Baseline — janela (min)", type: "number", desc: "Janela (minutos) usada pra calcular a média/desvio do tráfego normal." },
+    { key: "baseline_min_samples", label: "Baseline — amostras mínimas", type: "number", desc: "Amostras mínimas acumuladas antes da baseline ficar confiável." },
+    { key: "baseline_sigma", label: "Baseline — desvios-padrão (sigma)", type: "number", desc: "Quantos desvios-padrão acima da média contam como anomalia." },
+    { key: "baseline_min_bps", label: "Baseline — piso de tráfego", type: "mbps", desc: "Só considera anomalia de baseline acima desse piso de tráfego." },
+  ];
+
+  function renderFgDetectionCfg(detection) {
+    var el = document.getElementById("fg-detection-cfg");
+    if (!el) return;
+    state.fgDetectionCfg = detection || {};
+    el.innerHTML = FG_DETECTION_CFG_FIELDS.map(function (f) {
+      var val = state.fgDetectionCfg[f.key];
+      var fieldHtml;
+      if (f.type === "boolean") {
+        fieldHtml = '<select data-detection-key="' + f.key + '" data-detection-type="boolean">' +
+          '<option value="true"' + (val !== false ? " selected" : "") + ">sim</option>" +
+          '<option value="false"' + (val === false ? " selected" : "") + ">não</option></select>";
+      } else {
+        var inputVal = f.type === "mbps" ? (val != null ? val / 1e6 : "") : (val != null ? val : "");
+        fieldHtml = '<input type="text" data-detection-key="' + f.key + '" data-detection-type="' + f.type +
+          '" value="' + escapeHtml(String(inputVal)) + '">';
+      }
+      return (
+        '<div style="margin-bottom:0.7rem;">' +
+        '<label style="display:block; font-weight:600; margin-bottom:0.15rem;">' + escapeHtml(f.label) + "</label>" +
+        '<p class="fg-kpi-sub" style="margin:0 0 0.3rem;">' + escapeHtml(f.desc) + "</p>" +
+        fieldHtml +
+        "</div>"
+      );
+    }).join("");
+  }
+
+  function onFgDetectionCfgSaveClick() {
+    var el = document.getElementById("fg-detection-cfg");
+    var btn = document.getElementById("fg-detection-cfg-save-btn");
+    if (!el || !btn) return;
+    var changes = {};
+    var invalid = false;
+    el.querySelectorAll("[data-detection-key]").forEach(function (input) {
+      var key = input.getAttribute("data-detection-key");
+      var type = input.getAttribute("data-detection-type");
+      var original = state.fgDetectionCfg[key];
+      if (type === "boolean") {
+        var boolVal = input.value === "true";
+        if (boolVal !== (original !== false)) changes[key] = boolVal;
+        return;
+      }
+      var raw = input.value.trim();
+      var n = Number(raw);
+      if (!raw || !Number.isFinite(n) || n <= 0) { invalid = true; return; }
+      var resolved = type === "mbps" ? Math.round(n * 1e6) : n;
+      if (resolved !== original) changes[key] = resolved;
+    });
+    if (invalid) {
+      showToast("Valores inválidos — confira os campos numéricos", "error");
+      return;
+    }
+    if (!Object.keys(changes).length) {
+      showToast("Nenhum limiar foi alterado");
+      return;
+    }
+    btn.disabled = true;
+    postJson(CFG_ENDPOINT, { cmd: "detection_cfg_set", changes: changes })
+      .then(function (resp) {
+        showToast(resp.ok ? "Limiares atualizados" : resp.error, resp.ok ? "success" : "error");
+        if (resp.ok) renderFgDetectionCfg(resp.detection);
+      })
+      .finally(function () { btn.disabled = false; });
+  }
+
+  // --- templates de detecção (perfis reutilizáveis por tipo de rede) ------
+
+  function populateFgTemplateSelects() {
+    var names = Object.keys(state.fgDetectionTemplates || {});
+    var optionsHtml = '<option value="">sem template</option>' +
+      names.map(function (n) { return '<option value="' + escapeHtml(n) + '">' + escapeHtml(n) + "</option>"; }).join("");
+    document.querySelectorAll(".fg-template-select").forEach(function (sel) {
+      var current = sel.value;
+      sel.innerHTML = optionsHtml;
+      if (names.indexOf(current) !== -1) sel.value = current;
+    });
+  }
+
+  function renderFgDetectionTemplates(templates) {
+    var el = document.getElementById("fg-detection-templates");
+    if (!el) return;
+    state.fgDetectionTemplates = templates || {};
+    populateFgTemplateSelects();
+    var names = Object.keys(state.fgDetectionTemplates);
+    if (!names.length) {
+      el.innerHTML = '<p class="fg-ok">Nenhum template cadastrado — todo prefixo usa o limiar global.</p>';
+      return;
+    }
+    var rows = names.map(function (name) {
+      var t = state.fgDetectionTemplates[name];
+      return (
+        '<tr data-template-name="' + escapeHtml(name) + '"><td>' + escapeHtml(name) + "</td><td>" +
+        (t.ddos_bps_threshold != null ? fmtBps(t.ddos_bps_threshold) : "-") + "</td><td>" +
+        (t.ddos_pps_threshold != null ? t.ddos_pps_threshold.toLocaleString("pt-BR") + " pps" : "-") + "</td><td>" +
+        escapeHtml(t.description || "-") + "</td>" +
+        '<td><button class="fg-btn" data-action="edit-template">Editar</button> ' +
+        '<button class="fg-btn fg-btn-danger" data-action="del-template">Remover</button></td></tr>'
+      );
+    }).join("");
+    el.innerHTML =
+      "<table><thead><tr><th>Nome</th><th>Limiar DDoS</th><th>Limiar pps</th><th>Descrição</th><th></th></tr></thead><tbody>" +
+      rows + "</tbody></table>";
+  }
+
+  function onFgDetectionTemplateEditClick(name) {
+    var t = (state.fgDetectionTemplates || {})[name];
+    var form = document.getElementById("fg-detection-template-form");
+    if (!t || !form) return;
+    form.name.value = name;
+    form.ddos_bps_threshold_mbps.value = t.ddos_bps_threshold != null ? t.ddos_bps_threshold / 1e6 : "";
+    form.ddos_pps_threshold.value = t.ddos_pps_threshold != null ? t.ddos_pps_threshold : "";
+    form.description.value = t.description || "";
+    form.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  function onFgDetectionTemplatesClick(ev) {
+    var btn = ev.target.closest("button[data-action]");
+    if (!btn) return;
+    var action = btn.getAttribute("data-action");
+    var row = btn.closest("tr[data-template-name]");
+    if (!row) return;
+    var name = row.getAttribute("data-template-name");
+    if (action === "edit-template") {
+      onFgDetectionTemplateEditClick(name);
+    } else if (action === "del-template") {
+      if (!window.confirm("Remover o template '" + name + "'? Prefixos que usam esse template voltam pro limiar global.")) return;
+      postJson(CFG_ENDPOINT, { cmd: "detection_templates_del", name: name }).then(function (resp) {
+        showToast(resp.ok ? "Template removido" : resp.error, resp.ok ? "success" : "error");
+        loadCfg();
+      });
+    }
+  }
+
+  function onFgDetectionTemplateFormSubmit(ev) {
+    ev.preventDefault();
+    var form = ev.target;
+    var values = { ddos_bps_threshold: Math.round(Number(form.ddos_bps_threshold_mbps.value) * 1e6) };
+    if (form.ddos_pps_threshold.value.trim()) values.ddos_pps_threshold = Number(form.ddos_pps_threshold.value);
+    postJson(CFG_ENDPOINT, {
+      cmd: "detection_templates_set", name: form.name.value.trim(), values: values,
+      description: form.description.value.trim(),
+    }).then(function (resp) {
+      showToast(resp.ok ? "Template salvo" : resp.error, resp.ok ? "success" : "error");
+      if (resp.ok) { form.reset(); loadCfg(); }
+    });
+  }
+
   // --- configuração: prefixos monitorados + whitelist --------------------
 
   function renderCfg(data) {
@@ -2902,6 +3074,10 @@
     }
 
     populateChartPrefixSelect(data.protected_prefixes);
+    // templates ANTES da tabela de prefixos — o <select> de cada linha usa os
+    // nomes de template já carregados.
+    renderFgDetectionTemplates(data.detection_templates);
+    renderFgDetectionCfg(data.detection);
 
     var prefixRows = data.protected_prefixes
       .map(function (p) {
@@ -2911,6 +3087,7 @@
           "<td>" + escapeHtml(p.prefix) + "</td><td>" + escapeHtml(p.customer || "-") + "</td><td>" +
           (p.capacity_mbps || 0) + " Mbps</td><td>" + (p.auto_mitigate ? "sim" : "não") + "</td><td>" +
           (th.ddos_bps_threshold ? fmtBps(th.ddos_bps_threshold) : "-") + "</td>" +
+          "<td>" + (p.template ? escapeHtml(p.template) : "-") + "</td>" +
           '<td><button class="fg-btn" data-action="edit-monitor">Editar</button> ' +
           '<button class="fg-btn" data-action="del-monitor">Remover</button></td></tr>'
         );
@@ -2928,7 +3105,7 @@
 
     el.innerHTML =
       "<h4>Prefixos monitorados</h4>" +
-      "<table><thead><tr><th>Prefixo</th><th>Cliente</th><th>Capacidade</th><th>Auto-mitigar</th><th>Limiar bps</th><th></th></tr></thead><tbody>" +
+      "<table><thead><tr><th>Prefixo</th><th>Cliente</th><th>Capacidade</th><th>Auto-mitigar</th><th>Limiar bps</th><th>Template</th><th></th></tr></thead><tbody>" +
       prefixRows +
       "</tbody></table>" +
       '<form id="fg-monitor-form" class="fg-form">' +
@@ -2936,6 +3113,7 @@
       '<input name="customer" placeholder="cliente">' +
       '<input name="capacity_mbps" type="number" placeholder="capacidade (Mbps)">' +
       '<input name="ddos_bps_threshold_mbps" type="number" placeholder="limiar DDoS (Mbps)">' +
+      '<select name="template" class="fg-template-select"><option value="">sem template</option></select>' +
       '<label><input type="checkbox" name="auto_mitigate"> auto-mitigar</label>' +
       '<label><input type="checkbox" name="notify_wa"> notificar WhatsApp</label>' +
       '<button type="submit" class="fg-btn">Salvar</button></form>' +
@@ -2946,6 +3124,7 @@
       '<form id="fg-whitelist-form" class="fg-form">' +
       '<input name="prefix" placeholder="prefixo (ex: 8.8.4.4/32)" required>' +
       '<button type="submit" class="fg-btn">Adicionar à whitelist</button></form>';
+    populateFgTemplateSelects();
   }
 
   function onCfgClick(ev) {
@@ -2975,6 +3154,7 @@
       form.customer.value = cells[1].textContent === "-" ? "" : cells[1].textContent;
       form.capacity_mbps.value = parseInt(cells[2].textContent, 10) || "";
       form.auto_mitigate.checked = cells[3].textContent.trim() === "sim";
+      form.template.value = cells[5].textContent.trim() === "-" ? "" : cells[5].textContent.trim();
       form.scrollIntoView({ behavior: "smooth" });
     }
   }
@@ -2994,6 +3174,7 @@
         auto_mitigate: form.auto_mitigate.checked,
         notify_wa: form.notify_wa.checked,
         thresholds: thresholds,
+        template: form.template.value,
       }).then(function (resp) {
         showToast(resp.ok ? "Prefixo salvo" : resp.error, resp.ok ? "success" : "error");
         loadCfg();
@@ -5214,6 +5395,15 @@
       cfgEl.addEventListener("submit", onCfgSubmit);
       loadCfg();
     }
+
+    var fgDetectionCfgSaveBtn = document.getElementById("fg-detection-cfg-save-btn");
+    if (fgDetectionCfgSaveBtn) fgDetectionCfgSaveBtn.addEventListener("click", onFgDetectionCfgSaveClick);
+
+    var fgDetectionTemplatesEl = document.getElementById("fg-detection-templates");
+    if (fgDetectionTemplatesEl) fgDetectionTemplatesEl.addEventListener("click", onFgDetectionTemplatesClick);
+
+    var fgDetectionTemplateForm = document.getElementById("fg-detection-template-form");
+    if (fgDetectionTemplateForm) fgDetectionTemplateForm.addEventListener("submit", onFgDetectionTemplateFormSubmit);
 
     var fgTogglesEl = document.getElementById("fg-toggles");
     if (fgTogglesEl) {

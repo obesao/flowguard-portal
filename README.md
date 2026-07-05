@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.43.0**
+**Versão atual: v1.44.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -85,6 +85,42 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.44.0 — 2026-07-05 — Mesmo ajuste fino de detecção e templates, agora no FlowGuard
+Pedido do usuário: replicar no lado FlowGuard o mesmo mecanismo de templates
++ ajuste fino que a v1.43.0 trouxe pro ClientGuard.
+
+**Nova seção "Limiares de Detecção"** (aba Configuração > FlowGuard): 17
+campos cobrindo todo `detection.*` do FlowGuard (limiar de DDoS
+bps/pps, SYN flood, amplificação DNS, scan, baseline EWMA). Mesmo
+salvamento **diff-only** já usado no ClientGuard — só manda ao backend as
+chaves que o operador de fato mudou.
+
+**Nova seção "Templates de Detecção"**: perfis reutilizáveis de
+`ddos_bps_threshold`/`ddos_pps_threshold` (CRUD completo). A tabela de
+prefixos monitorados ganhou uma coluna "Template", e o formulário de
+prefixo um `<select>` pra atribuir/limpar o template de um prefixo.
+
+Backend: `flowguard-cfg.sh` (GET) passa a devolver `detection` e
+`detection_templates` (lidos direto do loader do FlowGuard, sem round-trip
+por socket — diferente do ClientGuard, cujo reload não relê o config
+principal); POST ganha `detection_cfg_set`/`detection_templates_set`/
+`detection_templates_del` na lista de comandos permitidos.
+
+**Bug real encontrado e corrigido na validação com Playwright contra o
+daemon ao vivo**: o salvamento diff-only arredondava (`Math.round`) todo
+campo numérico antes de comparar com o valor original — limiares
+fracionários (ex: `syn_ratio_threshold: 0.9`) sempre batiam como "alterado"
+mesmo sem edição nenhuma, gravando um override espúrio (`0.9` → `1`) a cada
+clique em "Salvar limiares". Pego durante a própria validação (o teste
+automatizado corrompeu o valor ao vivo), corrigido antes de dar por
+encerrado, e o override espúrio revertido manualmente via socket.
+
+Validado com Playwright real contra o daemon: as 3 seções carregam com
+valores reais, criar/editar/remover template funciona, atribuir e limpar
+template de um prefixo funciona (preservando os demais campos do prefixo),
+e "Salvar limiares" sem alteração nenhuma não dispara requisição nenhuma.
+Sem erros no console em nenhum passo.
 
 ### v1.43.0 — 2026-07-05 — Ajuste fino dos limiares de detecção e templates (cgnat/cdn) no portal
 Pedido do usuário: expor no portal tudo que foi recalibrado no ClientGuard

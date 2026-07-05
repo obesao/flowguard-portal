@@ -1,6 +1,8 @@
 #!/bin/sh
-# flowguard-cfg.sh — GET lista prefixos monitorados + whitelist;
-# POST aplica monitor_set/monitor_del/whitelist_add/whitelist_del via socket do daemon
+# flowguard-cfg.sh — GET lista prefixos monitorados + whitelist + limiares de
+# detecção efetivos + templates de perfil de rede; POST aplica monitor_set/
+# monitor_del/whitelist_add/whitelist_del/detection_cfg_set/
+# detection_templates_set/detection_templates_del via socket do daemon
 
 . "$(dirname -- "$0")/lib.sh"
 
@@ -24,7 +26,10 @@ sys.path.insert(0, "/root/flowguard")
 import yaml
 from collector import control
 
-ALLOWED_CMDS = {"monitor_set", "monitor_del", "whitelist_add", "whitelist_del"}
+ALLOWED_CMDS = {
+    "monitor_set", "monitor_del", "whitelist_add", "whitelist_del",
+    "detection_cfg_set", "detection_templates_set", "detection_templates_del",
+}
 
 try:
     body = json.loads(os.environ.get("BODY") or "{}")
@@ -57,6 +62,8 @@ try:
         "ok": True,
         "protected_prefixes": cfg["protected_prefixes"],
         "whitelist": cfg["whitelist"],
+        "detection": cfg["detection"],
+        "detection_templates": cfg["detection_templates"],
     }))
 except Exception as exc:
     print(json.dumps({"ok": False, "error": str(exc)}))

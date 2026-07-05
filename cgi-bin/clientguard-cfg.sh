@@ -1,6 +1,8 @@
 #!/bin/sh
-# clientguard-cfg.sh — GET lista redes de clientes (customers.yaml) + whitelist;
-# POST aplica customers_add/customers_del/whitelist_add/whitelist_del via socket do daemon
+# clientguard-cfg.sh — GET lista redes de clientes (customers.yaml) + whitelist +
+# limiares de detecção efetivos + templates de perfil de rede (cgnat/cdn); POST
+# aplica customers_add/customers_edit/customers_del/whitelist_add/whitelist_del/
+# detection_cfg_set/detection_templates_set/detection_templates_del via socket do daemon
 
 . "$(dirname -- "$0")/lib.sh"
 
@@ -24,7 +26,10 @@ sys.path.insert(0, "/root/clientguard")
 import yaml
 import control
 
-ALLOWED_CMDS = {"customers_add", "customers_del", "whitelist_add", "whitelist_del"}
+ALLOWED_CMDS = {
+    "customers_add", "customers_edit", "customers_del", "whitelist_add", "whitelist_del",
+    "detection_cfg_set", "detection_templates_set", "detection_templates_del",
+}
 
 try:
     body = json.loads(os.environ.get("BODY") or "{}")
@@ -49,12 +54,24 @@ import sys
 
 sys.path.insert(0, "/root/clientguard")
 
+import yaml
+
 import configio
+import control
 
 try:
     customers = configio.load_yaml_list("/root/clientguard/customers.yaml")
     whitelist = configio.load_yaml_list("/root/clientguard/whitelist.yaml")
-    print(json.dumps({"ok": True, "customers": customers, "whitelist": whitelist}))
+    templates = configio.load_detection_templates("/root/clientguard/detection_templates.yaml")
+    # limiar EFETIVO (config.yaml::detection + detection_overrides.yaml já mesclados)
+    # só o daemon sabe calcular — via socket, não leitura direta de arquivo.
+    cfg = yaml.safe_load(open("/root/clientguard/config.yaml", encoding="utf-8"))
+    detection_resp = control.send_command(cfg["daemon"]["socket"], {"cmd": "detection_cfg"})
+    detection = detection_resp.get("detection", {}) if detection_resp.get("ok") else {}
+    print(json.dumps({
+        "ok": True, "customers": customers, "whitelist": whitelist,
+        "detection_templates": templates, "detection": detection,
+    }))
 except Exception as exc:
     print(json.dumps({"ok": False, "error": str(exc)}))
 PYEOF

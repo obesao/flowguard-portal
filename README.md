@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.42.0**
+**Versão atual: v1.43.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -85,6 +85,49 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.43.0 — 2026-07-05 — Ajuste fino dos limiares de detecção e templates (cgnat/cdn) no portal
+Pedido do usuário: expor no portal tudo que foi recalibrado no ClientGuard
+(limiares de scan/amplificação/spam/coordenação + templates de perfil de
+rede cgnat/cdn), com ajuste fino direto na tela em vez de editar YAML na
+borda.
+
+**Nova seção "Limiares de Detecção"** (aba Configuração > ClientGuard): um
+campo por limiar (`scan_horizontal_hosts`, `scan_vertical_ports`,
+`scan_max_avg_bytes`, `amplifier_min_bps`, `spam_min_distinct_dest`,
+`coordinated_min_clients`, `dns_tunneling_min_queries`) e um campo de texto
+por lista de porta (`amplifier_ports`, `spam_ports`, `common_service_ports`,
+vírgula-separado). "Salvar limiares" manda só os campos que **realmente
+mudaram** em relação ao valor carregado — mandar o formulário inteiro a
+cada save materializaria todo `detection.*` no override do ClientGuard, e
+uma mudança futura direto no `config.yaml` de lá nunca mais teria efeito
+(achado e corrigido ainda durante a validação desta feature). Aplica sem
+reiniciar o daemon do ClientGuard.
+
+**Nova seção "Templates de Detecção"**: tabela com os templates cadastrados
+(nome, limiares, descrição) + formulário de criar/editar (salvar com nome
+já existente substitui o template inteiro) + remover.
+
+**"Redes de Clientes" ganha 2 colunas novas**: `Template` (`<select>` com
+os templates cadastrados) e `Multiplicador`, editáveis direto na linha
+("Salvar" por linha, sem precisar excluir e recadastrar a rede) — mais os
+mesmos 2 campos no formulário de adicionar rede nova.
+
+Backend: `clientguard-cfg.sh` (GET) passa a devolver `detection` (limiar
+efetivo, via socket) e `detection_templates`; POST ganha
+`detection_cfg_set`/`detection_templates_set`/`detection_templates_del`/
+`customers_edit` na lista de comandos permitidos.
+
+**Bug real encontrado e corrigido na validação**: o atributo `pattern` do
+campo de nome do template (`[a-z0-9_-]+`) quebrava em navegador com engine
+de regex mais nova (`-` dentro de `[...]` interpretado como sintaxe de
+subtração de conjunto) — corrigido escapando (`[a-z0-9_\-]+`).
+
+Validado com Playwright real contra o daemon: limiares carregam com os
+valores reais, salvar só o campo alterado persiste só ele (conferido lendo
+o arquivo de override direto), criar/editar/remover template funciona e
+reflete na hora no `<select>` das redes, editar template de uma rede
+existente persiste após reload da página, 0 erros de console.
 
 ### v1.42.0 — 2026-07-05 — "sem proteção" não aparece mais pra host que já parou de ser atacado
 Pedido do usuário: mesmo com o indicador de atividade da v1.41.0, o selo de

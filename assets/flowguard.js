@@ -121,6 +121,8 @@
     cgTogglesPending: {},
     cgEdgeAutoLoaded: {},
     cgEdgeAutoPending: {},
+    cgDetectionCfg: {},
+    cgDetectionTemplates: {},
     rulesApp: "flowguard",
     rulesView: "active",
     blockSource: "flowguard",
@@ -3097,6 +3099,21 @@
     { key: "ai_explanations", label: "Explicação por IA", desc: "gera uma explicação em texto (Claude) pra cada sinal novo disparado por qualquer detector acima." },
   ];
 
+  // ajuste fino de config.yaml::detection (aplicado via detection_overrides.yaml,
+  // sem reiniciar o daemon) — type "ports" vira lista (input de texto, vírgula-separado)
+  var CG_DETECTION_CFG_FIELDS = [
+    { key: "scan_horizontal_hosts", label: "Scan horizontal — hosts distintos", type: "number", desc: "N destinos distintos, mesma porta, pra contar como scan horizontal." },
+    { key: "scan_vertical_ports", label: "Scan vertical — portas distintas", type: "number", desc: "N portas distintas, mesmo destino, pra contar como scan vertical." },
+    { key: "scan_max_avg_bytes", label: "Scan — máx. bytes médios", type: "number", desc: "Acima disso é tráfego real (P2P/torrent), não sonda de reconhecimento." },
+    { key: "amplifier_min_bps", label: "Amplificador — bps mínimo", type: "number", desc: "Tráfego de resposta mínimo (bps) pra contar como amplificador hospedado." },
+    { key: "spam_min_distinct_dest", label: "Spam — destinos distintos", type: "number", desc: "N destinos distintos em portas de e-mail pra contar como spam bot." },
+    { key: "coordinated_min_clients", label: "Coordenado — clientes distintos", type: "number", desc: "N clientes distintos no mesmo destino pra contar como coordenado." },
+    { key: "dns_tunneling_min_queries", label: "Túnel DNS — queries mínimas", type: "number", desc: "N queries DNS (já multiplicado pelo sampling) pro mesmo resolver pra contar como túnel." },
+    { key: "amplifier_ports", label: "Portas de amplificação", type: "ports", desc: "Portas UDP de serviço monitoradas pelo detector de amplificador (ex: 53, 123, 1900)." },
+    { key: "spam_ports", label: "Portas de e-mail (spam)", type: "ports", desc: "Portas monitoradas pelo detector de spam bot (ex: 25, 465, 587)." },
+    { key: "common_service_ports", label: "Portas de serviço comum (exceção)", type: "ports", desc: "Portas de app popular (CDN/VoIP/jogos/etc) excluídas do scan horizontal e do destino coordenado, pra não confundir uso normal com abuso." },
+  ];
+
   function updateCgBadge(count) {
     var badge = document.getElementById("cg-suspicious-badge");
     if (!badge) return;
@@ -3410,6 +3427,124 @@
     }
   }
 
+  // --- ClientGuard: ajuste fino dos limiares de detecção --------------------
+
+  function renderCgDetectionCfg(detection) {
+    var el = document.getElementById("cg-detection-cfg");
+    if (!el) return;
+    state.cgDetectionCfg = detection || {};
+    el.innerHTML = CG_DETECTION_CFG_FIELDS.map(function (f) {
+      var val = state.cgDetectionCfg[f.key];
+      var inputVal = f.type === "ports"
+        ? (Array.isArray(val) ? val.join(", ") : "")
+        : (val != null ? val : "");
+      return (
+        '<div style="margin-bottom:0.7rem;">' +
+        '<label style="display:block; font-weight:600; margin-bottom:0.15rem;">' + escapeHtml(f.label) + "</label>" +
+        '<p class="fg-kpi-sub" style="margin:0 0 0.3rem;">' + escapeHtml(f.desc) + "</p>" +
+        '<input type="text" data-detection-key="' + f.key + '" data-detection-type="' + f.type +
+        '" value="' + escapeHtml(String(inputVal)) + '">' +
+        "</div>"
+      );
+    }).join("");
+  }
+
+  // só manda ao backend as chaves que REALMENTE mudaram em relação ao valor
+  // carregado (state.cgDetectionCfg) — mandar o formulário inteiro a cada save
+  // materializaria TODO detection.* dentro de detection_overrides.yaml, e a
+  // partir daí uma mudança futura direto em config.yaml nunca mais teria efeito
+  // (override sempre venceria, mesmo em campos que o operador nunca quis fixar).
+  function onCgDetectionCfgSaveClick() {
+    var el = document.getElementById("cg-detection-cfg");
+    var btn = document.getElementById("cg-detection-cfg-save-btn");
+    if (!el || !btn) return;
+    var changes = {};
+    var invalid = false;
+    el.querySelectorAll("[data-detection-key]").forEach(function (input) {
+      var key = input.getAttribute("data-detection-key");
+      var type = input.getAttribute("data-detection-type");
+      var raw = input.value.trim();
+      var original = state.cgDetectionCfg[key];
+      if (type === "ports") {
+        var nums = raw ? raw.split(",").map(function (s) { return Number(s.trim()); }) : [];
+        if (nums.some(function (n) { return !Number.isInteger(n) || n < 0; })) { invalid = true; return; }
+        var originalArr = Array.isArray(original) ? original : [];
+        var changed = nums.length !== originalArr.length || nums.some(function (n, i) { return n !== originalArr[i]; });
+        if (changed) changes[key] = nums;
+      } else {
+        var n = Number(raw);
+        if (!raw || !Number.isFinite(n) || n <= 0) { invalid = true; return; }
+        var rounded = Math.round(n);
+        if (rounded !== original) changes[key] = rounded;
+      }
+    });
+    if (invalid) {
+      showToast("Valores inválidos — confira os campos numéricos e as listas de porta", "error");
+      return;
+    }
+    if (!Object.keys(changes).length) {
+      showToast("Nenhum limiar foi alterado");
+      return;
+    }
+    btn.disabled = true;
+    postJson(CG_CFG_ENDPOINT, { cmd: "detection_cfg_set", changes: changes })
+      .then(function (resp) {
+        showToast(resp.ok ? "Limiares atualizados" : resp.error, resp.ok ? "success" : "error");
+        if (resp.ok) renderCgDetectionCfg(resp.detection);
+      })
+      .finally(function () { btn.disabled = false; });
+  }
+
+  // --- ClientGuard: templates de detecção (perfis reutilizáveis por rede) --
+
+  function populateCgTemplateSelects() {
+    var names = Object.keys(state.cgDetectionTemplates || {});
+    var optionsHtml = '<option value="">sem template</option>' +
+      names.map(function (n) { return '<option value="' + escapeHtml(n) + '">' + escapeHtml(n) + "</option>"; }).join("");
+    document.querySelectorAll(".cg-template-select").forEach(function (sel) {
+      var current = sel.value;
+      sel.innerHTML = optionsHtml;
+      if (names.indexOf(current) !== -1) sel.value = current;
+    });
+  }
+
+  function renderCgDetectionTemplates(templates) {
+    var el = document.getElementById("cg-detection-templates");
+    if (!el) return;
+    state.cgDetectionTemplates = templates || {};
+    populateCgTemplateSelects();
+    var names = Object.keys(state.cgDetectionTemplates);
+    if (!names.length) {
+      el.innerHTML = '<p class="fg-ok">Nenhum template cadastrado — toda rede usa o limiar global.</p>';
+      return;
+    }
+    var rows = names.map(function (name) {
+      var t = state.cgDetectionTemplates[name];
+      return (
+        '<tr data-template-name="' + escapeHtml(name) + '"><td>' + escapeHtml(name) + "</td><td>" +
+        (t.scan_horizontal_hosts != null ? t.scan_horizontal_hosts : "-") + "</td><td>" +
+        (t.scan_vertical_ports != null ? t.scan_vertical_ports : "-") + "</td><td>" +
+        escapeHtml(t.description || "-") + "</td>" +
+        '<td><button class="fg-btn" data-action="edit-template">Editar</button> ' +
+        '<button class="fg-btn fg-btn-danger" data-action="del-template">Remover</button></td></tr>'
+      );
+    }).join("");
+    el.innerHTML =
+      "<table><thead><tr><th>Nome</th><th>Hosts (horizontal)</th><th>Portas (vertical)</th><th>Descrição</th><th></th></tr></thead><tbody>" +
+      rows + "</tbody></table>";
+  }
+
+  function onCgDetectionTemplateEditClick(name) {
+    var t = (state.cgDetectionTemplates || {})[name];
+    var form = document.getElementById("cg-detection-template-form");
+    if (!t || !form) return;
+    form.name.value = name;
+    form.scan_horizontal_hosts.value = t.scan_horizontal_hosts != null ? t.scan_horizontal_hosts : "";
+    form.scan_vertical_ports.value = t.scan_vertical_ports != null ? t.scan_vertical_ports : "";
+    form.description.value = t.description || "";
+    form.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
   // --- ClientGuard: redes de clientes + whitelist --------------------------
 
   function renderCgCustomers(customers) {
@@ -3419,17 +3554,27 @@
       el.innerHTML = '<p class="fg-ok">Nenhuma rede cadastrada.</p>';
       return;
     }
+    var templateNames = Object.keys(state.cgDetectionTemplates || {});
     var rows = customers
       .map(function (c) {
+        var options = '<option value="">sem template</option>' +
+          templateNames.map(function (n) {
+            return '<option value="' + escapeHtml(n) + '"' + (c.template === n ? " selected" : "") + ">" + escapeHtml(n) + "</option>";
+          }).join("");
         return (
           '<tr data-network="' + escapeHtml(c.network) + '"><td>' + escapeHtml(c.network) + "</td><td>" +
           escapeHtml(c.prefix) + "</td><td>" + escapeHtml(c.name || "-") + "</td>" +
-          '<td><button class="fg-btn" data-action="del-customer">Remover</button></td></tr>'
+          '<td><select class="cg-template-select">' + options + "</select></td>" +
+          '<td><input type="number" min="1" class="cg-multiplier-input" style="width:5rem;" ' +
+          'value="' + (c.client_multiplier || "") + '" placeholder="1"></td>' +
+          '<td><button class="fg-btn" data-action="save-customer">Salvar</button> ' +
+          '<button class="fg-btn fg-btn-danger" data-action="del-customer">Remover</button></td></tr>'
         );
       })
       .join("");
     el.innerHTML =
-      "<table><thead><tr><th>Rede</th><th>Rótulo</th><th>Nome</th><th></th></tr></thead><tbody>" + rows + "</tbody></table>";
+      "<table><thead><tr><th>Rede</th><th>Rótulo</th><th>Nome</th><th>Template</th><th>Multiplicador</th><th></th></tr></thead><tbody>" +
+      rows + "</tbody></table>";
   }
 
   function renderCgWhitelist(whitelist) {
@@ -3457,8 +3602,12 @@
         showError(document.getElementById("cg-customers"), data.error || "erro desconhecido");
         return;
       }
+      // templates ANTES de customers — a tabela de redes usa os nomes de template
+      // já carregados pra montar o <select> de cada linha.
+      renderCgDetectionTemplates(data.detection_templates);
       renderCgCustomers(data.customers);
       renderCgWhitelist(data.whitelist);
+      renderCgDetectionCfg(data.detection);
     }).catch(function (err) {
       showError(document.getElementById("cg-customers"), "falha ao consultar configuração do ClientGuard");
       console.error("flowguard.js:", err);
@@ -3485,6 +3634,31 @@
         loadClientGuardCfg();
         loadClientGuardStatus();
       });
+    } else if (action === "save-customer") {
+      var row3 = btn.closest("tr[data-network]");
+      if (!row3) return;
+      var select = row3.querySelector(".cg-template-select");
+      var multInput = row3.querySelector(".cg-multiplier-input");
+      postJson(CG_CFG_ENDPOINT, {
+        cmd: "customers_edit", network: row3.getAttribute("data-network"),
+        template: select ? select.value : "", client_multiplier: multInput ? multInput.value.trim() : "",
+      }).then(function (resp) {
+        showToast(resp.ok ? "Rede atualizada" : resp.error, resp.ok ? "success" : "error");
+        loadClientGuardCfg();
+      });
+    } else if (action === "edit-template") {
+      var row4 = btn.closest("tr[data-template-name]");
+      if (!row4) return;
+      onCgDetectionTemplateEditClick(row4.getAttribute("data-template-name"));
+    } else if (action === "del-template") {
+      var row5 = btn.closest("tr[data-template-name]");
+      if (!row5) return;
+      var name = row5.getAttribute("data-template-name");
+      if (!window.confirm("Remover o template '" + name + "'? Redes que usam esse template voltam pro limiar global.")) return;
+      postJson(CG_CFG_ENDPOINT, { cmd: "detection_templates_del", name: name }).then(function (resp) {
+        showToast(resp.ok ? "Template removido" : resp.error, resp.ok ? "success" : "error");
+        loadClientGuardCfg();
+      });
     }
   }
 
@@ -3494,6 +3668,7 @@
       ev.preventDefault();
       postJson(CG_CFG_ENDPOINT, {
         cmd: "customers_add", network: form.network.value.trim(), prefix: form.prefix.value.trim(), name: form.name.value.trim(),
+        template: form.template.value, client_multiplier: form.client_multiplier.value.trim(),
       }).then(function (resp) {
         showToast(resp.ok ? "Rede adicionada" : resp.error, resp.ok ? "success" : "error");
         if (resp.ok) form.reset();
@@ -3507,6 +3682,19 @@
         if (resp.ok) form.reset();
         loadClientGuardCfg();
         loadClientGuardStatus();
+      });
+    } else if (form.id === "cg-detection-template-form") {
+      ev.preventDefault();
+      postJson(CG_CFG_ENDPOINT, {
+        cmd: "detection_templates_set", name: form.name.value.trim(),
+        values: {
+          scan_horizontal_hosts: Number(form.scan_horizontal_hosts.value),
+          scan_vertical_ports: Number(form.scan_vertical_ports.value),
+        },
+        description: form.description.value.trim(),
+      }).then(function (resp) {
+        showToast(resp.ok ? "Template salvo" : resp.error, resp.ok ? "success" : "error");
+        if (resp.ok) { form.reset(); loadClientGuardCfg(); }
       });
     }
   }
@@ -5097,6 +5285,15 @@
 
     var cgWhitelistEl = document.getElementById("cg-whitelist");
     if (cgWhitelistEl) cgWhitelistEl.addEventListener("click", onCgCfgClick);
+
+    var cgDetectionTemplateForm = document.getElementById("cg-detection-template-form");
+    if (cgDetectionTemplateForm) cgDetectionTemplateForm.addEventListener("submit", onCgCfgSubmit);
+
+    var cgDetectionTemplatesEl = document.getElementById("cg-detection-templates");
+    if (cgDetectionTemplatesEl) cgDetectionTemplatesEl.addEventListener("click", onCgCfgClick);
+
+    var cgDetectionCfgSaveBtn = document.getElementById("cg-detection-cfg-save-btn");
+    if (cgDetectionCfgSaveBtn) cgDetectionCfgSaveBtn.addEventListener("click", onCgDetectionCfgSaveClick);
 
     var cgTogglesEl = document.getElementById("cg-toggles");
     if (cgTogglesEl) cgTogglesEl.addEventListener("change", onCgTogglesChange);

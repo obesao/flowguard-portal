@@ -802,11 +802,35 @@
           </div>
         </section>
         <section class="fg-panel-section">
+          <h2>Limiares de Detecção</h2>
+          <p class="fg-kpi-sub">Ajuste fino dos limiares GLOBAIS de scan/amplificação/spam/coordenação — vale pra qualquer rede sem <code>template</code> atribuído (ver "Templates de Detecção" logo abaixo pra perfis específicos como CGNAT/CDN). Aplica sem precisar reiniciar o daemon. Listas de porta aceitam vários números separados por vírgula.</p>
+          <div id="cg-detection-cfg"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
+          <div class="fg-toolbar">
+            <button class="fg-btn" id="cg-detection-cfg-save-btn">Salvar limiares</button>
+          </div>
+        </section>
+        <section class="fg-panel-section">
+          <h2>Templates de Detecção (perfis por tipo de rede)</h2>
+          <p class="fg-kpi-sub">Perfis reutilizáveis de limiar de scan — atribua um template a uma rede na seção "Redes de Clientes" logo abaixo em vez de recalibrar os mesmos números pra cada <code>/24</code> novo do mesmo perfil (ex.: <strong>cgnat</strong> pra pool com muitos clientes ativos e tráfego residencial diverso, <strong>cdn</strong> pra infraestrutura própria com fan-out extremo esperado).</p>
+          <div id="cg-detection-templates"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
+          <h3 style="margin-top:0.6rem;">Novo template / editar existente</h3>
+          <p class="fg-kpi-sub">Salvar com um nome já existente substitui o template inteiro (não é mescla de campos).</p>
+          <form id="cg-detection-template-form" class="fg-form">
+            <input type="text" name="name" placeholder="nome (ex: cgnat)" pattern="[a-z0-9_\-]+" title="minúsculo, só letras/números/_/-" required>
+            <input type="number" name="scan_horizontal_hosts" placeholder="scan_horizontal_hosts" min="1" required>
+            <input type="number" name="scan_vertical_ports" placeholder="scan_vertical_ports" min="1" required>
+            <input type="text" name="description" placeholder="descrição (opcional)">
+            <button type="submit" class="fg-btn">Salvar template</button>
+          </form>
+        </section>
+        <section class="fg-panel-section">
           <h2>Redes de Clientes</h2>
           <form id="cg-customers-form" class="fg-form">
             <input type="text" name="network" placeholder="CIDR ou IP, ex: 177.86.16.0/24" required>
             <input type="text" name="prefix" placeholder="rótulo (customer_prefix)" required>
             <input type="text" name="name" placeholder="nome (opcional)">
+            <select name="template" id="cg-customers-form-template"><option value="">sem template</option></select>
+            <input type="number" name="client_multiplier" placeholder="multiplicador (opcional)" min="1">
             <button type="submit" class="fg-btn">Adicionar</button>
           </form>
           <div id="cg-customers"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>

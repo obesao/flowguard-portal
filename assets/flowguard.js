@@ -2899,16 +2899,12 @@
   var FG_DETECTION_CFG_FIELDS = [
     { key: "ddos_bps_threshold", label: "DDoS — limiar de tráfego", type: "mbps", desc: "Acima disso (tráfego agregado do prefixo) conta como ataque volumétrico." },
     { key: "ddos_pps_threshold", label: "DDoS — limiar de pacotes/s", type: "number", desc: "Acima disso (pps agregado do prefixo) conta como ataque volumétrico." },
+    { key: "amp_bps_threshold", label: "Amplificação — limiar de tráfego", type: "mbps", desc: "Acima disso (dns/ntp/ssdp/memcached/cldap) conta como amplificação — separado do limiar volumétrico, tipicamente bem menor." },
     { key: "syn_ratio_threshold", label: "SYN flood — proporção mínima", type: "number", desc: "Proporção de SYN puro sobre o total de TCP (0 a 1) pra contar como SYN flood." },
     { key: "syn_min_pps_floor", label: "SYN flood — piso de pps TCP", type: "number", desc: "Só avalia a proporção de SYN acima desse piso de tráfego TCP total." },
-    { key: "dns_amp_factor", label: "Amplificação DNS — fator mínimo", type: "number", desc: "Fator de amplificação mínimo pra contar como abuso de DNS." },
-    { key: "scan_ports_per_sec", label: "Scan — portas/s", type: "number", desc: "Limiar de portas por segundo pra contar como varredura." },
-    { key: "scan_hosts_per_sec", label: "Scan — hosts/s", type: "number", desc: "Limiar de hosts por segundo pra contar como varredura." },
     { key: "min_attack_duration_s", label: "Duração mínima pra abrir ataque (s)", type: "number", desc: "Segundos sustentados acima do limiar antes de considerar ataque de verdade." },
     { key: "attack_stale_close_s", label: "Fechamento automático por inatividade (s)", type: "number", desc: "Fecha sozinho um ataque sem reconfirmação de tráfego há mais desse tempo." },
     { key: "baseline_min_duration_s", label: "Baseline — duração mínima (s)", type: "number", desc: "Segundos sustentados de anomalia estatística antes de abrir ataque via baseline." },
-    { key: "window_short_s", label: "Janela curta (s)", type: "number", desc: "Janela curta de agregação usada por alguns cálculos internos." },
-    { key: "window_long_s", label: "Janela longa (s)", type: "number", desc: "Janela longa de agregação usada por alguns cálculos internos." },
     { key: "baseline_enabled", label: "Anomalia de baseline — habilitada", type: "boolean", desc: "Liga/desliga a detecção por desvio estatístico (EWMA) do tráfego normal do prefixo." },
     { key: "baseline_window_minutes", label: "Baseline — janela (min)", type: "number", desc: "Janela (minutos) usada pra calcular a média/desvio do tráfego normal." },
     { key: "baseline_min_samples", label: "Baseline — amostras mínimas", type: "number", desc: "Amostras mínimas acumuladas antes da baseline ficar confiável." },
@@ -2958,8 +2954,16 @@
         return;
       }
       var raw = input.value.trim();
+      if (!raw) {
+        // campo vazio sem valor original (chave ainda sem valor em config.yaml,
+        // ex: removida/nunca setada) não é uma edição — não deve travar o resto
+        // do formulário; só é erro se havia um valor antes e o operador o apagou.
+        if (original == null) return;
+        invalid = true;
+        return;
+      }
       var n = Number(raw);
-      if (!raw || !Number.isFinite(n) || n <= 0) { invalid = true; return; }
+      if (!Number.isFinite(n) || n <= 0) { invalid = true; return; }
       var resolved = type === "mbps" ? Math.round(n * 1e6) : n;
       if (resolved !== original) changes[key] = resolved;
     });
@@ -3009,13 +3013,14 @@
         '<tr data-template-name="' + escapeHtml(name) + '"><td>' + escapeHtml(name) + "</td><td>" +
         (t.ddos_bps_threshold != null ? fmtBps(t.ddos_bps_threshold) : "-") + "</td><td>" +
         (t.ddos_pps_threshold != null ? t.ddos_pps_threshold.toLocaleString("pt-BR") + " pps" : "-") + "</td><td>" +
+        (t.amp_bps_threshold != null ? fmtBps(t.amp_bps_threshold) : "-") + "</td><td>" +
         escapeHtml(t.description || "-") + "</td>" +
         '<td><button class="fg-btn" data-action="edit-template">Editar</button> ' +
         '<button class="fg-btn fg-btn-danger" data-action="del-template">Remover</button></td></tr>'
       );
     }).join("");
     el.innerHTML =
-      "<table><thead><tr><th>Nome</th><th>Limiar DDoS</th><th>Limiar pps</th><th>Descrição</th><th></th></tr></thead><tbody>" +
+      "<table><thead><tr><th>Nome</th><th>Limiar DDoS</th><th>Limiar pps</th><th>Limiar amplificação</th><th>Descrição</th><th></th></tr></thead><tbody>" +
       rows + "</tbody></table>";
   }
 
@@ -3026,6 +3031,7 @@
     form.name.value = name;
     form.ddos_bps_threshold_mbps.value = t.ddos_bps_threshold != null ? t.ddos_bps_threshold / 1e6 : "";
     form.ddos_pps_threshold.value = t.ddos_pps_threshold != null ? t.ddos_pps_threshold : "";
+    form.amp_bps_threshold_mbps.value = t.amp_bps_threshold != null ? t.amp_bps_threshold / 1e6 : "";
     form.description.value = t.description || "";
     form.scrollIntoView({ behavior: "smooth", block: "center" });
   }
@@ -3053,6 +3059,9 @@
     var form = ev.target;
     var values = { ddos_bps_threshold: Math.round(Number(form.ddos_bps_threshold_mbps.value) * 1e6) };
     if (form.ddos_pps_threshold.value.trim()) values.ddos_pps_threshold = Number(form.ddos_pps_threshold.value);
+    if (form.amp_bps_threshold_mbps.value.trim()) {
+      values.amp_bps_threshold = Math.round(Number(form.amp_bps_threshold_mbps.value) * 1e6);
+    }
     postJson(CFG_ENDPOINT, {
       cmd: "detection_templates_set", name: form.name.value.trim(), values: values,
       description: form.description.value.trim(),
@@ -3078,6 +3087,12 @@
     // nomes de template já carregados.
     renderFgDetectionTemplates(data.detection_templates);
     renderFgDetectionCfg(data.detection);
+    // guardado pra edit-monitor ler o valor RAW (bps) na hora de editar — ler de
+    // volta o texto já formatado da célula ("35.0 Gbps") seria perda de precisão
+    // e, pior, monitor_set SUBSTITUI a entrada inteira (não faz merge): sem
+    // prefilar aqui, editar qualquer outro campo (ex: só o cliente) apagava o
+    // limiar customizado do prefixo em silêncio.
+    state.fgProtectedPrefixes = data.protected_prefixes;
 
     var prefixRows = data.protected_prefixes
       .map(function (p) {
@@ -3087,6 +3102,7 @@
           "<td>" + escapeHtml(p.prefix) + "</td><td>" + escapeHtml(p.customer || "-") + "</td><td>" +
           (p.capacity_mbps || 0) + " Mbps</td><td>" + (p.auto_mitigate ? "sim" : "não") + "</td><td>" +
           (th.ddos_bps_threshold ? fmtBps(th.ddos_bps_threshold) : "-") + "</td>" +
+          "<td>" + (th.amp_bps_threshold ? fmtBps(th.amp_bps_threshold) : "-") + "</td>" +
           "<td>" + (p.template ? escapeHtml(p.template) : "-") + "</td>" +
           '<td><button class="fg-btn" data-action="edit-monitor">Editar</button> ' +
           '<button class="fg-btn" data-action="del-monitor">Remover</button></td></tr>'
@@ -3105,7 +3121,7 @@
 
     el.innerHTML =
       "<h4>Prefixos monitorados</h4>" +
-      "<table><thead><tr><th>Prefixo</th><th>Cliente</th><th>Capacidade</th><th>Auto-mitigar</th><th>Limiar bps</th><th>Template</th><th></th></tr></thead><tbody>" +
+      "<table><thead><tr><th>Prefixo</th><th>Cliente</th><th>Capacidade</th><th>Auto-mitigar</th><th>Limiar bps</th><th>Limiar amplif.</th><th>Template</th><th></th></tr></thead><tbody>" +
       prefixRows +
       "</tbody></table>" +
       '<form id="fg-monitor-form" class="fg-form">' +
@@ -3113,6 +3129,7 @@
       '<input name="customer" placeholder="cliente">' +
       '<input name="capacity_mbps" type="number" placeholder="capacidade (Mbps)">' +
       '<input name="ddos_bps_threshold_mbps" type="number" placeholder="limiar DDoS (Mbps)">' +
+      '<input name="amp_bps_threshold_mbps" type="number" placeholder="limiar amplificação (Mbps)">' +
       '<select name="template" class="fg-template-select"><option value="">sem template</option></select>' +
       '<label><input type="checkbox" name="auto_mitigate"> auto-mitigar</label>' +
       '<label><input type="checkbox" name="notify_wa"> notificar WhatsApp</label>' +
@@ -3148,13 +3165,22 @@
     } else if (action === "edit-monitor") {
       var form = document.getElementById("fg-monitor-form");
       if (!form) return;
-      var cells = row.querySelectorAll("td");
+      // lê do estado (dado RAW já carregado), não da célula formatada ("35.0
+      // Gbps") — monitor_set SUBSTITUI a entrada inteira (sem merge), então
+      // qualquer campo aqui esquecido de prefilar é apagado em silêncio no
+      // próximo "Salvar" (bug real corrigido: notify_wa/thresholds sumiam ao
+      // editar só o cliente, por exemplo).
+      var entry = (state.fgProtectedPrefixes || []).filter(function (p) { return p.prefix === prefix; })[0] || {};
+      var th = entry.thresholds || {};
       form.prefix.value = prefix;
       form.prefix.readOnly = true;
-      form.customer.value = cells[1].textContent === "-" ? "" : cells[1].textContent;
-      form.capacity_mbps.value = parseInt(cells[2].textContent, 10) || "";
-      form.auto_mitigate.checked = cells[3].textContent.trim() === "sim";
-      form.template.value = cells[5].textContent.trim() === "-" ? "" : cells[5].textContent.trim();
+      form.customer.value = entry.customer || "";
+      form.capacity_mbps.value = entry.capacity_mbps || "";
+      form.ddos_bps_threshold_mbps.value = th.ddos_bps_threshold ? th.ddos_bps_threshold / 1e6 : "";
+      form.amp_bps_threshold_mbps.value = th.amp_bps_threshold ? th.amp_bps_threshold / 1e6 : "";
+      form.auto_mitigate.checked = !!entry.auto_mitigate;
+      form.notify_wa.checked = !!entry.notify_wa;
+      form.template.value = entry.template || "";
       form.scrollIntoView({ behavior: "smooth" });
     }
   }
@@ -3166,6 +3192,8 @@
       var thresholds = {};
       var mbps = Number(form.ddos_bps_threshold_mbps.value);
       if (mbps > 0) thresholds.ddos_bps_threshold = Math.round(mbps * 1e6);
+      var ampMbps = Number(form.amp_bps_threshold_mbps.value);
+      if (ampMbps > 0) thresholds.amp_bps_threshold = Math.round(ampMbps * 1e6);
       postJson(CFG_ENDPOINT, {
         cmd: "monitor_set",
         prefix: form.prefix.value,

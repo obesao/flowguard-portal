@@ -86,6 +86,47 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 
 ## Changelog
 
+### v1.46.0 — 2026-07-07 — Corrige painel "Limiares de Detecção" quebrado + limiar de amplificação + bug de apagar threshold ao editar prefixo
+Pedido do usuário: revisar o módulo de Configuração do portal e comparar com
+o que o FlowGuard atual suporta. Achados reais, dois deles críticos.
+
+**Bug crítico #1 — "Salvar limiares" sempre falhava**: a limpeza de config
+morto do `flowguard` (v1.34.0, mesma sessão) removeu do backend 5 chaves de
+`detection.*` que o painel "Limiares de Detecção" ainda listava
+(`dns_amp_factor`, `scan_ports_per_sec`, `scan_hosts_per_sec`,
+`window_short_s`, `window_long_s`). Sem essas chaves no config, os campos
+correspondentes renderizavam vazios — e a validação de salvar tratava
+QUALQUER campo vazio do formulário como erro do formulário INTEIRO (não só
+do campo alterado), travando "Salvar limiares" com "Valores inválidos" 100%
+das vezes, mesmo pra alterar um limiar de verdade. Corrigido nas duas
+pontas: campos mortos removidos de `FG_DETECTION_CFG_FIELDS`, e a validação
+agora só invalida um campo vazio se ele JÁ tinha valor antes (limpar um
+campo que nunca teve valor não é uma "edição").
+
+**Bug real #2 — editar um prefixo apagava o limiar customizado dele em
+silêncio**: `monitor_set` substitui a entrada inteira (não faz merge), mas
+o formulário de edição nunca prefilava `ddos_bps_threshold_mbps` nem
+`notify_wa` a partir do prefixo real — só parseava texto já formatado da
+tabela ("35.0 Gbps", perda de precisão, e nem tentava pro threshold). Editar
+qualquer outro campo (ex: só o nome do cliente) de um prefixo com limiar
+customizado apagava esse limiar sem aviso nenhum. Corrigido: `renderCfg`
+agora guarda o array RAW (`state.fgProtectedPrefixes`) e `edit-monitor`
+prefila TUDO a partir dele (customer/capacidade/thresholds/auto_mitigate/
+notify_wa/template), não mais lendo célula de tabela. Validado contra dado
+real de produção: prefixo `177.86.16.0/24` (limiar 30 Gbps já configurado)
+sobreviveu a uma edição completa via Playwright real.
+
+**`amp_bps_threshold` exposto** (campo novo no backend, v1.34.0 do
+`flowguard`): adicionado ao painel de ajuste fino, ao formulário/tabela de
+templates de detecção, e ao formulário/tabela de prefixo — mesmo padrão dos
+campos de DDoS já existentes (tipo "mbps", conversão automática).
+
+Validado ponta a ponta com Playwright real: campos mortos sumiram, campo de
+amplificação aparece e salva de verdade (`detection_overrides.yaml`
+confirmado), template com `amp_bps_threshold` salva e aparece na tabela,
+edição de prefixo real preserva threshold, 0 erros de console em todas as
+7 abas do portal.
+
 ### v1.45.0 — 2026-07-07 — Timeout do bloqueio de cliente sobe pra 40s (PBR bypass via SSH demora)
 Achado real: `clientguard-block.sh` (`block_add`/`block_del`) usava o timeout
 padrão de `control.send_command` (6s), mas o socket do ClientGuard pode

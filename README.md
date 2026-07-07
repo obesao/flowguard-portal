@@ -86,6 +86,15 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 
 ## Changelog
 
+### v1.45.0 — 2026-07-07 — Timeout do bloqueio de cliente sobe pra 40s (PBR bypass via SSH demora)
+Achado real: `clientguard-block.sh` (`block_add`/`block_del`) usava o timeout
+padrão de `control.send_command` (6s), mas o socket do ClientGuard pode
+disparar `push_pbr_bypass`/`remove_pbr_bypass` (SSH síncrono no equipamento
+de borda, exceção de PBR pro CGNAT — ver CHANGELOG do `clientguard`), que
+sozinho leva 15-30s. O CGI estourava o timeout e reportava falha ao operador
+mesmo quando a regra tinha sido criada/removida com sucesso no backend.
+Corrigido: `timeout=40.0` explícito nas duas chamadas.
+
 ### v1.44.0 — 2026-07-05 — Mesmo ajuste fino de detecção e templates, agora no FlowGuard
 Pedido do usuário: replicar no lado FlowGuard o mesmo mecanismo de templates
 + ajuste fino que a v1.43.0 trouxe pro ClientGuard.

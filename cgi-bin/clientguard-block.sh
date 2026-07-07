@@ -28,13 +28,17 @@ try:
     body = json.loads(os.environ.get("BODY") or "{}")
     cfg = yaml.safe_load(open("/root/clientguard/config.yaml", encoding="utf-8"))
     sock_path = cfg["daemon"]["socket"]
+    # timeout maior que o default (6s): block_add/block_del podem disparar a
+    # exceção de PBR via SSH (push_pbr_bypass/remove_pbr_bypass), que sozinha já
+    # leva 15-30s (achado real testando: a regra era criada com sucesso mas o
+    # CGI já tinha estourado o timeout e reportado falha pro usuário)
     if body.get("id"):
-        resp = control.send_command(sock_path, {"cmd": "block_del", "id": body["id"]})
+        resp = control.send_command(sock_path, {"cmd": "block_del", "id": body["id"]}, timeout=40.0)
     elif body.get("ip"):
         payload = {"cmd": "block_add", "ip": body["ip"]}
         if body.get("ttl_s"):
             payload["ttl_s"] = int(body["ttl_s"])
-        resp = control.send_command(sock_path, payload)
+        resp = control.send_command(sock_path, payload, timeout=40.0)
     else:
         resp = {"ok": False, "error": "informe ip (bloquear) ou id (remover)"}
     print(json.dumps(resp))

@@ -155,6 +155,7 @@
     .fg-toggle-group[hidden], .fg-toolbar[hidden] { display: none; }
     .fg-toggle-btn { background: var(--fg-bg-elevated); color: var(--fg-text-muted); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.3rem 0.7rem; cursor: pointer; transition: background 0.15s ease, color 0.15s ease; }
     .fg-toggle-btn.active { background: var(--fg-border); color: var(--fg-text); }
+    .fg-toggle-btn:disabled { opacity: 0.4; cursor: default; }
     /* botões avulsos (Agrupar/Selecionar) reaproveitam o mesmo estado "ligado"
        visual dos toggle-groups, mesmo não fazendo parte de um grupo */
     .fg-btn.active { background: var(--fg-border); color: var(--fg-text); border-color: var(--fg-accent); }

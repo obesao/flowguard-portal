@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.47.0**
+**Versão atual: v1.48.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -76,6 +76,12 @@ mesmo host, cada um com seu próprio socket Unix de controle:
     severidade, agrupamento por prefixo/cliente, seleção em lote, linha do
     tempo/nota/export no detalhe, e o gráfico de tráfego ganhou faixas de
     anomalia por severidade + marcadores de evento sobrepostos.
+14. **Redes do ClientGuard no gráfico de tráfego** — o seletor de barramento
+    da aba Gráficos passou a listar também as redes de cliente do
+    ClientGuard (ex: CGNAT), com série de tráfego agregada por rede inteira
+    e top clientes daquela rede; janelas longas (24h/7d) ficam desabilitadas
+    nesse modo até um índice pendente ser construído (`client_flow_aggs` tem
+    280M linhas hoje).
 
 ## Estrutura
 
@@ -90,6 +96,41 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.48.0 — 2026-07-08 — Redes do ClientGuard (ex: CGNAT) aparecem no gráfico de tráfego
+
+Usuário reportou que a rede CGNAT não aparecia nos gráficos. Causa: o
+seletor de barramento da aba Gráficos só listava prefixos PROTEGIDOS do
+FlowGuard (`protected_prefixes.yaml`) — redes de cliente do ClientGuard
+(`customers.yaml`, onde a CGNAT está cadastrada) nunca entravam ali, são
+sistemas de detecção diferentes com bancos separados.
+
+Fix: o mesmo `<select>` da aba Gráficos ganhou um `<optgroup>` "ClientGuard —
+redes de clientes" (`appendCgNetworksToChartSelect()`, reaproveita a lista
+já carregada por `loadClientGuardCfg()` — nenhuma consulta nova só pra
+listar). Selecionar uma rede do ClientGuard (valor `cg:<prefix>`) troca o
+gráfico principal pra série de tráfego agregada daquela rede inteira
+(`clientguard-network-series.sh`, endpoint novo — ver CHANGELOG do
+`clientguard` pro backend), e o painel "Top hosts" vira "Top clientes da
+rede" (reaproveita `clientguard-top.sh`, já existente, filtrado
+client-side). Protocolo e linha do tempo de ataques ficam com aviso "não
+aplicável a redes do ClientGuard" nesse modo — não existe conceito de
+ataque por prefixo nem quebra por protocolo do lado ClientGuard.
+
+**Limitação temporária, documentada no CHANGELOG do `clientguard`**: janelas
+24h/7d ficam desabilitadas (`updateChartWindowAvailability()`) quando uma
+rede do ClientGuard está selecionada — a tabela `client_flow_aggs` tem hoje
+280 milhões de linhas (achado feito durante esta mudança, não é bug —
+tráfego real, ver detalhes no outro CHANGELOG) e janelas longas não
+respondem em tempo hábil sem um índice que ainda não foi construído (custo
+de construir ao vivo precisa de uma janela controlada, não decidido ainda).
+1h/6h respondem em <5s, seguem liberadas normalmente.
+
+Validado com Playwright real: rede `CGNAT-PPPOE (100.64.0.0/10)` aparece
+corretamente agrupada no seletor, troca de contexto FlowGuard↔ClientGuard
+preserva/restaura a disponibilidade de 24h/7d, gráfico renderiza a série
+real da rede, 0 erros de console. `clientguard.service` reiniciado em
+produção pra carregar o comando de socket novo, sem downtime perceptível.
 
 ### v1.47.0 — 2026-07-08 — Aba Incidentes unifica FlowGuard + ClientGuard, timeline com faixas de severidade
 

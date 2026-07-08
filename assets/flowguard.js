@@ -19,6 +19,7 @@
   var CG_CFG_ENDPOINT = "/cgi-bin/clientguard-cfg.sh";
   var CG_TOP_ENDPOINT = "/cgi-bin/clientguard-top.sh";
   var CG_CLIENT_DETAIL_ENDPOINT = "/cgi-bin/clientguard-client-detail.sh";
+  var CG_NETWORK_SERIES_ENDPOINT = "/cgi-bin/clientguard-network-series.sh";
   var CG_BLOCK_ENDPOINT = "/cgi-bin/clientguard-block.sh";
   var CG_TOGGLES_ENDPOINT = "/cgi-bin/clientguard-toggles.sh";
   var CG_EDGE_ENDPOINT = "/cgi-bin/clientguard-edge.sh";
@@ -116,9 +117,11 @@
       prefix: null,
       prefixMeta: {},
       prefixesLoaded: false,
+      cgNetworksAppended: false,
       _requestSeq: 0,
       _resolved: {},
     },
+    cgCustomers: [],
     kpiHistory: { bps: [], pps: [] },
     cgSuspiciousView: "open",
     cgSuspiciousGroupBy: false,
@@ -4308,6 +4311,8 @@
       renderCgCustomers(data.customers);
       renderCgWhitelist(data.whitelist);
       renderCgDetectionCfg(data.detection);
+      state.cgCustomers = data.customers || [];
+      appendCgNetworksToChartSelect();
     }).catch(function (err) {
       showError(document.getElementById("cg-customers"), "falha ao consultar configuração do ClientGuard");
       console.error("flowguard.js:", err);
@@ -5183,6 +5188,29 @@
     }
     select.value = state.chart.prefix;
     state.chart.prefixesLoaded = true;
+    appendCgNetworksToChartSelect();
+  }
+
+  // redes do ClientGuard (ex: CGNAT) somadas ao MESMO seletor de barramento
+  // da aba Gráficos — chamada tanto de populateChartPrefixSelect() quanto de
+  // loadClientGuardCfg(), porque as duas listas carregam em paralelo e não dá
+  // pra saber qual chega primeiro; só efetiva quando as duas já existem, pra
+  // não ser sobrescrita pelo innerHTML de populateChartPrefixSelect() nem
+  // tentar anexar antes da lista de customers existir.
+  function appendCgNetworksToChartSelect() {
+    var select = document.getElementById("fg-chart-prefix");
+    if (!select || !state.chart.prefixesLoaded || state.chart.cgNetworksAppended) return;
+    if (!state.cgCustomers.length) return;
+    var options = state.cgCustomers.map(function (c) {
+      var value = "cg:" + c.prefix;
+      var label = c.name ? c.name + " (" + c.prefix + ")" : c.prefix;
+      return '<option value="' + escapeHtml(value) + '">' + escapeHtml(label) + "</option>";
+    }).join("");
+    var group = document.createElement("optgroup");
+    group.label = "ClientGuard — redes de clientes";
+    group.innerHTML = options;
+    select.appendChild(group);
+    state.chart.cgNetworksAppended = true;
   }
 
   // legenda dos gráficos de linha é montada em JS (não estática no HTML) porque
@@ -5257,13 +5285,110 @@
     }, 4000);
   }
 
+  var CHART_WINDOW_SECONDS = { "1h": 3600, "6h": 21600, "24h": 86400, "7d": 604800 };
+
+  // rede do ClientGuard (ex: CGNAT) selecionada no mesmo dropdown do FlowGuard
+  // — só tráfego agregado (client_flow_aggs não separa in/out nem protocolo
+  // por bucket, e não existe conceito de "ataque"/Gantt do lado ClientGuard),
+  // então os painéis de protocolo e linha do tempo de ataques ficam com aviso
+  // de "não aplicável" nesse modo; Top hosts é substituído pelos top clientes
+  // da própria rede, reaproveitando o endpoint que a aba Clientes já usa.
+  function loadCgNetworkChart(customerPrefix, windowName, requestToken) {
+    var trafficTitle = document.getElementById("fg-chart-traffic-title");
+    if (trafficTitle) trafficTitle.textContent = "Tráfego agregado da rede (ClientGuard)";
+    var hostsTitle = document.getElementById("fg-chart-hosts-title");
+    if (hostsTitle) hostsTitle.textContent = "Top clientes da rede (quem está consumindo mais)";
+
+    // trava defensiva: mesmo que algo chame com windowName=24h/7d (ex: estado
+    // salvo antes desta mudança), nunca manda pro backend uma janela que a
+    // gente sabe que não termina nesse banco sem índice dedicado.
+    var windowSeconds = Math.min(CHART_WINDOW_SECONDS[windowName] || 21600, CHART_WINDOW_SECONDS["6h"]);
+
+    getJson(CG_NETWORK_SERIES_ENDPOINT + "?customer_prefix=" + encodeURIComponent(customerPrefix) + "&window_s=" + windowSeconds)
+      .then(function (data) {
+        if (state.chart._requestSeq !== requestToken) return;
+        state.chart._resolved["fg-chart-traffic"] = true;
+        var canvas = document.getElementById("fg-chart-traffic");
+        var legendEl = document.getElementById("fg-chart-traffic-legend");
+        var summaryEl = document.getElementById("fg-chart-summary");
+        if (!canvas) return;
+        if (!data.ok) {
+          drawEmpty(canvas, data.error || "erro ao carregar");
+          if (legendEl) legendEl.innerHTML = "";
+          if (summaryEl) showError(summaryEl, data.error || "erro ao carregar");
+          return;
+        }
+        var series = data.timeseries || [];
+        drawLineChart(canvas, series, [{ key: "bps", color: "#58a6ff", label: "tráfego agregado" }]);
+        if (legendEl) renderChartLegend(legendEl, [{ color: "#58a6ff", label: "tráfego agregado (sem separação in/out)" }]);
+        if (summaryEl) {
+          var stats = computePeakAvg(series, "bps");
+          renderChartSummary(summaryEl, [{ prefix: customerPrefix, customer: "", peakBps: stats.peak, avgBps: stats.avg, capacityMbps: 0 }]);
+        }
+      })
+      .catch(function (err) {
+        if (state.chart._requestSeq !== requestToken) return;
+        var canvas = document.getElementById("fg-chart-traffic");
+        if (canvas) drawEmpty(canvas, "falha ao consultar série da rede");
+        console.error("flowguard.js:", err);
+      });
+
+    ["fg-chart-protocol", "fg-chart-timeline"].forEach(function (id) {
+      var c = document.getElementById(id);
+      if (c) {
+        state.chart._resolved[id] = true;
+        drawEmpty(c, "não aplicável a redes do ClientGuard");
+      }
+    });
+
+    getJson(CG_TOP_ENDPOINT + "?window_s=" + windowSeconds + "&limit=200").then(function (data) {
+      if (state.chart._requestSeq !== requestToken) return;
+      state.chart._resolved["flowguard-top-hosts"] = true;
+      var el = document.getElementById("flowguard-top-hosts");
+      if (!el) return;
+      if (!data.ok) { showError(el, data.error || "erro ao carregar"); return; }
+      var rows = (data.top || []).filter(function (r) { return r.customer_prefix === customerPrefix; });
+      renderCgNetworkTopClients(el, rows);
+    }).catch(function (err) {
+      if (state.chart._requestSeq !== requestToken) return;
+      var el = document.getElementById("flowguard-top-hosts");
+      if (el) showError(el, "falha ao consultar top clientes da rede");
+      console.error("flowguard.js:", err);
+    });
+  }
+
+  function renderCgNetworkTopClients(el, rows) {
+    if (!rows.length) {
+      el.innerHTML = '<p class="fg-ok">Nenhum cliente com tráfego nessa rede na janela selecionada.</p>';
+      return;
+    }
+    rows = rows.slice().sort(function (a, b) { return (b.bytes || 0) - (a.bytes || 0); }).slice(0, 20);
+    var max = rows.reduce(function (m, r) { return Math.max(m, r.bytes || 0); }, 1);
+    var body = rows.map(function (r) {
+      var pct = Math.max(2, Math.round(((r.bytes || 0) / max) * 100));
+      return "<tr><td>" + escapeHtml(r.src_ip) + "</td><td>" +
+        '<div class="fg-hbar-wrap"><div class="fg-hbar" style="width:' + pct + '%"></div>' +
+        '<span class="fg-hbar-label">' + fmtBytes(r.bytes || 0) + "</span></div>" +
+        "</td></tr>";
+    }).join("");
+    el.innerHTML =
+      "<table><thead><tr><th>Cliente (src_ip)</th><th>Tráfego na janela</th></tr></thead><tbody>" + body + "</tbody></table>";
+  }
+
   function loadCharts() {
     if (!state.chart.prefix) return;
+    updateChartWindowAvailability();
     var windowName = state.chart.window;
-    var isAll = state.chart.prefix === "__all__";
     var requestToken = ++state.chart._requestSeq;
     state.chart._resolved = {};
     chartLoadingPlaceholders(requestToken);
+
+    if (state.chart.prefix.indexOf("cg:") === 0) {
+      loadCgNetworkChart(state.chart.prefix.slice(3), windowName, requestToken);
+      return;
+    }
+
+    var isAll = state.chart.prefix === "__all__";
 
     var trafficTitle = document.getElementById("fg-chart-traffic-title");
     if (trafficTitle) {
@@ -5417,11 +5542,35 @@
       '<p class="fg-kpi-sub">Presença = em quantos ciclos de agregação o host apareceu entre os top 10 de destino do prefixo — não é volume exato por host.</p>';
   }
 
+  // redes do ClientGuard (client_flow_aggs, 280M+ linhas, sem índice dedicado
+  // por customer_prefix — ver achado de 2026-07-08) só suportam janelas
+  // curtas por enquanto: 24h já não termina em minutos sem esse índice, e
+  // construir o índice numa tabela desse tamanho ao vivo trava as escritas
+  // do daemon por um tempo não estimado. Enquanto isso não é resolvido à
+  // parte, 24h/7d ficam desabilitadas nesse modo (volta pra 6h sozinho).
+  function updateChartWindowAvailability() {
+    var windowToggle = document.getElementById("fg-chart-window");
+    if (!windowToggle) return;
+    var isCg = (state.chart.prefix || "").indexOf("cg:") === 0;
+    var longButtons = windowToggle.querySelectorAll('.fg-toggle-btn[data-window="24h"], .fg-toggle-btn[data-window="7d"]');
+    longButtons.forEach(function (b) {
+      b.disabled = isCg;
+      b.title = isCg ? "Janelas longas ainda não são suportadas pra redes do ClientGuard (tabela grande demais sem índice dedicado)" : "";
+    });
+    if (isCg && (state.chart.window === "24h" || state.chart.window === "7d")) {
+      state.chart.window = "6h";
+      windowToggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) {
+        b.classList.toggle("active", b.getAttribute("data-window") === "6h");
+      });
+    }
+  }
+
   function initChartControls() {
     var select = document.getElementById("fg-chart-prefix");
     if (select) {
       select.addEventListener("change", function () {
         state.chart.prefix = select.value;
+        updateChartWindowAvailability();
         loadCharts();
       });
     }
@@ -5429,7 +5578,7 @@
     if (windowToggle) {
       windowToggle.addEventListener("click", function (ev) {
         var btn = ev.target.closest(".fg-toggle-btn");
-        if (!btn) return;
+        if (!btn || btn.disabled) return;
         state.chart.window = btn.getAttribute("data-window");
         windowToggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { b.classList.toggle("active", b === btn); });
         loadCharts();

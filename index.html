@@ -146,8 +146,27 @@
       background: var(--fg-bg); color: var(--fg-text); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.35rem 0.6rem;
     }
     .fg-toggle-group { display: flex; gap: 0.3rem; }
+    /* [hidden] explícito pra vencer o display:flex acima — mesmo problema de
+       especificidade já documentado em .fg-cockpit-visibility[hidden]: regra
+       do autor com a mesma especificidade do UA stylesheet, definida depois,
+       vence e o elemento fica visível mesmo com o atributo hidden setado
+       (achado real: seletor de janela da aba Ataques e as barras de ação em
+       lote de Incidentes apareciam mesmo escondidas via JS). */
+    .fg-toggle-group[hidden], .fg-toolbar[hidden] { display: none; }
     .fg-toggle-btn { background: var(--fg-bg-elevated); color: var(--fg-text-muted); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.3rem 0.7rem; cursor: pointer; transition: background 0.15s ease, color 0.15s ease; }
     .fg-toggle-btn.active { background: var(--fg-border); color: var(--fg-text); }
+    /* botões avulsos (Agrupar/Selecionar) reaproveitam o mesmo estado "ligado"
+       visual dos toggle-groups, mesmo não fazendo parte de um grupo */
+    .fg-btn.active { background: var(--fg-border); color: var(--fg-text); border-color: var(--fg-accent); }
+
+    /* linha do tempo vertical de um incidente (painel de detalhe) — ver
+       buildAttackTimelineItems/timelineItemsToHtml em flowguard.js */
+    .fg-timeline { list-style: none; margin: 0.3rem 0 0.8rem; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+    .fg-timeline li { font-size: 0.85rem; padding: 0.3rem 0.5rem; background: var(--fg-bg); border-radius: 6px; border: 1px solid var(--fg-border); }
+
+    /* cabeçalho de grupo (agrupar por prefixo/cliente na aba Incidentes) */
+    tr.fg-group-head td { background: var(--fg-bg-elevated); font-weight: 600; }
+    tr.fg-group-head:hover td { background: var(--fg-border); }
 
     .fg-statusbar { display: flex; gap: 1.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
     .fg-statusbar span { background: var(--fg-bg-elevated); padding: 0.4rem 0.8rem; border-radius: 6px; }
@@ -593,13 +612,13 @@
 
     <div class="fg-tabs" id="fg-tabs">
       <button class="fg-tab-btn active" data-tab="overview">Visão Geral</button>
-      <button class="fg-tab-btn" data-tab="attacks">Ataques <span class="fg-badge" id="fg-attacks-badge" style="display:none;">0</span></button>
+      <button class="fg-tab-btn" data-tab="attacks">Incidentes <span class="fg-badge" id="fg-attacks-badge" style="display:none;">0</span></button>
       <button class="fg-tab-btn" data-tab="flows">Flows</button>
       <button class="fg-tab-btn" data-tab="rules">Regras <span class="fg-badge fg-badge-neutral" id="fg-rules-badge" style="display:none;">0</span></button>
       <button class="fg-tab-btn" data-tab="cfg">Configuração</button>
       <button class="fg-tab-btn" data-tab="charts">Gráficos</button>
       <span class="fg-tabs-divider" title="ClientGuard é um sistema à parte (detecção por cliente, não por prefixo)"></span>
-      <button class="fg-tab-btn" data-tab="clientguard">ClientGuard <span class="fg-badge" id="cg-suspicious-badge" style="display:none;">0</span></button>
+      <button class="fg-tab-btn" data-tab="clientguard">Clientes</button>
     </div>
 
     <div class="fg-tab-panel active" data-tab="overview">
@@ -612,30 +631,68 @@
 
     <div class="fg-tab-panel" data-tab="attacks">
       <section class="fg-panel-section">
-        <h2>Ataques</h2>
+        <h2>Incidentes</h2>
         <div class="fg-toolbar">
-          <div class="fg-toggle-group" id="fg-attacks-view-toggle">
-            <button class="fg-toggle-btn active" data-view="active">Ativos</button>
-            <button class="fg-toggle-btn" data-view="history">Histórico</button>
+          <div class="fg-toggle-group" id="incidents-app-toggle">
+            <button class="fg-toggle-btn active" data-app="flowguard">FlowGuard — vítimas</button>
+            <button class="fg-toggle-btn" data-app="clientguard">ClientGuard — clientes</button>
           </div>
-          <div class="fg-toggle-group" id="fg-attacks-window" hidden>
-            <button class="fg-toggle-btn" data-window="1h">1h</button>
-            <button class="fg-toggle-btn" data-window="6h">6h</button>
-            <button class="fg-toggle-btn active" data-window="24h">24h</button>
-            <button class="fg-toggle-btn" data-window="7d">7d</button>
-          </div>
-          <select id="fg-attacks-severity-filter">
-            <option value="">todas severidades</option>
-            <option value="critical">critical</option>
-            <option value="high">high</option>
-            <option value="medium">medium</option>
-            <option value="info">info</option>
-          </select>
-          <input type="text" id="fg-attacks-prefix-filter" placeholder="filtrar por prefixo/cliente...">
-          <button class="fg-btn fg-btn-danger" id="fg-clear-suspicious-btn">Limpar hosts suspeitos</button>
         </div>
-        <div id="flowguard-attacks"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
-        <div id="flowguard-attack-detail"></div>
+
+        <div data-incidents-app="flowguard">
+          <div class="fg-toolbar">
+            <div class="fg-toggle-group" id="fg-attacks-view-toggle">
+              <button class="fg-toggle-btn active" data-view="active">Ativos</button>
+              <button class="fg-toggle-btn" data-view="history">Histórico</button>
+            </div>
+            <div class="fg-toggle-group" id="fg-attacks-window" hidden>
+              <button class="fg-toggle-btn" data-window="1h">1h</button>
+              <button class="fg-toggle-btn" data-window="6h">6h</button>
+              <button class="fg-toggle-btn active" data-window="24h">24h</button>
+              <button class="fg-toggle-btn" data-window="7d">7d</button>
+            </div>
+            <div class="fg-toggle-group" id="fg-attacks-severity-chips">
+              <button class="fg-toggle-btn" data-sev="critical">critical</button>
+              <button class="fg-toggle-btn" data-sev="high">high</button>
+              <button class="fg-toggle-btn" data-sev="medium">medium</button>
+              <button class="fg-toggle-btn" data-sev="info">info</button>
+            </div>
+            <input type="text" id="fg-attacks-prefix-filter" placeholder="filtrar por prefixo/cliente...">
+            <button class="fg-btn" id="fg-attacks-group-btn">Agrupar por prefixo</button>
+            <button class="fg-btn" id="fg-attacks-select-btn">Selecionar</button>
+            <button class="fg-btn fg-btn-danger" id="fg-clear-suspicious-btn">Dispensar todos os ataques ativos</button>
+          </div>
+          <div class="fg-toolbar" id="fg-attacks-bulkbar" hidden>
+            <span id="fg-attacks-bulk-count" class="fg-kpi-sub"></span>
+            <button class="fg-btn fg-btn-danger" id="fg-attacks-bulk-release-btn">Liberar selecionados</button>
+          </div>
+          <div id="flowguard-attacks"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
+          <div id="flowguard-attack-detail"></div>
+        </div>
+
+        <div data-incidents-app="clientguard" hidden>
+          <div class="fg-toolbar">
+            <div class="fg-toggle-group" id="cg-suspicious-view-toggle">
+              <button class="fg-toggle-btn active" data-view="open">Abertos</button>
+              <button class="fg-toggle-btn" data-view="history">Resolvidos</button>
+            </div>
+            <div class="fg-toggle-group" id="cg-suspicious-severity-chips">
+              <button class="fg-toggle-btn" data-sev="high">high</button>
+              <button class="fg-toggle-btn" data-sev="medium">medium</button>
+              <button class="fg-toggle-btn" data-sev="watch">watch</button>
+            </div>
+            <input type="text" id="cg-suspicious-search" placeholder="filtrar por IP, cliente ou tipo de sinal...">
+            <button class="fg-btn" id="cg-suspicious-group-btn">Agrupar por cliente</button>
+            <button class="fg-btn" id="cg-suspicious-select-btn">Selecionar</button>
+            <button class="fg-btn fg-btn-danger" id="cg-clear-suspicious-btn">Limpar hosts suspeitos</button>
+          </div>
+          <div class="fg-toolbar" id="cg-suspicious-bulkbar" hidden>
+            <span id="cg-suspicious-bulk-count" class="fg-kpi-sub"></span>
+            <button class="fg-btn fg-btn-danger" id="cg-suspicious-bulk-resolve-btn">Resolver selecionados</button>
+          </div>
+          <div id="cg-suspicious"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
+          <div id="cg-suspicious-detail"></div>
+        </div>
       </section>
     </div>
 
@@ -887,19 +944,6 @@
         </div>
         <div id="cg-top"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
         <div id="cg-client-detail"></div>
-      </section>
-      <section class="fg-panel-section">
-        <h2>Sinais Suspeitos</h2>
-        <div class="fg-toolbar">
-          <div class="fg-toggle-group" id="cg-suspicious-view-toggle">
-            <button class="fg-toggle-btn active" data-view="open">Abertos</button>
-            <button class="fg-toggle-btn" data-view="history">Resolvidos</button>
-          </div>
-          <input type="text" id="cg-suspicious-search" placeholder="filtrar por IP, cliente ou tipo de sinal...">
-          <button class="fg-btn fg-btn-danger" id="cg-clear-suspicious-btn">Limpar hosts suspeitos</button>
-        </div>
-        <div id="cg-suspicious"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
-        <div id="cg-suspicious-detail"></div>
       </section>
     </div>
 

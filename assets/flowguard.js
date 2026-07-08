@@ -80,6 +80,12 @@
     attacks: [],
     attacksView: "active",
     attacksWindow: "24h",
+    attacksGroupBy: false,
+    attacksSelectMode: false,
+    attacksSelected: {},
+    attacksCollapsedGroups: {},
+    incidentsApp: "flowguard",
+    incidents: { openAttacks: 0, openSignals: 0 },
     status: null,
     cgStatus: null,
     cockpitEditing: false,
@@ -90,13 +96,14 @@
     filter: {
       topPrefixes: "",
       flows: "",
-      attacksSeverity: "",
+      attacksSeverities: [],
       attacksPrefix: "",
       rulesHost: "",
       rulesType: "",
       rulesWindow: "",
       cgTop: "",
       cgSuspicious: "",
+      cgSuspiciousSeverities: [],
     },
     page: {
       topPrefixes: 1,
@@ -114,6 +121,10 @@
     },
     kpiHistory: { bps: [], pps: [] },
     cgSuspiciousView: "open",
+    cgSuspiciousGroupBy: false,
+    cgSuspiciousSelectMode: false,
+    cgSuspiciousSelected: {},
+    cgSuspiciousCollapsedGroups: {},
     cgSuspicious: [],
     cgTop: [],
     cgTopWindow: 21600,
@@ -495,22 +506,72 @@
       var btn = ev.target.closest(".fg-tab-btn");
       if (!btn) return;
       var tab = btn.getAttribute("data-tab");
+      var wasIncidents = document.querySelector('.fg-tab-btn[data-tab="attacks"]').classList.contains("active");
       document.querySelectorAll(".fg-tab-btn").forEach(function (b) { b.classList.toggle("active", b === btn); });
       document.querySelectorAll(".fg-tab-panel").forEach(function (p) { p.classList.toggle("active", p.getAttribute("data-tab") === tab); });
+      // saindo da aba Incidentes: marca "visto até aqui" — o que chegar depois
+      // disso aparece com o selo "novo" na próxima vez que a aba for aberta
+      if (wasIncidents && tab !== "attacks") {
+        window.localStorage.setItem(INCIDENTS_LAST_VISIT_KEY, String(Math.floor(Date.now() / 1000)));
+      }
       if (tab === "charts") loadCharts();
       if (tab === "clientguard") loadClientGuard();
     });
   }
 
-  function updateAttacksBadge(count) {
+  // toggle FlowGuard/ClientGuard dentro da aba Incidentes — mesmo padrão de
+  // setRulesApp()/#rules-app-toggle, só que aqui os dois lados são sistemas de
+  // detecção diferentes (ataque por prefixo vs sinal por cliente), não a mesma
+  // lista filtrada por origem.
+  function setIncidentsApp(app) {
+    state.incidentsApp = app;
+    var appToggle = document.getElementById("incidents-app-toggle");
+    if (appToggle) {
+      appToggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) {
+        b.classList.toggle("active", b.getAttribute("data-app") === app);
+      });
+    }
+    document.querySelectorAll("[data-incidents-app]").forEach(function (p) {
+      p.hidden = p.getAttribute("data-incidents-app") !== app;
+    });
+  }
+
+  function initIncidentsControls() {
+    var appToggle = document.getElementById("incidents-app-toggle");
+    if (appToggle) {
+      appToggle.addEventListener("click", function (ev) {
+        var btn = ev.target.closest(".fg-toggle-btn");
+        if (!btn) return;
+        setIncidentsApp(btn.getAttribute("data-app"));
+      });
+    }
+  }
+
+  // aba Incidentes mostra 1 badge só, soma dos dois lados (ataques ativos do
+  // FlowGuard + sinais abertos do ClientGuard) — cada lado atualiza sua
+  // contagem em state.incidents e updateIncidentsBadge() soma na hora de exibir
+  var INCIDENTS_LAST_VISIT_KEY = "fg_incidents_last_visit";
+  function isNewIncident(ts) {
+    if (!ts) return false;
+    var lastVisit = Number(window.localStorage.getItem(INCIDENTS_LAST_VISIT_KEY) || 0);
+    return ts > lastVisit;
+  }
+
+  function updateIncidentsBadge() {
     var badge = document.getElementById("fg-attacks-badge");
     if (!badge) return;
+    var count = (state.incidents.openAttacks || 0) + (state.incidents.openSignals || 0);
     if (count > 0) {
       badge.style.display = "inline-block";
       badge.textContent = count;
     } else {
       badge.style.display = "none";
     }
+  }
+
+  function updateAttacksBadge(count) {
+    state.incidents.openAttacks = count;
+    updateIncidentsBadge();
   }
 
   function updateRulesBadge(count) {
@@ -965,71 +1026,194 @@
 
   // --- ataques --------------------------------------------------------------
 
+  var SEV_RANK = { critical: 0, high: 1, medium: 2, info: 3 };
+
+  function attackRowHtml(a) {
+    var sevClass = "fg-sev-" + a.severity;
+    var suggestion = a.suggested_mitigation;
+    var suggestionMenuItem = suggestion
+      ? '<span class="fg-menu-hint">' + escapeHtml(suggestion.label) + "</span>" +
+        '<button data-action="apply_suggestion">Aplicar sugestão</button>'
+      : "";
+    var targetHtml = a.target_host
+      ? escapeHtml(a.target_host) + "/32" + '<br><span class="fg-kpi-sub">' + escapeHtml(a.dst_prefix) + "</span>"
+      : escapeHtml(a.dst_prefix);
+    var checkboxCell = state.attacksSelectMode
+      ? '<td><input type="checkbox" class="fg-attack-select"' + (state.attacksSelected[a.id] ? " checked" : "") + "></td>"
+      : "";
+    var newBadge = isNewIncident(a.ts_start) ? ' <span class="fg-badge" title="novo desde a última visita à aba">novo</span>' : "";
+    return (
+      '<tr data-attack-id="' + a.id + '" data-prefix="' + escapeHtml(a.dst_prefix) + '">' +
+      checkboxCell +
+      "<td>" + fmtDateTime(a.ts_start) + newBadge + "</td>" +
+      "<td>" + fmtAttackDuration(a) + (a.ts_end ? "" : fmtActivityFreshness(a.ts_last_seen)) + "</td>" +
+      '<td class="fg-wrap-cell">' + targetHtml + "</td>" +
+      "<td>" + escapeHtml(a.customer || "-") + "</td>" +
+      "<td>" + escapeHtml(a.attack_type) + "</td>" +
+      "<td class=\"" + sevClass + "\">" + escapeHtml(a.severity) + "</td>" +
+      "<td>" + fmtBps(a.bps_peak || 0) + "</td>" +
+      "<td>" + (a.pps_peak || 0).toLocaleString("pt-BR") + " pps</td>" +
+      "<td>" + fgAttackMitigationBadgeHtml(a.mitigation, isGenuinelyActive(a.ts_end, a.ts_last_seen)) + "</td>" +
+      '<td><div class="fg-menu">' +
+      '<button class="fg-btn" data-menu-toggle>Ações ▾</button>' +
+      '<div class="fg-menu-list" hidden>' +
+      '<button data-action="detail">Detalhes</button>' +
+      '<button data-action="analyze">Detalhes IA</button>' +
+      '<input type="number" class="fg-mitigate-ttl-min" min="1" step="1" ' +
+      'placeholder="min RTBH (padrão)" title="Duração do bloqueio RTBH em minutos — deixe em branco para usar o padrão configurado (aba Configuração > Mitigação)">' +
+      '<button data-action="mitigate">Mitigar</button>' +
+      '<button data-action="release">Liberar</button>' +
+      suggestionMenuItem +
+      "</div></div></td></tr>"
+    );
+  }
+
+  var ATTACKS_TABLE_HEAD =
+    "<th>Início</th><th>Duração</th><th>Alvo</th><th>Cliente</th><th>Tipo</th><th>Severidade</th>" +
+    "<th>Pico (bps)</th><th>Pico (pps)</th><th>Mitigação</th><th>Ações</th>";
+
+  // agrupamento por prefixo (botão "Agrupar por prefixo") — grupo com pior
+  // severidade abaixo de high começa colapsado, igual ao padrão da aba
+  // Incidentes do poxflow v2. Paginação não se aplica nesse modo (é outra
+  // forma de navegar a mesma lista, não faz sentido cortar por página).
+  function renderAttacksGrouped(rows) {
+    var groups = {};
+    var order = [];
+    rows.forEach(function (a) {
+      var key = a.dst_prefix || "-";
+      if (!groups[key]) { groups[key] = []; order.push(key); }
+      groups[key].push(a);
+    });
+    var colspan = (state.attacksSelectMode ? 1 : 0) + 10;
+    var body = order.map(function (key) {
+      var items = groups[key].slice().sort(function (a, b) { return (SEV_RANK[a.severity] || 9) - (SEV_RANK[b.severity] || 9); });
+      var worst = items[0].severity;
+      var collapsed = state.attacksCollapsedGroups[key];
+      if (collapsed === undefined) collapsed = SEV_RANK[worst] > 1;
+      var rowsHtml = collapsed ? "" : items.map(attackRowHtml).join("");
+      return (
+        '<tr class="fg-group-head" data-group-key="' + escapeHtml(key) + '">' +
+        '<td colspan="' + colspan + '" class="fg-sev-' + worst + '" style="cursor:pointer;">' +
+        (collapsed ? "▸ " : "▾ ") + escapeHtml(key) + " — " + items.length +
+        (items.length === 1 ? " incidente" : " incidentes") + " · pior: " + escapeHtml(worst) +
+        "</td></tr>" + rowsHtml
+      );
+    }).join("");
+    return (
+      "<table><thead><tr>" + (state.attacksSelectMode ? "<th></th>" : "") + ATTACKS_TABLE_HEAD + "</tr></thead><tbody>" +
+      body + "</tbody></table>"
+    );
+  }
+
+  function refreshAttacksBulkBar() {
+    var bar = document.getElementById("fg-attacks-bulkbar");
+    if (!bar) return;
+    var n = Object.keys(state.attacksSelected).length;
+    bar.hidden = !state.attacksSelectMode || n === 0;
+    var countEl = document.getElementById("fg-attacks-bulk-count");
+    if (countEl) countEl.textContent = n + " selecionado(s)";
+  }
+
   function renderAttacks(attacks) {
     var el = document.getElementById("flowguard-attacks");
     if (!el) return;
 
     if (!attacks.length) {
       el.innerHTML = '<p class="fg-ok">Nenhum ataque encontrado para o filtro atual.</p>';
+      refreshAttacksBulkBar();
+      return;
+    }
+
+    if (state.attacksGroupBy) {
+      el.innerHTML = renderAttacksGrouped(attacks);
+      refreshAttacksBulkBar();
       return;
     }
 
     var p = paginate(attacks, "attacks");
-    var rows = p.pageRows
-      .map(function (a) {
-        var sevClass = "fg-sev-" + a.severity;
-        var suggestion = a.suggested_mitigation;
-        var suggestionMenuItem = suggestion
-          ? '<span class="fg-menu-hint">' + escapeHtml(suggestion.label) + "</span>" +
-            '<button data-action="apply_suggestion">Aplicar sugestão</button>'
-          : "";
-        var targetHtml = a.target_host
-          ? escapeHtml(a.target_host) + "/32" + '<br><span class="fg-kpi-sub">' + escapeHtml(a.dst_prefix) + "</span>"
-          : escapeHtml(a.dst_prefix);
-        return (
-          '<tr data-attack-id="' + a.id + '" data-prefix="' + escapeHtml(a.dst_prefix) + '">' +
-          "<td>" + fmtDateTime(a.ts_start) + "</td>" +
-          "<td>" + fmtAttackDuration(a) + (a.ts_end ? "" : fmtActivityFreshness(a.ts_last_seen)) + "</td>" +
-          '<td class="fg-wrap-cell">' + targetHtml + "</td>" +
-          "<td>" + escapeHtml(a.customer || "-") + "</td>" +
-          "<td>" + escapeHtml(a.attack_type) + "</td>" +
-          "<td class=\"" + sevClass + "\">" + escapeHtml(a.severity) + "</td>" +
-          "<td>" + fmtBps(a.bps_peak || 0) + "</td>" +
-          "<td>" + (a.pps_peak || 0).toLocaleString("pt-BR") + " pps</td>" +
-          "<td>" + fgAttackMitigationBadgeHtml(a.mitigation, isGenuinelyActive(a.ts_end, a.ts_last_seen)) + "</td>" +
-          '<td><div class="fg-menu">' +
-          '<button class="fg-btn" data-menu-toggle>Ações ▾</button>' +
-          '<div class="fg-menu-list" hidden>' +
-          '<button data-action="detail">Detalhes</button>' +
-          '<button data-action="analyze">Detalhes IA</button>' +
-          '<input type="number" class="fg-mitigate-ttl-min" min="1" step="1" ' +
-          'placeholder="min RTBH (padrão)" title="Duração do bloqueio RTBH em minutos — deixe em branco para usar o padrão configurado (aba Configuração > Mitigação)">' +
-          '<button data-action="mitigate">Mitigar</button>' +
-          '<button data-action="release">Liberar</button>' +
-          suggestionMenuItem +
-          "</div></div></td></tr>"
-        );
-      })
-      .join("");
+    var rows = p.pageRows.map(attackRowHtml).join("");
 
     el.innerHTML =
-      "<table><thead><tr><th>Início</th><th>Duração</th><th>Alvo</th><th>Cliente</th><th>Tipo</th><th>Severidade</th>" +
-      "<th>Pico (bps)</th><th>Pico (pps)</th><th>Mitigação</th><th>Ações</th></tr></thead><tbody>" +
+      "<table><thead><tr>" + (state.attacksSelectMode ? "<th></th>" : "") + ATTACKS_TABLE_HEAD + "</tr></thead><tbody>" +
       rows +
       "</tbody></table>" +
       paginationHtml("attacks", p.page, p.totalPages, p.total);
+    refreshAttacksBulkBar();
   }
 
   function renderAttacksFiltered() {
     var rows = state.attacks;
-    if (state.filter.attacksSeverity) {
-      rows = rows.filter(function (a) { return a.severity === state.filter.attacksSeverity; });
+    if (state.filter.attacksSeverities.length) {
+      rows = rows.filter(function (a) { return state.filter.attacksSeverities.indexOf(a.severity) !== -1; });
     }
     rows = filterRows(rows, state.filter.attacksPrefix, ["dst_prefix", "customer"]);
     renderAttacks(rows);
   }
 
-  function renderAttackDetail(prefix, resp) {
+  // linha do tempo vertical do incidente (detecção/mitigação/encerramento) —
+  // mesma ideia do componente Timeline do poxflow v2, construída só com dados
+  // que o V1 já tem (sem endpoint novo). Reaproveitada tanto no painel de
+  // detalhe quanto no dossiê exportado, pra não duplicar a lógica dos itens.
+  function buildAttackTimelineItems(a) {
+    var items = [{ ts: a.ts_start, icon: "🚨", label: "Detecção — " + a.attack_type + " (" + a.severity + ")" }];
+    if (a.mitigation && a.mitigation.created_at) {
+      var actionLabel = FG_MITIGATION_ACTION_LABELS[a.mitigation.action] || a.mitigation.action || "-";
+      items.push({ ts: a.mitigation.created_at, icon: "🛡", label: "Mitigação " + (a.mitigation.active ? "aplicada" : "registrada") + " (" + actionLabel + ")" });
+    }
+    if (a.ts_end) {
+      items.push({ ts: a.ts_end, icon: "✅", label: "Encerrado" });
+    } else if (a.ts_last_seen) {
+      items.push({ ts: a.ts_last_seen, icon: "🔎", label: "Última confirmação da condição" });
+    }
+    items.sort(function (x, y) { return (x.ts || 0) - (y.ts || 0); });
+    return items;
+  }
+
+  function timelineItemsToHtml(items) {
+    return '<ul class="fg-timeline">' + items.map(function (it) {
+      return "<li>" + it.icon + " <strong>" + fmtDateTime(it.ts) + "</strong> — " + escapeHtml(it.label) + "</li>";
+    }).join("") + "</ul>";
+  }
+
+  function downloadTextFile(filename, text) {
+    var blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
+  function fgNoteKey(attackId) {
+    return "fg_note_fg-" + attackId;
+  }
+
+  function doExportAttackDossier(prefix, attack, resp) {
+    var note = window.localStorage.getItem(fgNoteKey(attack.id)) || "";
+    var summary = resp.summary || {};
+    var lines = [
+      "Dossiê de incidente — FlowGuard",
+      "Alvo: " + prefix + (attack.target_host ? " (host " + attack.target_host + "/32)" : ""),
+      "Cliente: " + (attack.customer || "-"),
+      "Tipo: " + attack.attack_type + " · Severidade: " + attack.severity,
+      "Início: " + fmtDateTime(attack.ts_start),
+      "Fim: " + (attack.ts_end ? fmtDateTime(attack.ts_end) : "em andamento"),
+      "Pico: " + fmtBps(attack.bps_peak || 0) + " / " + (attack.pps_peak || 0) + " pps",
+      "Duração: " + fmtUptime(summary.duration_s || 0),
+      "",
+      "Linha do tempo:",
+    ];
+    buildAttackTimelineItems(attack).forEach(function (it) { lines.push("  " + fmtDateTime(it.ts) + " — " + it.label); });
+    lines.push("");
+    lines.push("Nota do operador:");
+    lines.push(note || "(sem nota)");
+    downloadTextFile("incidente-fg-" + attack.id + ".txt", lines.join("\n"));
+  }
+
+  function renderAttackDetail(prefix, resp, attack) {
     var el = document.getElementById("flowguard-attack-detail");
     if (!el) return;
     if (!resp.ok) {
@@ -1059,10 +1243,20 @@
       "Duração: " + fmtUptime(summary.duration_s) + "  |  Total: " + fmtBytes(summary.total_bytes) + ", " +
       (summary.total_packets || 0).toLocaleString("pt-BR") + " pacotes, " +
       (summary.total_flows || 0).toLocaleString("pt-BR") + " flows (" + (summary.cycles || 0) + " ciclos de agregação)";
+    var timelineHtml = attack ? "<h5>Linha do tempo do incidente</h5>" + timelineItemsToHtml(buildAttackTimelineItems(attack)) : "";
+    var noteKey = attack ? fgNoteKey(attack.id) : null;
+    var savedNote = noteKey ? (window.localStorage.getItem(noteKey) || "") : "";
+    var noteHtml = noteKey
+      ? "<h5>Nota do operador</h5>" +
+        '<textarea id="fg-attack-note" rows="3" style="width:100%;" placeholder="nota interna, salva só neste navegador...">' +
+        escapeHtml(savedNote) + "</textarea>" +
+        '<div class="fg-toolbar" style="margin-top:0.4rem;"><button class="fg-btn" id="fg-attack-export-btn">Exportar dossiê (.txt)</button></div>'
+      : "";
     el.innerHTML =
       '<div class="fg-ai-panel"><div class="fg-panel-header"><h4>Detalhes — ' + escapeHtml(prefix) + "</h4>" +
       '<button class="fg-btn" data-action="close-detail">Fechar</button></div>' +
       '<p class="fg-kpi-sub">' + summaryLine + "</p>" +
+      timelineHtml +
       "<h5>Linha do tempo (bps recebido)</h5>" +
       '<canvas id="fg-attack-detail-chart" width="760" height="140"></canvas>' +
       "<h5>Host(s) atacado(s) (top " + topHosts.length + ")</h5>" +
@@ -1074,10 +1268,21 @@
       "<ul>" + sourceItems + "</ul>" +
       '<p class="fg-kpi-sub">Ocorrências = em quantos ciclos de agregação o IP apareceu entre os top 10 daquele grupo — não é volume exato por IP. ' +
       "Bytes/pacotes totais são estimados a partir das taxas bps/pps de cada ciclo, não medidos diretamente.</p>" +
+      noteHtml +
       "</div>";
     var canvas = document.getElementById("fg-attack-detail-chart");
     if (canvas) {
       drawLineChart(canvas, series, [{ key: "bps", color: "#58a6ff", label: "tráfego (bps)" }]);
+    }
+    if (noteKey) {
+      var noteEl = document.getElementById("fg-attack-note");
+      if (noteEl) {
+        noteEl.addEventListener("input", function () { window.localStorage.setItem(noteKey, noteEl.value); });
+      }
+      var exportBtn = document.getElementById("fg-attack-export-btn");
+      if (exportBtn) {
+        exportBtn.addEventListener("click", function () { doExportAttackDossier(prefix, attack, resp); });
+      }
     }
     el.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -1104,7 +1309,46 @@
     if (el) el.innerHTML = "";
   }
 
+  function onAttacksBulkReleaseClick() {
+    var ids = Object.keys(state.attacksSelected);
+    if (!ids.length) return;
+    var preview = ids.slice(0, 8).join(", ") + (ids.length > 8 ? "…" : "");
+    if (!window.confirm("Liberar " + ids.length + " ataque(s) selecionado(s)? IDs: " + preview)) return;
+    var btn = document.getElementById("fg-attacks-bulk-release-btn");
+    btn.disabled = true;
+    Promise.all(ids.map(function (id) {
+      return postJson(ATTACKS_ENDPOINT, { action: "release", attack_id: Number(id) });
+    })).then(function () {
+      showToast(ids.length + " ataque(s) liberado(s)", "success");
+      state.attacksSelected = {};
+      state.attacksSelectMode = false;
+      var selectBtn = document.getElementById("fg-attacks-select-btn");
+      if (selectBtn) selectBtn.classList.remove("active");
+      loadAttacks();
+    }).catch(function () {
+      showToast("falha ao liberar ataques em lote", "error");
+    }).finally(function () { btn.disabled = false; });
+  }
+
   function onAttacksClick(ev) {
+    var groupHead = ev.target.closest("tr.fg-group-head");
+    if (groupHead) {
+      var key = groupHead.getAttribute("data-group-key");
+      state.attacksCollapsedGroups[key] = !state.attacksCollapsedGroups[key];
+      renderAttacksFiltered();
+      return;
+    }
+
+    var checkbox = ev.target.closest("input.fg-attack-select");
+    if (checkbox) {
+      var selRow = checkbox.closest("tr[data-attack-id]");
+      var selId = Number(selRow.getAttribute("data-attack-id"));
+      if (checkbox.checked) state.attacksSelected[selId] = true;
+      else delete state.attacksSelected[selId];
+      refreshAttacksBulkBar();
+      return;
+    }
+
     var btn = ev.target.closest("button[data-action]");
     if (!btn) return;
     var row = btn.closest("tr[data-attack-id]");
@@ -1130,8 +1374,9 @@
     }
 
     if (action === "detail") {
+      var attackMeta = (state.attacks || []).filter(function (x) { return x.id === attackId; })[0] || null;
       getJson(ATTACKS_ENDPOINT + "?detail=" + attackId).then(function (resp) {
-        renderAttackDetail(prefix, resp);
+        renderAttackDetail(prefix, resp, attackMeta);
         done();
       }).catch(done);
       return;
@@ -1180,10 +1425,15 @@
         loadAttacks();
       });
     }
-    var sevFilter = document.getElementById("fg-attacks-severity-filter");
-    if (sevFilter) {
-      sevFilter.addEventListener("change", function () {
-        state.filter.attacksSeverity = sevFilter.value;
+    var sevChips = document.getElementById("fg-attacks-severity-chips");
+    if (sevChips) {
+      sevChips.addEventListener("click", function (ev) {
+        var btn = ev.target.closest(".fg-toggle-btn");
+        if (!btn) return;
+        var sev = btn.getAttribute("data-sev");
+        var idx = state.filter.attacksSeverities.indexOf(sev);
+        if (idx === -1) { state.filter.attacksSeverities.push(sev); btn.classList.add("active"); }
+        else { state.filter.attacksSeverities.splice(idx, 1); btn.classList.remove("active"); }
         state.page.attacks = 1;
         renderAttacksFiltered();
       });
@@ -1196,6 +1446,25 @@
         renderAttacksFiltered();
       });
     }
+    var groupBtn = document.getElementById("fg-attacks-group-btn");
+    if (groupBtn) {
+      groupBtn.addEventListener("click", function () {
+        state.attacksGroupBy = !state.attacksGroupBy;
+        groupBtn.classList.toggle("active", state.attacksGroupBy);
+        renderAttacksFiltered();
+      });
+    }
+    var selectBtn = document.getElementById("fg-attacks-select-btn");
+    if (selectBtn) {
+      selectBtn.addEventListener("click", function () {
+        state.attacksSelectMode = !state.attacksSelectMode;
+        selectBtn.classList.toggle("active", state.attacksSelectMode);
+        if (!state.attacksSelectMode) state.attacksSelected = {};
+        renderAttacksFiltered();
+      });
+    }
+    var bulkReleaseBtn = document.getElementById("fg-attacks-bulk-release-btn");
+    if (bulkReleaseBtn) bulkReleaseBtn.addEventListener("click", onAttacksBulkReleaseClick);
   }
 
   // --- top flows ----------------------------------------------------------
@@ -3324,14 +3593,8 @@
   ];
 
   function updateCgBadge(count) {
-    var badge = document.getElementById("cg-suspicious-badge");
-    if (!badge) return;
-    if (count > 0) {
-      badge.style.display = "inline-block";
-      badge.textContent = count;
-    } else {
-      badge.style.display = "none";
-    }
+    state.incidents.openSignals = count;
+    updateIncidentsBadge();
   }
 
   function renderCgKpis(status) {
@@ -3491,6 +3754,86 @@
 
   // --- ClientGuard: sinais suspeitos ---------------------------------------
 
+  // severidade do sinal ClientGuard é derivada da confiança (não existe
+  // campo próprio no backend) — só pra exibição/filtro/agrupamento, mesmo
+  // corte usado pelo poxflow v2 (signalSeverity)
+  function signalSeverity(r) {
+    var c = r.confidence || 0;
+    if (c >= 0.8) return "high";
+    if (c >= 0.5) return "medium";
+    return "watch";
+  }
+  var CG_SEV_RANK = { high: 0, medium: 1, watch: 2 };
+  function signalSevClass(sev) {
+    return "fg-sev-" + (sev === "watch" ? "info" : sev);
+  }
+
+  function cgSuspiciousRowHtml(r) {
+    var sev = signalSeverity(r);
+    var resolveBtn = state.cgSuspiciousView === "open"
+      ? '<button class="fg-btn" data-action="resolve">Resolver</button> '
+      : "";
+    var edgeBtn = state.cgSuspiciousView === "open"
+      ? '<button class="fg-btn" data-action="edge-apply" title="Bloquear src_ip direto na borda via SSH/ACL">Aplicar na borda</button> '
+      : "";
+    var checkboxCell = state.cgSuspiciousSelectMode
+      ? '<td><input type="checkbox" class="fg-cg-select"' + (state.cgSuspiciousSelected[r.id] ? " checked" : "") + "></td>"
+      : "";
+    var newBadge = isNewIncident(r.ts_detected) ? ' <span class="fg-badge" title="novo desde a última visita à aba">novo</span>' : "";
+    return (
+      '<tr data-signal-id="' + r.id + '" data-src-ip="' + escapeHtml(r.src_ip) + '">' +
+      checkboxCell +
+      "<td>" + escapeHtml(r.src_ip) + "</td><td>" + escapeHtml(r.customer_prefix || "-") + "</td><td>" +
+      escapeHtml(CG_SIGNAL_LABELS[r.signal_type] || r.signal_type) + "</td><td class=\"" + signalSevClass(sev) + "\">" +
+      Math.round((r.confidence || 0) * 100) + "% (" + sev + ")</td><td>" + fmtDateTime(r.ts_detected) + newBadge + "</td><td>" +
+      fmtDateTime(r.ts_last_seen) + (r.resolved ? "" : fmtActivityFreshness(r.ts_last_seen)) + "</td><td>" +
+      cgMitigationBadgeHtml(r.mitigation, isGenuinelyActive(r.resolved, r.ts_last_seen)) + "</td>" +
+      "<td>" + resolveBtn + edgeBtn + '<button class="fg-btn" data-action="detail">Detalhes</button></td></tr>'
+    );
+  }
+
+  var CG_SUSPICIOUS_TABLE_HEAD =
+    "<th>src_ip</th><th>Cliente</th><th>Sinal</th><th>Confiança</th><th>Detectado</th>" +
+    "<th>Última vez</th><th>Mitigação</th><th>Ações</th>";
+
+  function renderCgSuspiciousGrouped(rows) {
+    var groups = {};
+    var order = [];
+    rows.forEach(function (r) {
+      var key = r.customer_prefix || r.src_ip;
+      if (!groups[key]) { groups[key] = []; order.push(key); }
+      groups[key].push(r);
+    });
+    var colspan = (state.cgSuspiciousSelectMode ? 1 : 0) + 8;
+    var body = order.map(function (key) {
+      var items = groups[key].slice().sort(function (a, b) { return CG_SEV_RANK[signalSeverity(a)] - CG_SEV_RANK[signalSeverity(b)]; });
+      var worst = signalSeverity(items[0]);
+      var collapsed = state.cgSuspiciousCollapsedGroups[key];
+      if (collapsed === undefined) collapsed = CG_SEV_RANK[worst] > 0;
+      var rowsHtml = collapsed ? "" : items.map(cgSuspiciousRowHtml).join("");
+      return (
+        '<tr class="fg-group-head" data-group-key="' + escapeHtml(key) + '">' +
+        '<td colspan="' + colspan + '" class="' + signalSevClass(worst) + '" style="cursor:pointer;">' +
+        (collapsed ? "▸ " : "▾ ") + escapeHtml(key) + " — " + items.length +
+        (items.length === 1 ? " sinal" : " sinais") + " · pior: " + worst +
+        "</td></tr>" + rowsHtml
+      );
+    }).join("");
+    return (
+      "<table><thead><tr>" + (state.cgSuspiciousSelectMode ? "<th></th>" : "") + CG_SUSPICIOUS_TABLE_HEAD + "</tr></thead><tbody>" +
+      body + "</tbody></table>"
+    );
+  }
+
+  function refreshCgSuspiciousBulkBar() {
+    var bar = document.getElementById("cg-suspicious-bulkbar");
+    if (!bar) return;
+    var n = Object.keys(state.cgSuspiciousSelected).length;
+    bar.hidden = !state.cgSuspiciousSelectMode || n === 0;
+    var countEl = document.getElementById("cg-suspicious-bulk-count");
+    if (countEl) countEl.textContent = n + " selecionado(s)";
+  }
+
   function renderCgSuspicious(rows) {
     var el = document.getElementById("cg-suspicious");
     if (!el) return;
@@ -3499,30 +3842,19 @@
         ? "Nenhum sinal encontrado para o filtro atual."
         : "Nenhum sinal " + (state.cgSuspiciousView === "open" ? "aberto" : "resolvido") + ".";
       el.innerHTML = '<p class="fg-ok">' + emptyMsg + "</p>";
+      refreshCgSuspiciousBulkBar();
       return;
     }
-    var body = rows
-      .map(function (r) {
-        var resolveBtn = state.cgSuspiciousView === "open"
-          ? '<button class="fg-btn" data-action="resolve">Resolver</button> '
-          : "";
-        var edgeBtn = state.cgSuspiciousView === "open"
-          ? '<button class="fg-btn" data-action="edge-apply" title="Bloquear src_ip direto na borda via SSH/ACL">Aplicar na borda</button> '
-          : "";
-        return (
-          '<tr data-signal-id="' + r.id + '" data-src-ip="' + escapeHtml(r.src_ip) + '">' +
-          "<td>" + escapeHtml(r.src_ip) + "</td><td>" + escapeHtml(r.customer_prefix || "-") + "</td><td>" +
-          escapeHtml(CG_SIGNAL_LABELS[r.signal_type] || r.signal_type) + "</td><td>" +
-          Math.round((r.confidence || 0) * 100) + "%</td><td>" + fmtDateTime(r.ts_detected) + "</td><td>" +
-          fmtDateTime(r.ts_last_seen) + (r.resolved ? "" : fmtActivityFreshness(r.ts_last_seen)) + "</td><td>" +
-          cgMitigationBadgeHtml(r.mitigation, isGenuinelyActive(r.resolved, r.ts_last_seen)) + "</td>" +
-          "<td>" + resolveBtn + edgeBtn + '<button class="fg-btn" data-action="detail">Detalhes</button></td></tr>'
-        );
-      })
-      .join("");
+    if (state.cgSuspiciousGroupBy) {
+      el.innerHTML = renderCgSuspiciousGrouped(rows);
+      refreshCgSuspiciousBulkBar();
+      return;
+    }
+    var body = rows.map(cgSuspiciousRowHtml).join("");
     el.innerHTML =
-      "<table><thead><tr><th>src_ip</th><th>Cliente</th><th>Sinal</th><th>Confiança</th><th>Detectado</th>" +
-      "<th>Última vez</th><th>Mitigação</th><th>Ações</th></tr></thead><tbody>" + body + "</tbody></table>";
+      "<table><thead><tr>" + (state.cgSuspiciousSelectMode ? "<th></th>" : "") + CG_SUSPICIOUS_TABLE_HEAD + "</tr></thead><tbody>" +
+      body + "</tbody></table>";
+    refreshCgSuspiciousBulkBar();
   }
 
   function loadClientGuardSuspicious() {
@@ -3544,35 +3876,163 @@
   }
 
   function renderCgSuspiciousFiltered() {
-    var rows = filterRows(state.cgSuspicious, state.filter.cgSuspicious, ["src_ip", "customer_prefix", "signal_type"]);
+    var rows = state.cgSuspicious;
+    if (state.filter.cgSuspiciousSeverities.length) {
+      rows = rows.filter(function (r) { return state.filter.cgSuspiciousSeverities.indexOf(signalSeverity(r)) !== -1; });
+    }
+    rows = filterRows(rows, state.filter.cgSuspicious, ["src_ip", "customer_prefix", "signal_type"]);
     renderCgSuspicious(rows);
+  }
+
+  // evidência formatada campo-a-campo (bps/ts/número/texto), em vez de um
+  // "k=v, k=v" cru — mesma ideia do formatEvidenceValue() do poxflow v2
+  function formatEvidenceField(key, value) {
+    if (value == null) return "-";
+    if (/bps$/i.test(key) && typeof value === "number") return fmtBps(value);
+    if (/^ts_|_ts$|^ts$/i.test(key) && typeof value === "number") return fmtDateTime(value);
+    if (typeof value === "number") return value.toLocaleString("pt-BR");
+    return String(value);
+  }
+
+  function formatEvidenceHtml(rawEvidence) {
+    var parsed = rawEvidence;
+    try {
+      parsed = typeof rawEvidence === "string" ? JSON.parse(rawEvidence) : rawEvidence;
+    } catch (e) {
+      return escapeHtml(String(rawEvidence));
+    }
+    if (!parsed || typeof parsed !== "object") return escapeHtml(String(rawEvidence));
+    var keys = Object.keys(parsed);
+    if (!keys.length) return "<em>sem evidência registrada</em>";
+    return "<table>" + keys.map(function (k) {
+      return "<tr><td>" + escapeHtml(k) + "</td><td>" + escapeHtml(formatEvidenceField(k, parsed[k])) + "</td></tr>";
+    }).join("") + "</table>";
+  }
+
+  function buildSignalTimelineItems(row) {
+    var items = [{ ts: row.ts_detected, icon: "🚨", label: "Detecção — " + (CG_SIGNAL_LABELS[row.signal_type] || row.signal_type) }];
+    if (row.mitigation && row.mitigation.ts_applied) {
+      var mech = CG_MITIGATION_MECHANISM_LABELS[row.mitigation.mechanism] || row.mitigation.mechanism || "-";
+      items.push({ ts: row.mitigation.ts_applied, icon: "🛡", label: "Mitigação " + (row.mitigation.status === "active" ? "aplicada" : "registrada") + " (" + mech + ")" });
+    }
+    if (row.resolved) {
+      items.push({ ts: row.ts_last_seen, icon: "✅", label: "Resolvido" });
+    } else if (row.ts_last_seen) {
+      items.push({ ts: row.ts_last_seen, icon: "🔎", label: "Última confirmação da condição" });
+    }
+    items.sort(function (x, y) { return (x.ts || 0) - (y.ts || 0); });
+    return items;
+  }
+
+  function cgNoteKey(signalId) {
+    return "fg_note_cg-" + signalId;
+  }
+
+  function doExportSignalDossier(row) {
+    var note = window.localStorage.getItem(cgNoteKey(row.id)) || "";
+    var lines = [
+      "Dossiê de incidente — ClientGuard",
+      "src_ip: " + row.src_ip + " · Cliente: " + (row.customer_prefix || "-"),
+      "Sinal: " + (CG_SIGNAL_LABELS[row.signal_type] || row.signal_type) + " · Confiança: " + Math.round((row.confidence || 0) * 100) + "% (" + signalSeverity(row) + ")",
+      "Detectado: " + fmtDateTime(row.ts_detected),
+      "Última vez: " + fmtDateTime(row.ts_last_seen),
+      "Status: " + (row.resolved ? "resolvido" : "aberto"),
+      "",
+      "Linha do tempo:",
+    ];
+    buildSignalTimelineItems(row).forEach(function (it) { lines.push("  " + fmtDateTime(it.ts) + " — " + it.label); });
+    lines.push("");
+    lines.push("Nota do operador:");
+    lines.push(note || "(sem nota)");
+    downloadTextFile("incidente-cg-" + row.id + ".txt", lines.join("\n"));
   }
 
   function renderCgSuspiciousDetail(row) {
     var el = document.getElementById("cg-suspicious-detail");
     if (!el) return;
-    var evidence = row.evidence;
-    try {
-      var parsed = typeof row.evidence === "string" ? JSON.parse(row.evidence) : row.evidence;
-      evidence = Object.keys(parsed || {}).map(function (k) { return k + "=" + parsed[k]; }).join(", ");
-    } catch (e) {
-      // evidencia não é JSON válido — mostra a string crua mesmo
-    }
     var aiHtml = row.ai_explanation
       ? "<h5>Explicação (IA)</h5><pre>" + escapeHtml(row.ai_explanation) + "</pre>"
       : '<p class="fg-kpi-sub">sem explicação de IA registrada para este sinal</p>';
+    var noteKey = cgNoteKey(row.id);
+    var savedNote = window.localStorage.getItem(noteKey) || "";
     el.innerHTML =
       '<div class="fg-ai-panel"><div class="fg-panel-header"><h4>Sinal #' + row.id + " — " + escapeHtml(row.src_ip) + "</h4>" +
       '<button class="fg-btn" data-action="close-detail">Fechar</button></div>' +
       '<p class="fg-kpi-sub">Tipo: ' + escapeHtml(CG_SIGNAL_LABELS[row.signal_type] || row.signal_type) +
-      " · Confiança: " + Math.round((row.confidence || 0) * 100) + "% · Evidência: " + escapeHtml(evidence) + "</p>" +
+      " · Confiança: " + Math.round((row.confidence || 0) * 100) + "% (" + signalSeverity(row) + ")</p>" +
       '<p class="fg-kpi-sub">Mitigação: ' + cgMitigationBadgeHtml(row.mitigation, isGenuinelyActive(row.resolved, row.ts_last_seen)) + "</p>" +
+      "<h5>Linha do tempo do incidente</h5>" + timelineItemsToHtml(buildSignalTimelineItems(row)) +
+      "<h5>Reincidência (7 dias)</h5>" +
+      '<p class="fg-kpi-sub" id="cg-recidivism-line">calculando...</p>' +
+      "<h5>Evidência</h5>" + formatEvidenceHtml(row.evidence) +
       aiHtml +
+      "<h5>Nota do operador</h5>" +
+      '<textarea id="cg-signal-note" rows="3" style="width:100%;" placeholder="nota interna, salva só neste navegador...">' + escapeHtml(savedNote) + "</textarea>" +
+      '<div class="fg-toolbar" style="margin-top:0.4rem;"><button class="fg-btn" id="cg-signal-export-btn">Exportar dossiê (.txt)</button></div>' +
       "</div>";
+    var noteEl = document.getElementById("cg-signal-note");
+    if (noteEl) noteEl.addEventListener("input", function () { window.localStorage.setItem(noteKey, noteEl.value); });
+    var exportBtn = document.getElementById("cg-signal-export-btn");
+    if (exportBtn) exportBtn.addEventListener("click", function () { doExportSignalDossier(row); });
     el.scrollIntoView({ behavior: "smooth", block: "start" });
+
+    // reincidência: sem endpoint dedicado, degrada pra contagem de
+    // ocorrências do mesmo src_ip no histórico dos últimos 7 dias (ver
+    // prompt de origem — fallback explicitamente aceito quando o backend
+    // não recorta por IP/janela)
+    getJson(CG_SUSPICIOUS_ENDPOINT + "?history=1").then(function (data) {
+      var line = document.getElementById("cg-recidivism-line");
+      if (!line) return;
+      if (!data.ok) { line.textContent = "não foi possível calcular."; return; }
+      var since = Math.floor(Date.now() / 1000) - 7 * 86400;
+      var count = (data.suspicious || []).filter(function (r) { return r.src_ip === row.src_ip && r.ts_detected >= since; }).length;
+      line.textContent = count + " ocorrência(s) deste IP nos últimos 7 dias.";
+    }).catch(function () {
+      var line = document.getElementById("cg-recidivism-line");
+      if (line) line.textContent = "não foi possível calcular.";
+    });
+  }
+
+  function onCgSuspiciousBulkResolveClick() {
+    var ids = Object.keys(state.cgSuspiciousSelected);
+    if (!ids.length) return;
+    var preview = ids.slice(0, 8).join(", ") + (ids.length > 8 ? "…" : "");
+    if (!window.confirm("Resolver " + ids.length + " sinal(is) selecionado(s)? IDs: " + preview)) return;
+    var btn = document.getElementById("cg-suspicious-bulk-resolve-btn");
+    btn.disabled = true;
+    Promise.all(ids.map(function (id) {
+      return postJson(CG_SUSPICIOUS_ENDPOINT, { id: Number(id) });
+    })).then(function () {
+      showToast(ids.length + " sinal(is) resolvido(s)", "success");
+      state.cgSuspiciousSelected = {};
+      state.cgSuspiciousSelectMode = false;
+      var selectBtn = document.getElementById("cg-suspicious-select-btn");
+      if (selectBtn) selectBtn.classList.remove("active");
+      loadClientGuardSuspicious();
+    }).catch(function () {
+      showToast("falha ao resolver sinais em lote", "error");
+    }).finally(function () { btn.disabled = false; });
   }
 
   function onCgSuspiciousClick(ev) {
+    var groupHead = ev.target.closest("tr.fg-group-head");
+    if (groupHead) {
+      var key = groupHead.getAttribute("data-group-key");
+      state.cgSuspiciousCollapsedGroups[key] = !state.cgSuspiciousCollapsedGroups[key];
+      renderCgSuspiciousFiltered();
+      return;
+    }
+
+    var checkbox = ev.target.closest("input.fg-cg-select");
+    if (checkbox) {
+      var selRow = checkbox.closest("tr[data-signal-id]");
+      var selId = Number(selRow.getAttribute("data-signal-id"));
+      if (checkbox.checked) state.cgSuspiciousSelected[selId] = true;
+      else delete state.cgSuspiciousSelected[selId];
+      refreshCgSuspiciousBulkBar();
+      return;
+    }
+
     var btn = ev.target.closest("button[data-action]");
     if (!btn) return;
     var row = btn.closest("tr[data-signal-id]");
@@ -3627,6 +4087,18 @@
         loadClientGuardSuspicious();
       });
     }
+    var sevChips = document.getElementById("cg-suspicious-severity-chips");
+    if (sevChips) {
+      sevChips.addEventListener("click", function (ev) {
+        var btn = ev.target.closest(".fg-toggle-btn");
+        if (!btn) return;
+        var sev = btn.getAttribute("data-sev");
+        var idx = state.filter.cgSuspiciousSeverities.indexOf(sev);
+        if (idx === -1) { state.filter.cgSuspiciousSeverities.push(sev); btn.classList.add("active"); }
+        else { state.filter.cgSuspiciousSeverities.splice(idx, 1); btn.classList.remove("active"); }
+        renderCgSuspiciousFiltered();
+      });
+    }
     var search = document.getElementById("cg-suspicious-search");
     if (search) {
       search.addEventListener("input", function () {
@@ -3634,6 +4106,25 @@
         renderCgSuspiciousFiltered();
       });
     }
+    var groupBtn = document.getElementById("cg-suspicious-group-btn");
+    if (groupBtn) {
+      groupBtn.addEventListener("click", function () {
+        state.cgSuspiciousGroupBy = !state.cgSuspiciousGroupBy;
+        groupBtn.classList.toggle("active", state.cgSuspiciousGroupBy);
+        renderCgSuspiciousFiltered();
+      });
+    }
+    var selectBtn = document.getElementById("cg-suspicious-select-btn");
+    if (selectBtn) {
+      selectBtn.addEventListener("click", function () {
+        state.cgSuspiciousSelectMode = !state.cgSuspiciousSelectMode;
+        selectBtn.classList.toggle("active", state.cgSuspiciousSelectMode);
+        if (!state.cgSuspiciousSelectMode) state.cgSuspiciousSelected = {};
+        renderCgSuspiciousFiltered();
+      });
+    }
+    var bulkResolveBtn = document.getElementById("cg-suspicious-bulk-resolve-btn");
+    if (bulkResolveBtn) bulkResolveBtn.addEventListener("click", onCgSuspiciousBulkResolveClick);
   }
 
   // --- ClientGuard: ajuste fino dos limiares de detecção --------------------
@@ -4254,10 +4745,18 @@
     ctx.textAlign = "left";
   }
 
-  function drawLineChartCore(s, series, lines, band, hoverIndex) {
+  function drawLineChartCore(s, series, lines, band, hoverIndex, attacksOverlay) {
     var ctx = s.ctx;
     var plotW = s.w - s.padding.left - s.padding.right;
     var plotH = s.h - s.padding.top - s.padding.bottom;
+    var sinceTs = series[0].ts;
+    var nowTs = series[series.length - 1].ts;
+
+    function tsToX(ts) {
+      var span = nowTs - sinceTs || 1;
+      var frac = Math.max(0, Math.min(1, (ts - sinceTs) / span));
+      return s.padding.left + frac * plotW;
+    }
 
     var maxV = 1;
     series.forEach(function (pt) {
@@ -4279,6 +4778,23 @@
       ctx.lineTo(s.w - s.padding.right, yy);
       ctx.stroke();
       ctx.fillText(fmtBps(v), 2, yy + 3);
+    }
+
+    // faixas de anomalia por severidade (estilo WANGuard) — atrás de tudo,
+    // um retângulo translúcido por ataque cobrindo [ts_start, ts_end||agora];
+    // ataques sobrepostos escurecem naturalmente por empilhar alpha
+    if (attacksOverlay && attacksOverlay.length) {
+      attacksOverlay.forEach(function (a) {
+        var startTs = Math.max(a.ts_start, sinceTs);
+        var endTs = Math.min(a.ts_end || nowTs, nowTs);
+        if (endTs < startTs) return;
+        var x1 = tsToX(startTs);
+        var x2 = tsToX(endTs);
+        ctx.globalAlpha = 0.14;
+        ctx.fillStyle = SEV_COLORS[a.severity] || "#8b949e";
+        ctx.fillRect(x1, s.padding.top, Math.max(x2 - x1, 2), plotH);
+        ctx.globalAlpha = 1;
+      });
     }
 
     // faixa esperada do baseline — preenchimento + contorno tracejado, senão
@@ -4341,6 +4857,31 @@
     });
     ctx.setLineDash([]);
 
+    // marcadores de evento (início de cada incidente) — linha tracejada +
+    // círculo no topo, estilo TimeChart do poxflow v2; hitboxes devolvidas
+    // pra drawLineChart() priorizar no hover/click sobre o crosshair normal
+    var eventHitboxes = [];
+    if (attacksOverlay && attacksOverlay.length) {
+      attacksOverlay.forEach(function (a) {
+        if (a.ts_start < sinceTs || a.ts_start > nowTs) return;
+        var ex = tsToX(a.ts_start);
+        var color = SEV_COLORS[a.severity] || "#8b949e";
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 3]);
+        ctx.beginPath();
+        ctx.moveTo(ex, s.padding.top);
+        ctx.lineTo(ex, s.padding.top + plotH);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(ex, s.padding.top, 4, 0, Math.PI * 2);
+        ctx.fill();
+        eventHitboxes.push({ x: ex, attack: a });
+      });
+    }
+
     if (hoverIndex != null && series[hoverIndex]) {
       var hx = x(hoverIndex);
       ctx.strokeStyle = "rgba(201,209,217,0.4)";
@@ -4361,7 +4902,8 @@
       });
     }
 
-    drawTimeAxis(s, series[0].ts, series[series.length - 1].ts);
+    drawTimeAxis(s, sinceTs, nowTs);
+    return eventHitboxes;
   }
 
   function chartHitIndex(canvas, series, mouseX) {
@@ -4374,17 +4916,35 @@
     return Math.round(frac * (series.length - 1));
   }
 
-  function drawLineChart(canvas, series, lines, band) {
+  function drawLineChart(canvas, series, lines, band, attacksOverlay) {
     if (!series || series.length < 2) {
       drawEmpty(canvas, "Sem dados suficientes na janela selecionada.");
       return;
     }
+    var eventHitboxes = [];
     function render(hoverIndex) {
-      drawLineChartCore(chartScale(canvas), series, lines, band, hoverIndex);
+      eventHitboxes = drawLineChartCore(chartScale(canvas), series, lines, band, hoverIndex, attacksOverlay) || [];
     }
     render(null);
     registerChartHover(canvas, {
-      hitTest: function (mouseX) {
+      hitTest: function (mouseX, mouseY) {
+        // marcador de evento (início de ataque) tem prioridade se o mouse
+        // estiver perto o bastante dele, perto do topo do gráfico
+        for (var i = 0; i < eventHitboxes.length; i++) {
+          var eh = eventHitboxes[i];
+          if (Math.abs(mouseX - eh.x) <= 6 && mouseY <= 26) {
+            var a = eh.attack;
+            var dur = a.ts_end ? fmtUptime(a.ts_end - a.ts_start) : "em andamento";
+            var html =
+              '<div class="fg-tt-title">' + escapeHtml(a.dst_prefix || "-") + (a.customer ? " — " + escapeHtml(a.customer) : "") + "</div>" +
+              '<div class="fg-tt-row"><span>tipo</span><span>' + escapeHtml(a.attack_type || "-") + "</span></div>" +
+              '<div class="fg-tt-row"><span>severidade</span><span>' + escapeHtml(a.severity || "-") + "</span></div>" +
+              '<div class="fg-tt-row"><span>início</span><span>' + fmtDateTime(a.ts_start) + "</span></div>" +
+              '<div class="fg-tt-row"><span>duração</span><span>' + dur + "</span></div>" +
+              '<div class="fg-tt-row"><span style="color:#8b949e">clique para ver detalhes →</span></div>';
+            return { index: null, pointer: true, tooltip: html, onClick: function () { jumpToAttack(a); } };
+          }
+        }
         var idx = chartHitIndex(canvas, series, mouseX);
         if (idx == null) return null;
         var pt = series[idx];
@@ -4583,6 +5143,7 @@
     document.querySelectorAll(".fg-tab-panel").forEach(function (p) {
       p.classList.toggle("active", p.getAttribute("data-tab") === "attacks");
     });
+    setIncidentsApp("flowguard");
     expandPanelSectionsIn(document.querySelector('.fg-tab-panel[data-tab="attacks"]'));
     var viewToggle = document.getElementById("fg-attacks-view-toggle");
     if (viewToggle) {
@@ -4715,8 +5276,17 @@
       hostsTitle.textContent = isAll ? "Top hosts" : "Top hosts no prefixo (quem está consumindo mais)";
     }
 
-    getJson(HISTORY_ENDPOINT + "?metric=prefix&prefix=" + encodeURIComponent(state.chart.prefix) + "&window=" + windowName)
-      .then(function (data) {
+    var prefixParam = isAll ? "" : "&prefix=" + encodeURIComponent(state.chart.prefix);
+    // buscada 1x, reaproveitada tanto pro overlay de eventos/faixas do
+    // gráfico de tráfego principal quanto pelo Gantt de severidade abaixo —
+    // evita disparar a mesma query metric=attacks duas vezes por load
+    var attacksPromise = getJson(HISTORY_ENDPOINT + "?metric=attacks&window=" + windowName + prefixParam);
+    var trafficPromise = getJson(HISTORY_ENDPOINT + "?metric=prefix&prefix=" + encodeURIComponent(state.chart.prefix) + "&window=" + windowName);
+
+    Promise.all([trafficPromise, attacksPromise])
+      .then(function (results) {
+        var data = results[0];
+        var attacksData = results[1];
         if (state.chart._requestSeq !== requestToken) return;
         state.chart._resolved["fg-chart-traffic"] = true;
         var canvas = document.getElementById("fg-chart-traffic");
@@ -4775,7 +5345,11 @@
             chartLines.push({ key: "capacity_line", color: "#f85149", dashed: true, label: capLabel });
             legendItems.push({ color: "#f85149", label: capLabel });
           }
-          drawLineChart(canvas, series, chartLines, band);
+          var attacksOverlay = attacksData && attacksData.ok ? attacksData.attacks : [];
+          if (attacksOverlay.length) {
+            legendItems.push({ color: SEV_COLORS.critical, label: "faixas = incidentes por severidade" });
+          }
+          drawLineChart(canvas, series, chartLines, band, attacksOverlay);
           if (legendEl) renderChartLegend(legendEl, legendItems);
           if (summaryEl) {
             var stats = computePeakAvg(series, "bps_in");
@@ -4787,8 +5361,6 @@
         }
       });
 
-    var prefixParam = isAll ? "" : "&prefix=" + encodeURIComponent(state.chart.prefix);
-
     getJson(HISTORY_ENDPOINT + "?metric=protocol&window=" + windowName + prefixParam).then(function (data) {
       if (state.chart._requestSeq !== requestToken) return;
       state.chart._resolved["fg-chart-protocol"] = true;
@@ -4798,7 +5370,7 @@
       drawStackedArea(canvas, data.series, ["tcp", "udp", "icmp", "other"], ["#58a6ff", "#3fb950", "#d29922", "#8b949e"], ["TCP", "UDP", "ICMP", "Outro"]);
     });
 
-    getJson(HISTORY_ENDPOINT + "?metric=attacks&window=" + windowName + prefixParam).then(function (data) {
+    attacksPromise.then(function (data) {
       if (state.chart._requestSeq !== requestToken) return;
       state.chart._resolved["fg-chart-timeline"] = true;
       var canvas = document.getElementById("fg-chart-timeline");
@@ -5313,6 +5885,10 @@
     // status do ClientGuard não era polado fora da própria aba dele — o
     // widget do cockpit precisa disso mesmo se o operador nunca abrir a aba
     loadClientGuardStatus();
+    // sinais suspeitos agora vivem dentro da aba Incidentes (lado ClientGuard)
+    // — precisam ficar vivos por poll, igual aos ataques, pro badge somado
+    // não ficar bolorento enquanto o operador está no lado FlowGuard
+    loadClientGuardSuspicious();
   }
 
   function initLogin() {
@@ -5379,6 +5955,7 @@
     initCollapsiblePanels();
     initCollapseAllControls();
     initTabs();
+    initIncidentsControls();
     initSortHandlers();
     initAttacksControls();
     initPaginationHandlers();

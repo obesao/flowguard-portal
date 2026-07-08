@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.44.0**
+**Versão atual: v1.47.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -71,6 +71,11 @@ mesmo host, cada um com seu próprio socket Unix de controle:
     ao trocar de aba/toast, estados de carregamento com skeleton animado,
     contorno de foco visível pra navegação por teclado, e tabelas legíveis
     (quebra de linha em vez de recorte) em telas estreitas.
+13. **Aba Incidentes** — unifica Ataques (FlowGuard) e Sinais Suspeitos
+    (ClientGuard) numa aba só, com toggle entre os dois lados, chips de
+    severidade, agrupamento por prefixo/cliente, seleção em lote, linha do
+    tempo/nota/export no detalhe, e o gráfico de tráfego ganhou faixas de
+    anomalia por severidade + marcadores de evento sobrepostos.
 
 ## Estrutura
 
@@ -85,6 +90,58 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.47.0 — 2026-07-08 — Aba Incidentes unifica FlowGuard + ClientGuard, timeline com faixas de severidade
+
+Pedido do usuário: aproximar o portal V1 dos padrões de UX do portal V2
+(poxflow, em desenvolvimento paralelo) em três frentes — sem introduzir
+nenhuma dependência nova, mantendo a filosofia zero build step / zero CDN.
+
+**Aba Ataques + Sinais Suspeitos viram "Incidentes"**: nova aba `Incidentes`
+substitui a antiga aba `Ataques`; um toggle `FlowGuard — vítimas` /
+`ClientGuard — clientes` alterna entre a visão de ataques por prefixo e a de
+sinais suspeitos por cliente, no mesmo padrão de toggle já usado nas abas
+Regras/Configuração. A aba `ClientGuard` (renomeada `Clientes`) ficou só com
+Status e Top Clientes por Consumo. O badge da aba passa a somar ataques
+ativos + sinais abertos.
+
+**Incidentes ganhou recursos novos**: chips de severidade com seleção
+múltipla (severidade do ClientGuard agora é derivada da confiança do sinal —
+high/medium/watch); agrupamento por prefixo/cliente com colapso automático de
+grupos de severidade baixa; modo "Selecionar" com ação em lote (liberar/
+resolver vários de uma vez, com confirmação listando os IDs); painel de
+detalhe ganhou linha do tempo vertical do incidente (detecção → mitigação →
+encerramento), nota do operador (persistida só no navegador via
+localStorage) e exportação de dossiê em `.txt`; evidência do ClientGuard
+agora é formatada campo a campo em vez de uma string crua; reincidência do
+mesmo IP nos últimos 7 dias é mostrada no detalhe do sinal; selo "novo" marca
+incidentes abertos desde a última visita à aba.
+
+**Gráfico de tráfego ganhou faixas de anomalia + marcadores de evento**: o
+gráfico "Tráfego — entrada x saída" (aba Gráficos) agora sobrepõe, por trás
+das linhas, uma faixa translúcida colorida por severidade para cada ataque na
+janela selecionada, mais uma linha tracejada + marcador circular no início de
+cada ataque (hover mostra tipo/severidade/duração, clique pula pro histórico
+filtrado da aba Incidentes). A consulta de ataques da janela agora é buscada
+uma única vez e reaproveitada tanto pelo overlay quanto pelo Gantt de
+severidade já existente (antes eram duas consultas iguais).
+
+**Bug real encontrado e corrigido nessa revisão**: `[hidden]` não vencia
+`.fg-toolbar`/`.fg-toggle-group { display:flex }` por empate de
+especificidade CSS — mesma classe de bug já documentada em
+`.fg-cockpit-visibility[hidden]`. Isso deixava o seletor de janela da aba
+Ataques sempre visível (mesmo fora do modo Histórico) e teria deixado as
+novas barras de ação em lote sempre visíveis também. Corrigido com
+`.fg-toolbar[hidden], .fg-toggle-group[hidden] { display: none; }`.
+
+Validado com Playwright real contra o portal em produção: login, troca de
+toggle FlowGuard/ClientGuard, chips de severidade, agrupamento, seleção em
+lote (só a UI — sem clicar nas ações reais de liberar/resolver contra dados
+de produção), detalhe de ataque e de sinal reais (timeline, nota, export,
+reincidência), aba Clientes enxuta, overlay de eventos no gráfico com um
+prefixo com histórico real de ataques, sobrevivência a vários ciclos de
+polling (5s) sem os painéis novos serem destruídos pelo refresh, 0 erros de
+console.
 
 ### v1.46.0 — 2026-07-07 — Corrige painel "Limiares de Detecção" quebrado + limiar de amplificação + bug de apagar threshold ao editar prefixo
 Pedido do usuário: revisar o módulo de Configuração do portal e comparar com

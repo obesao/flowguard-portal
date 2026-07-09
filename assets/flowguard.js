@@ -3173,19 +3173,19 @@
   // type "mbps" converte bps<->Mbps só na exibição/edição (mesma conveniência já
   // usada em fg-monitor-form::ddos_bps_threshold_mbps); "boolean" vira <select>.
   var FG_DETECTION_CFG_FIELDS = [
-    { key: "ddos_bps_threshold", label: "DDoS — limiar de tráfego", type: "mbps", desc: "Acima disso (tráfego agregado do prefixo) conta como ataque volumétrico." },
-    { key: "ddos_pps_threshold", label: "DDoS — limiar de pacotes/s", type: "number", desc: "Acima disso (pps agregado do prefixo) conta como ataque volumétrico." },
-    { key: "amp_bps_threshold", label: "Amplificação — limiar de tráfego", type: "mbps", desc: "Acima disso (dns/ntp/ssdp/memcached/cldap) conta como amplificação — separado do limiar volumétrico, tipicamente bem menor." },
-    { key: "syn_ratio_threshold", label: "SYN flood — proporção mínima", type: "number", desc: "Proporção de SYN puro sobre o total de TCP (0 a 1) pra contar como SYN flood." },
-    { key: "syn_min_pps_floor", label: "SYN flood — piso de pps TCP", type: "number", desc: "Só avalia a proporção de SYN acima desse piso de tráfego TCP total." },
-    { key: "min_attack_duration_s", label: "Duração mínima pra abrir ataque (s)", type: "number", desc: "Segundos sustentados acima do limiar antes de considerar ataque de verdade." },
-    { key: "attack_stale_close_s", label: "Fechamento automático por inatividade (s)", type: "number", desc: "Fecha sozinho um ataque sem reconfirmação de tráfego há mais desse tempo." },
-    { key: "baseline_min_duration_s", label: "Baseline — duração mínima (s)", type: "number", desc: "Segundos sustentados de anomalia estatística antes de abrir ataque via baseline." },
-    { key: "baseline_enabled", label: "Anomalia de baseline — habilitada", type: "boolean", desc: "Liga/desliga a detecção por desvio estatístico (EWMA) do tráfego normal do prefixo." },
-    { key: "baseline_window_minutes", label: "Baseline — janela (min)", type: "number", desc: "Janela (minutos) usada pra calcular a média/desvio do tráfego normal." },
-    { key: "baseline_min_samples", label: "Baseline — amostras mínimas", type: "number", desc: "Amostras mínimas acumuladas antes da baseline ficar confiável." },
-    { key: "baseline_sigma", label: "Baseline — desvios-padrão (sigma)", type: "number", desc: "Quantos desvios-padrão acima da média contam como anomalia." },
-    { key: "baseline_min_bps", label: "Baseline — piso de tráfego", type: "mbps", desc: "Só considera anomalia de baseline acima desse piso de tráfego." },
+    { key: "ddos_bps_threshold", label: "DDoS — limiar de tráfego (Mbps)", type: "mbps", desc: "Tráfego agregado do prefixo (megabits por segundo) acima disso conta como ataque volumétrico. Campo já converte pra bps internamente — digite direto em Mbps (ex: 500 = meio giga)." },
+    { key: "ddos_pps_threshold", label: "DDoS — limiar de pacotes por segundo (pps)", type: "number", desc: "Pacotes/segundo agregados do prefixo acima disso conta como ataque volumétrico (alternativa ao limiar de tráfego — qualquer um dos dois dispara)." },
+    { key: "amp_bps_threshold", label: "Amplificação — limiar de tráfego (Mbps)", type: "mbps", desc: "Tráfego de resposta (dns/ntp/ssdp/memcached/cldap), em megabits por segundo, acima disso conta como amplificação — limiar SEPARADO do volumétrico acima, tipicamente bem menor (ataques de amplificação real costumam ter volume menor que um DDoS volumétrico puro)." },
+    { key: "syn_ratio_threshold", label: "SYN flood — proporção mínima (0 a 1, ex: 0.9 = 90%)", type: "number", desc: "Proporção de pacotes SYN puro (SYN sem ACK) sobre o total de TCP do prefixo — acima disso conta como SYN flood. 0.9 = 90% do tráfego TCP sendo SYN puro." },
+    { key: "syn_min_pps_floor", label: "SYN flood — piso de tráfego TCP total (pps)", type: "number", desc: "A proporção de SYN só é avaliada quando o TRÁFEGO TCP TOTAL do prefixo (em pacotes/segundo) já passou desse piso — evita disparo com pouquíssimo tráfego (ex: 2 SYN em 2 pacotes = 100%, mas não é ataque)." },
+    { key: "min_attack_duration_s", label: "Duração mínima pra abrir ataque (segundos)", type: "number", desc: "Tráfego precisa ficar sustentado acima do limiar por esse tempo (em segundos) antes de virar um ataque registrado — filtra picos curtos e legítimos." },
+    { key: "attack_stale_close_s", label: "Fechamento automático por inatividade (segundos)", type: "number", desc: "Rede de segurança: fecha sozinho um ataque que ficou esse tempo (em segundos) sem nenhuma reconfirmação de tráfego — cobre o caso do prefixo sair de monitoramento ou o daemon reiniciar no meio do ataque." },
+    { key: "baseline_min_duration_s", label: "Baseline — duração mínima da anomalia (segundos)", type: "number", desc: "Igual ao campo acima, mas só pra anomalia de baseline (mais ruidosa por natureza — reage a desvio estatístico, não a um limiar fixo óbvio) — exige mais tempo sustentado (em segundos) antes de abrir ataque." },
+    { key: "baseline_enabled", label: "Anomalia de baseline — habilitada (sim/não)", type: "boolean", desc: "Liga/desliga a detecção por desvio estatístico (EWMA) do tráfego normal do prefixo — pega ataques relevantes pra um cliente PEQUENO, que nunca bateria o limiar fixo global." },
+    { key: "baseline_window_minutes", label: "Baseline — janela de cálculo (minutos)", type: "number", desc: "Quantos minutos de histórico são usados pra calcular a média/desvio-padrão do tráfego \"normal\" do prefixo (EWMA — mais peso pro tráfego recente que pro antigo)." },
+    { key: "baseline_min_samples", label: "Baseline — amostras mínimas (nº de ciclos de agregação)", type: "number", desc: "Quantos CICLOS de agregação (não segundos — cada ciclo é o intervalo configurado em database.aggregate_interval_s, tipicamente 30s) precisam se acumular antes da baseline ser considerada confiável o bastante pra detectar anomalia." },
+    { key: "baseline_sigma", label: "Baseline — sensibilidade (nº de desvios-padrão, ex: 4)", type: "number", desc: "Tráfego acima da média + N desvios-padrão conta como anomalia — número MAIOR = menos sensível (exige desvio maior pra disparar), número MENOR = mais sensível (mais falso positivo)." },
+    { key: "baseline_min_bps", label: "Baseline — piso mínimo de tráfego (Mbps)", type: "mbps", desc: "Anomalia de baseline só dispara acima desse piso de tráfego real (em megabits por segundo) — evita marcar como \"ataque\" uma variação estatística sobre um prefixo que mal tem tráfego." },
   ];
 
   function renderFgDetectionCfg(detection) {
@@ -3587,16 +3587,16 @@
   // ajuste fino de config.yaml::detection (aplicado via detection_overrides.yaml,
   // sem reiniciar o daemon) — type "ports" vira lista (input de texto, vírgula-separado)
   var CG_DETECTION_CFG_FIELDS = [
-    { key: "scan_horizontal_hosts", label: "Scan horizontal — hosts distintos", type: "number", desc: "N destinos distintos, mesma porta, pra contar como scan horizontal." },
-    { key: "scan_vertical_ports", label: "Scan vertical — portas distintas", type: "number", desc: "N portas distintas, mesmo destino, pra contar como scan vertical." },
-    { key: "scan_max_avg_bytes", label: "Scan — máx. bytes médios", type: "number", desc: "Acima disso é tráfego real (P2P/torrent), não sonda de reconhecimento." },
-    { key: "amplifier_min_bps", label: "Amplificador — bps mínimo", type: "number", desc: "Tráfego de resposta mínimo (bps) pra contar como amplificador hospedado." },
-    { key: "spam_min_distinct_dest", label: "Spam — destinos distintos", type: "number", desc: "N destinos distintos em portas de e-mail pra contar como spam bot." },
-    { key: "coordinated_min_clients", label: "Coordenado — clientes distintos", type: "number", desc: "N clientes distintos no mesmo destino pra contar como coordenado." },
-    { key: "dns_tunneling_min_queries", label: "Túnel DNS — queries mínimas", type: "number", desc: "N queries DNS (já multiplicado pelo sampling) pro mesmo resolver pra contar como túnel." },
-    { key: "amplifier_ports", label: "Portas de amplificação", type: "ports", desc: "Portas UDP de serviço monitoradas pelo detector de amplificador (ex: 53, 123, 1900)." },
-    { key: "spam_ports", label: "Portas de e-mail (spam)", type: "ports", desc: "Portas monitoradas pelo detector de spam bot (ex: 25, 465, 587)." },
-    { key: "common_service_ports", label: "Portas de serviço comum (exceção)", type: "ports", desc: "Portas de app popular (CDN/VoIP/jogos/etc) excluídas do scan horizontal e do destino coordenado, pra não confundir uso normal com abuso." },
+    { key: "scan_horizontal_hosts", label: "Scan horizontal — hosts distintos (nº de hosts)", type: "number", desc: "Cliente falando com esse número de destinos DIFERENTES, na MESMA porta, dentro da janela — conta como scan horizontal (reconhecimento de rede)." },
+    { key: "scan_vertical_ports", label: "Scan vertical — portas distintas (nº de portas)", type: "number", desc: "Cliente falando com esse número de portas DIFERENTES no MESMO destino, dentro da janela — conta como scan vertical (varredura de portas)." },
+    { key: "scan_max_avg_bytes", label: "Scan — máximo de bytes médios por destino (bytes)", type: "number", desc: "Média de bytes por destino/porta ACIMA disso é tráfego real (P2P/torrent transferindo dado de verdade), não sonda de reconhecimento (que manda pacotes pequenos) — protege contra falso positivo." },
+    { key: "amplifier_min_bps", label: "Amplificador — tráfego de resposta mínimo (bps, valor cru — 5000000 = 5 Mbps)", type: "number", desc: "Tráfego de RESPOSTA (não de pergunta) do cliente pra fora, em bits por segundo, acima disso conta como amplificador hospedado — ATENÇÃO: campo em bps cru, não Mbps (5000000 = 5 Mbps, não digite só \"5\")." },
+    { key: "spam_min_distinct_dest", label: "Spam — destinos distintos (nº de destinos)", type: "number", desc: "Cliente conectando em portas de e-mail (25/465/587) pra esse número de destinos DIFERENTES dentro da janela — conta como spam bot." },
+    { key: "coordinated_min_clients", label: "Destino coordenado — clientes distintos (nº de clientes)", type: "number", desc: "Esse número de clientes MEUS distintos falando com o MESMO destino externo ao mesmo tempo (fora portas web/DNS comuns) — indício de botnet/C2 atingindo vários clientes juntos." },
+    { key: "dns_tunneling_min_queries", label: "Túnel DNS — queries mínimas (nº de queries, já ajustado pelo sampling)", type: "number", desc: "Queries DNS (já multiplicadas pela taxa de amostragem do NetFlow) pro MESMO resolver externo, dentro da janela, acima disso conta como túnel DNS/exfiltração." },
+    { key: "amplifier_ports", label: "Portas de amplificação (lista separada por vírgula)", type: "ports", desc: "Portas UDP de serviço monitoradas pelo detector de amplificador — ex: 53 (DNS), 123 (NTP), 1900 (SSDP)." },
+    { key: "spam_ports", label: "Portas de e-mail / spam (lista separada por vírgula)", type: "ports", desc: "Portas TCP monitoradas pelo detector de spam bot — ex: 25 (SMTP), 465/587 (SMTP com TLS)." },
+    { key: "common_service_ports", label: "Portas de serviço comum / exceção (lista separada por vírgula)", type: "ports", desc: "Portas de app popular (CDN/VoIP/push/jogos/etc — ex: 443, 3478, 5223) EXCLUÍDAS do scan horizontal e do destino coordenado, pra não confundir uso normal (todo mundo usando o mesmo app) com abuso de verdade." },
   ];
 
   function updateCgBadge(count) {

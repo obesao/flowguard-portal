@@ -4491,7 +4491,7 @@
   // histórico, SSH legado e FlowSpec juntos) vive só na aba Regras →
   // ClientGuard (renderRulesCgEdgeTable) — ver nota mais abaixo.
 
-  var CG_FLOWSPEC_ACTION_LABELS = { discard: "Descartar (bloqueia tudo)", rate_limit: "Limitar banda (dinâmico)", "off": "Desligado" };
+  var CG_FLOWSPEC_ACTION_LABELS = { discard: "Descartar (só o destino/porta identificado)", rate_limit: "Limitar banda (dinâmico)", "off": "Desligado" };
 
   function renderCgEdgeAuto(autoMitigate) {
     var el = document.getElementById("cg-edge-auto");

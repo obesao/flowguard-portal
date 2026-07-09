@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.48.0**
+**Versão atual: v1.49.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -96,6 +96,31 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.49.0 — 2026-07-08 — Painéis de detecção de scan (FlowGuard) e bloqueio progressivo (FlowGuard + ClientGuard)
+
+Wiring de portal pra 3 features novas do backend (ver changelog de
+`flowguard` v1.35.0 e `clientguard` v1.31.0 pro contexto completo): detector
+de port scan inbound e bloqueio progressivo por reincidência (estilo
+fail2ban) nos dois sistemas.
+
+Aba Configuração > FlowGuard ganhou 3 seções novas: "Detecção de Varredura
+de Portas" (toggle horizontal/vertical + thresholds, estilo numeric-field
+igual aos Limiares de Detecção existentes), "Bloqueio Progressivo" (janela
+de reincidência/duração base/fator/teto) e "Scanners Detectados" (tabela
+somente-leitura — quem está sendo detectado agora, mesmo sem bloqueio
+automático ligado; o estado do bloqueio em si já aparece de graça na tabela
+Regras FlowSpec Ativas existente, sem UI nova pra isso). Aba Configuração >
+ClientGuard ganhou "Bloqueio Progressivo" equivalente.
+
+Dois helpers genéricos novos em `flowguard.js` (`renderKvFields`/
+`collectKvChanges`) — bool+numérico com diff-on-save numa POST só — usados
+pelas 3 seções novas em vez de triplicar a lógica de
+`renderCgDetectionCfg`/`renderFgMitigation`. 4 CGI scripts novos
+(`flowguard-scan-cfg.sh`, `flowguard-escalation-cfg.sh`,
+`flowguard-scan-offenders.sh`, `clientguard-escalation-cfg.sh`), todos
+proxy fino pro socket do daemon respectivo, mesmo template de
+`flowguard-mitigation-cfg.sh`/`clientguard-flowspec-cfg.sh`.
 
 ### v1.48.0 — 2026-07-08 — Redes do ClientGuard (ex: CGNAT) aparecem no gráfico de tráfego
 

@@ -830,6 +830,27 @@
           </div>
         </section>
         <section class="fg-panel-section">
+          <h2>Detecção de Varredura de Portas (port scan)</h2>
+          <p class="fg-kpi-sub">Detecta IP externo varrendo um prefixo protegido: horizontal (1 IP -&gt; N hosts distintos, mesma porta) ou vertical (1 IP -&gt; N portas distintas, mesmo host). Limiares abaixo são valores iniciais — calibrar contra tráfego real antes de confiar no sinal. Bloqueio automático usa a estratégia configurada em Mitigação (port_scan_horizontal/port_scan_vertical).</p>
+          <div id="fg-scan-cfg"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
+          <div class="fg-toolbar">
+            <button class="fg-btn" id="fg-scan-cfg-save-btn">Salvar detecção de scan</button>
+          </div>
+        </section>
+        <section class="fg-panel-section">
+          <h2>Bloqueio Progressivo (scan)</h2>
+          <p class="fg-kpi-sub">Quando o MESMO IP externo é bloqueado de novo dentro da janela de reincidência, a duração do próximo bloqueio cresce (base × fator ^ reincidências), até um teto. Só afeta a duração de um bloqueio que já ia acontecer — não é um mecanismo de bloqueio novo.</p>
+          <div id="fg-escalation-cfg"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
+          <div class="fg-toolbar">
+            <button class="fg-btn" id="fg-escalation-save-btn">Salvar bloqueio progressivo</button>
+          </div>
+        </section>
+        <section class="fg-panel-section">
+          <h2>Scanners Detectados</h2>
+          <p class="fg-kpi-sub">Somente leitura — quem está sendo detectado agora (mesmo sem bloqueio automático ligado). O estado do bloqueio em si (TTL, expiração) aparece na aba Regras.</p>
+          <div id="fg-scan-offenders"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
+        </section>
+        <section class="fg-panel-section">
           <h2>Limiares de Detecção</h2>
           <p class="fg-kpi-sub">Ajuste fino dos limiares GLOBAIS de detecção — vale pra qualquer prefixo sem <code>template</code> atribuído (ver "Templates de Detecção" logo abaixo pra perfis específicos, ex.: pool com tráfego agregado bem acima de 1 cliente único). Aplica sem precisar reiniciar o daemon.</p>
           <div id="fg-detection-cfg"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
@@ -880,6 +901,14 @@
               <option value="2592000">TTL padrão: longa duração (30 dias)</option>
             </select>
             <button class="fg-btn" id="cg-edge-auto-apply-btn" disabled>Aplicar novas configurações</button>
+          </div>
+        </section>
+        <section class="fg-panel-section">
+          <h2>Bloqueio Progressivo</h2>
+          <p class="fg-kpi-sub">Comum aos 7 detectores — quando o MESMO cliente é mitigado de novo dentro da janela de reincidência, a duração da próxima mitigação cresce (base × fator ^ reincidências), até um teto. Só afeta a duração de uma mitigação que já ia acontecer via Mitigação automática (FlowSpec) acima.</p>
+          <div id="cg-escalation-cfg"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
+          <div class="fg-toolbar">
+            <button class="fg-btn" id="cg-escalation-save-btn">Salvar bloqueio progressivo</button>
           </div>
         </section>
         <section class="fg-panel-section">

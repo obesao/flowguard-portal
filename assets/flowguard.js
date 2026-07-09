@@ -10,6 +10,9 @@
   var CFG_ENDPOINT = "/cgi-bin/flowguard-cfg.sh";
   var TOGGLES_ENDPOINT = "/cgi-bin/flowguard-toggles.sh";
   var MITIGATION_CFG_ENDPOINT = "/cgi-bin/flowguard-mitigation-cfg.sh";
+  var SCAN_CFG_ENDPOINT = "/cgi-bin/flowguard-scan-cfg.sh";
+  var SCAN_OFFENDERS_ENDPOINT = "/cgi-bin/flowguard-scan-offenders.sh";
+  var ESCALATION_CFG_ENDPOINT = "/cgi-bin/flowguard-escalation-cfg.sh";
   var AI_ENDPOINT = "/cgi-bin/flowguard-ai.sh";
   var HISTORY_ENDPOINT = "/cgi-bin/flowguard-history.sh";
   var LOGIN_ENDPOINT = "/cgi-bin/flowguard-login.sh";
@@ -25,6 +28,7 @@
   var CG_EDGE_ENDPOINT = "/cgi-bin/clientguard-edge.sh";
   var CG_EDGE_CFG_ENDPOINT = "/cgi-bin/clientguard-edge-cfg.sh";
   var CG_FLOWSPEC_CFG_ENDPOINT = "/cgi-bin/clientguard-flowspec-cfg.sh";
+  var CG_ESCALATION_CFG_ENDPOINT = "/cgi-bin/clientguard-escalation-cfg.sh";
   var WARMODE_ENDPOINT = "/cgi-bin/flowguard-warmode.sh";
   var WARMODE_AUTH_ENDPOINT = "/cgi-bin/flowguard-warmode-auth.sh";
   var WARMODE_CFG_ENDPOINT = "/cgi-bin/flowguard-warmode-cfg.sh";
@@ -4563,6 +4567,105 @@
       });
   }
 
+  // --- bloqueio progressivo por reincidência (comum aos 7 detectores) -------
+
+  var CG_ESCALATION_CFG_FIELDS = [
+    { key: "enabled", label: "Escalonamento ativo", type: "bool", desc: "Desligado: toda mitigação usa a duração fixa de Mitigação FlowSpec (default_ttl_s)." },
+    { key: "tracking_window_s", label: "Janela de reincidência (s)", type: "number", desc: "Mitigações do MESMO cliente dentro dessa janela contam como reincidência." },
+    { key: "base_ttl_s", label: "Duração base (s) — vazio usa default_ttl_s", type: "number", nullable: true, desc: "Duração da 1ª ofensa. Deixe vazio pra usar o TTL padrão de Mitigação FlowSpec." },
+    { key: "factor", label: "Fator de multiplicação", type: "number", float: true, desc: "Cada reincidência multiplica a duração da mitigação por isso." },
+    { key: "max_ttl_s", label: "Duração máxima (s)", type: "number", desc: "Teto — a duração nunca ultrapassa isso, não importa quantas reincidências." },
+    { key: "max_steps", label: "Reincidências até o teto", type: "number", desc: "Depois de N reincidências dentro da janela, trava na duração máxima." },
+  ];
+
+  function renderKvFields(containerId, fields, values) {
+    var el = document.getElementById(containerId);
+    if (!el) return;
+    el.innerHTML = fields.map(function (f) {
+      if (f.type === "bool") {
+        var checked = values[f.key] ? "checked" : "";
+        return (
+          '<div class="fg-toggle-item" style="margin-bottom:0.6rem;">' +
+          '<label><input type="checkbox" data-kv-key="' + f.key + '" data-kv-type="bool" ' + checked + "> " +
+          escapeHtml(f.label) + "</label>" +
+          '<p class="fg-kpi-sub" style="margin:0.15rem 0 0;">' + escapeHtml(f.desc) + "</p></div>"
+        );
+      }
+      var val = values[f.key];
+      var inputVal = val != null ? val : "";
+      return (
+        '<div style="margin-bottom:0.7rem;">' +
+        '<label style="display:block; font-weight:600; margin-bottom:0.15rem;">' + escapeHtml(f.label) + "</label>" +
+        '<p class="fg-kpi-sub" style="margin:0 0 0.3rem;">' + escapeHtml(f.desc) + "</p>" +
+        '<input type="text" data-kv-key="' + f.key + '" data-kv-type="number" value="' + escapeHtml(String(inputVal)) + '"></div>'
+      );
+    }).join("");
+  }
+
+  function collectKvChanges(containerId, fields, original) {
+    var el = document.getElementById(containerId);
+    var result = { changes: {}, invalid: false };
+    if (!el) return result;
+    el.querySelectorAll("[data-kv-key]").forEach(function (input) {
+      var key = input.getAttribute("data-kv-key");
+      var type = input.getAttribute("data-kv-type");
+      var meta = fields.filter(function (f) { return f.key === key; })[0] || {};
+      if (type === "bool") {
+        if (input.checked !== !!original[key]) result.changes[key] = input.checked;
+        return;
+      }
+      var raw = input.value.trim();
+      if (meta.nullable && raw === "") {
+        if (original[key] != null) result.changes[key] = null;
+        return;
+      }
+      var n = Number(raw);
+      if (!raw || !Number.isFinite(n) || n <= 0) { result.invalid = true; return; }
+      if (!meta.float) n = Math.round(n);
+      if (n !== original[key]) result.changes[key] = n;
+    });
+    return result;
+  }
+
+  function renderCgEscalationCfg(cfg) {
+    state.cgEscalationLoaded = cfg || {};
+    renderKvFields("cg-escalation-cfg", CG_ESCALATION_CFG_FIELDS, state.cgEscalationLoaded);
+  }
+
+  function loadCgEscalationCfg() {
+    if (!getToken()) return;
+    getJson(CG_ESCALATION_CFG_ENDPOINT).then(function (data) {
+      if (!data.ok) {
+        showError(document.getElementById("cg-escalation-cfg"), data.error || "erro desconhecido");
+        return;
+      }
+      renderCgEscalationCfg(data.escalation);
+    }).catch(function (err) {
+      showError(document.getElementById("cg-escalation-cfg"), "falha ao consultar bloqueio progressivo");
+      console.error("flowguard.js:", err);
+    });
+  }
+
+  function onCgEscalationSaveClick() {
+    var btn = document.getElementById("cg-escalation-save-btn");
+    var result = collectKvChanges("cg-escalation-cfg", CG_ESCALATION_CFG_FIELDS, state.cgEscalationLoaded || {});
+    if (result.invalid) {
+      showToast("Valores inválidos — confira os campos numéricos", "error");
+      return;
+    }
+    if (!Object.keys(result.changes).length) {
+      showToast("Nenhum campo foi alterado");
+      return;
+    }
+    btn.disabled = true;
+    postJson(CG_ESCALATION_CFG_ENDPOINT, { changes: result.changes })
+      .then(function (resp) {
+        showToast(resp.ok ? "Bloqueio progressivo atualizado" : (resp.error || "falha ao salvar"), resp.ok ? "success" : "error");
+        if (resp.ok) renderCgEscalationCfg(resp.escalation);
+      })
+      .finally(function () { btn.disabled = false; });
+  }
+
   // a lista completa (ativas + histórico) desse mesmo dado já vive na aba
   // Regras → ClientGuard (renderRulesCgEdgeTable/rules-cg-edge-list, com
   // toggle Ativas/Histórico e paginação) — não duplicar aqui
@@ -4613,6 +4716,7 @@
     loadClientGuardSuspicious();
     loadCgToggles();
     loadCgEdgeAuto();
+    loadCgEscalationCfg();
   }
 
   // --- gráficos (canvas, sem dependência externa) -------------------------
@@ -6012,6 +6116,132 @@
     });
   }
 
+  // --- detecção de port scan (fora pra dentro) + bloqueio progressivo -------
+
+  var FG_SCAN_CFG_FIELDS = [
+    { key: "enabled", label: "Detecção de scan ativa", type: "bool", desc: "Liga/desliga o detector inteiro (horizontal + vertical)." },
+    { key: "horizontal_enabled", label: "Scan horizontal ativo", type: "bool", desc: "1 IP externo -> N hosts distintos do prefixo, mesma porta (varredura de rede)." },
+    { key: "vertical_enabled", label: "Scan vertical ativo", type: "bool", desc: "1 IP externo -> N portas distintas do mesmo host (varredura de portas)." },
+    { key: "horizontal_hosts", label: "Scan horizontal — hosts distintos", type: "number", desc: "N hosts distintos (mesma porta) pra contar como scan horizontal. Placeholder — calibrar com tráfego real." },
+    { key: "vertical_ports", label: "Scan vertical — portas distintas", type: "number", desc: "N portas distintas (mesmo host) pra contar como scan vertical. Placeholder — calibrar com tráfego real." },
+    { key: "max_tracked_src_ips_per_cycle", label: "Limite de IPs rastreados/ciclo", type: "number", desc: "Proteção de memória — acima disso, novos IPs externos não são rastreados até o próximo ciclo." },
+    { key: "auto_block", label: "Bloqueio automático", type: "bool", desc: "Bloqueia via FlowSpec sozinho ao detectar. Também precisa de Mitigação > port_scan_horizontal/vertical com Automático != desligado." },
+  ];
+
+  var FG_ESCALATION_CFG_FIELDS = [
+    { key: "enabled", label: "Escalonamento ativo", type: "bool", desc: "Desligado: todo bloqueio de scanner usa a duração base fixa." },
+    { key: "tracking_window_s", label: "Janela de reincidência (s)", type: "number", desc: "Bloqueios do MESMO IP dentro dessa janela contam como reincidência." },
+    { key: "base_ttl_s", label: "Duração base (s)", type: "number", desc: "Duração do 1º bloqueio." },
+    { key: "factor", label: "Fator de multiplicação", type: "number", float: true, desc: "Cada reincidência multiplica a duração do próximo bloqueio por isso." },
+    { key: "max_ttl_s", label: "Duração máxima (s)", type: "number", desc: "Teto — a duração nunca ultrapassa isso." },
+    { key: "max_steps", label: "Reincidências até o teto", type: "number", desc: "Depois de N reincidências dentro da janela, trava na duração máxima." },
+  ];
+
+  function renderFgScanCfg(cfg) {
+    state.fgScanCfgLoaded = cfg || {};
+    renderKvFields("fg-scan-cfg", FG_SCAN_CFG_FIELDS, state.fgScanCfgLoaded);
+  }
+
+  function loadFgScanCfg() {
+    getJson(SCAN_CFG_ENDPOINT).then(function (data) {
+      if (!data.ok) {
+        showError(document.getElementById("fg-scan-cfg"), data.error || "erro desconhecido");
+        return;
+      }
+      renderFgScanCfg(data.scan_detection);
+    }).catch(function (err) {
+      showError(document.getElementById("fg-scan-cfg"), "falha ao consultar detecção de scan");
+      console.error("flowguard.js:", err);
+    });
+  }
+
+  function onFgScanCfgSaveClick() {
+    var btn = document.getElementById("fg-scan-cfg-save-btn");
+    var result = collectKvChanges("fg-scan-cfg", FG_SCAN_CFG_FIELDS, state.fgScanCfgLoaded || {});
+    if (result.invalid) {
+      showToast("Valores inválidos — confira os campos numéricos", "error");
+      return;
+    }
+    if (!Object.keys(result.changes).length) {
+      showToast("Nenhum campo foi alterado");
+      return;
+    }
+    btn.disabled = true;
+    postJson(SCAN_CFG_ENDPOINT, { changes: result.changes }).then(function (resp) {
+      showToast(resp.ok ? "Detecção de scan atualizada" : (resp.error || "falha ao salvar"), resp.ok ? "success" : "error");
+      if (resp.ok) renderFgScanCfg(resp.scan_detection);
+    }).finally(function () { btn.disabled = false; });
+  }
+
+  function renderFgEscalationCfg(cfg) {
+    state.fgEscalationLoaded = cfg || {};
+    renderKvFields("fg-escalation-cfg", FG_ESCALATION_CFG_FIELDS, state.fgEscalationLoaded);
+  }
+
+  function loadFgEscalationCfg() {
+    getJson(ESCALATION_CFG_ENDPOINT).then(function (data) {
+      if (!data.ok) {
+        showError(document.getElementById("fg-escalation-cfg"), data.error || "erro desconhecido");
+        return;
+      }
+      renderFgEscalationCfg(data.escalation);
+    }).catch(function (err) {
+      showError(document.getElementById("fg-escalation-cfg"), "falha ao consultar bloqueio progressivo");
+      console.error("flowguard.js:", err);
+    });
+  }
+
+  function onFgEscalationSaveClick() {
+    var btn = document.getElementById("fg-escalation-save-btn");
+    var result = collectKvChanges("fg-escalation-cfg", FG_ESCALATION_CFG_FIELDS, state.fgEscalationLoaded || {});
+    if (result.invalid) {
+      showToast("Valores inválidos — confira os campos numéricos", "error");
+      return;
+    }
+    if (!Object.keys(result.changes).length) {
+      showToast("Nenhum campo foi alterado");
+      return;
+    }
+    btn.disabled = true;
+    postJson(ESCALATION_CFG_ENDPOINT, { changes: result.changes }).then(function (resp) {
+      showToast(resp.ok ? "Bloqueio progressivo atualizado" : (resp.error || "falha ao salvar"), resp.ok ? "success" : "error");
+      if (resp.ok) renderFgEscalationCfg(resp.escalation);
+    }).finally(function () { btn.disabled = false; });
+  }
+
+  function renderFgScanOffenders(offenders) {
+    var el = document.getElementById("fg-scan-offenders");
+    if (!el) return;
+    if (!offenders.length) {
+      el.innerHTML = '<p class="fg-ok">Nenhum scanner detectado no momento.</p>';
+      return;
+    }
+    var rows = offenders.map(function (o) {
+      return (
+        "<tr><td>" + escapeHtml(o.dst_prefix) + "</td><td>" + escapeHtml(o.src_ip) + "</td><td>" +
+        (o.scan_type === "horizontal" ? "Horizontal" : "Vertical") + "</td><td>" + o.dst_count + "</td><td>" +
+        (o.mitigated ? '<span class="fg-badge">bloqueado</span>' : "detectando") + "</td><td>" +
+        new Date(o.ts_start * 1000).toLocaleString("pt-BR") + "</td></tr>"
+      );
+    }).join("");
+    el.innerHTML =
+      "<table><thead><tr><th>Prefixo</th><th>Src IP</th><th>Tipo</th><th>Contagem</th><th>Status</th><th>Início</th></tr></thead><tbody>" +
+      rows + "</tbody></table>";
+  }
+
+  function loadFgScanOffenders() {
+    getJson(SCAN_OFFENDERS_ENDPOINT).then(function (data) {
+      if (!data.ok) {
+        showError(document.getElementById("fg-scan-offenders"), data.error || "erro desconhecido");
+        return;
+      }
+      renderFgScanOffenders(data.offenders);
+    }).catch(function (err) {
+      showError(document.getElementById("fg-scan-offenders"), "falha ao consultar scanners detectados");
+      console.error("flowguard.js:", err);
+    });
+  }
+
   function onClearSuspiciousClick() {
     if (!window.confirm("Marcar TODOS os ataques ativos como dispensados? Eles somem da lista/contagem de Ativos (o histórico continua intacto). Isso não pode ser desfeito.")) {
       return;
@@ -6175,6 +6405,16 @@
     var fgMitigationSaveBtn = document.getElementById("fg-mitigation-save-btn");
     if (fgMitigationSaveBtn) fgMitigationSaveBtn.addEventListener("click", onFgMitigationSaveClick);
 
+    if (document.getElementById("fg-scan-cfg")) loadFgScanCfg();
+    var fgScanCfgSaveBtn = document.getElementById("fg-scan-cfg-save-btn");
+    if (fgScanCfgSaveBtn) fgScanCfgSaveBtn.addEventListener("click", onFgScanCfgSaveClick);
+
+    if (document.getElementById("fg-escalation-cfg")) loadFgEscalationCfg();
+    var fgEscalationSaveBtn = document.getElementById("fg-escalation-save-btn");
+    if (fgEscalationSaveBtn) fgEscalationSaveBtn.addEventListener("click", onFgEscalationSaveClick);
+
+    if (document.getElementById("fg-scan-offenders")) loadFgScanOffenders();
+
     var waConnectBtn = document.getElementById("fg-wa-connect-btn");
     if (waConnectBtn) waConnectBtn.addEventListener("click", loadWaQr);
 
@@ -6254,7 +6494,10 @@
     var cgEdgeAutoApplyBtn = document.getElementById("cg-edge-auto-apply-btn");
     if (cgEdgeAutoApplyBtn) cgEdgeAutoApplyBtn.addEventListener("click", onCgEdgeAutoApplyClick);
 
-    if (getToken()) { loadClientGuardCfg(); loadCgToggles(); loadCgEdgeAuto(); }
+    var cgEscalationSaveBtn = document.getElementById("cg-escalation-save-btn");
+    if (cgEscalationSaveBtn) cgEscalationSaveBtn.addEventListener("click", onCgEscalationSaveClick);
+
+    if (getToken()) { loadClientGuardCfg(); loadCgToggles(); loadCgEdgeAuto(); loadCgEscalationCfg(); }
 
     initChartControls();
 

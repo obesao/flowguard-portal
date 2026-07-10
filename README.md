@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.51.0**
+**Versão atual: v1.51.1**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -100,6 +100,14 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.51.1 — 2026-07-10 — Campos de filtro de bytes médios no painel de scan (evita bloquear Google/YouTube)
+
+Dois campos novos em "Detecção de Varredura de Portas" (aba Configuração >
+FlowGuard): "Horizontal — máx. bytes médios por host" e "Vertical — máx.
+bytes médios por porta", ambos aceitando vazio pra desativar o filtro. Ver
+changelog do FlowGuard v1.36.2 pro contexto completo (streaming/CDN sendo
+confundido com scan de reconhecimento).
 
 ### v1.51.0 — 2026-07-10 — Detecção de destino coordenado (novo detector FlowGuard) no portal
 

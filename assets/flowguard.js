@@ -830,11 +830,8 @@
     var s = state.cgStatus;
     if (!s) { cockpitSetBody("clientguard", '<p class="fg-kpi-sub">carregando...</p>'); return; }
     cockpitSetBody("clientguard",
-      '<div class="fg-cockpit-mini-kpis">' +
-      '<div><div class="fg-cockpit-big-number">' + s.distinct_src_ips + '</div><div class="fg-kpi-sub">clientes ativos</div></div>' +
-      '<div><div class="fg-cockpit-big-number' + (s.open_signals ? " fg-sev-high" : " fg-ok") + '">' + s.open_signals +
-      '</div><div class="fg-kpi-sub">sinais abertos</div></div>' +
-      "</div>");
+      '<div class="fg-cockpit-big-number' + (s.open_signals ? " fg-sev-high" : " fg-ok") + '">' + s.open_signals +
+      '</div><div class="fg-kpi-sub">sinais abertos</div>');
   }
 
   function cockpitRenderRules() {
@@ -3623,8 +3620,6 @@
       return;
     }
     el.innerHTML =
-      kpiCard("Flows na janela", status.flows_window, "") +
-      kpiCard("Clientes ativos", status.distinct_src_ips, "na janela atual") +
       kpiCard("Sinais abertos", status.open_signals, status.open_signals > 0 ? "requer atenção" : "tudo normal") +
       kpiCard("Mitigações ativas", status.active_mitigations, "FlowSpec + SSH legado", null, status.active_mitigations > 0) +
       kpiCard("Redes cadastradas", status.n_customers, "") +
@@ -6135,6 +6130,8 @@
     { key: "vertical_enabled", label: "Scan vertical ativo", type: "bool", desc: "1 IP externo -> N portas distintas do mesmo host (varredura de portas)." },
     { key: "horizontal_hosts", label: "Scan horizontal — hosts distintos", type: "number", desc: "N hosts distintos (mesma porta) pra contar como scan horizontal. Placeholder — calibrar com tráfego real." },
     { key: "vertical_ports", label: "Scan vertical — portas distintas", type: "number", desc: "N portas distintas (mesmo host) pra contar como scan vertical. Placeholder — calibrar com tráfego real." },
+    { key: "horizontal_max_avg_bytes", label: "Horizontal — máx. bytes médios por host (vazio desativa)", type: "number", nullable: true, desc: "Acima disso é tráfego real (ex: CDN respondendo vários clientes), não sonda de reconhecimento. Achado real: sem isso, Google/YouTube podiam ser bloqueados por engano." },
+    { key: "vertical_max_avg_bytes", label: "Vertical — máx. bytes médios por porta (vazio desativa)", type: "number", nullable: true, desc: "Acima disso é tráfego real (ex: streaming/CDN abrindo várias conexões paralelas), não sonda de reconhecimento. Achado real: sem isso, Google/YouTube podiam ser bloqueados por engano." },
     { key: "max_tracked_src_ips_per_cycle", label: "Limite de IPs rastreados/ciclo", type: "number", desc: "Proteção de memória — acima disso, novos IPs externos não são rastreados até o próximo ciclo." },
     { key: "auto_block", label: "Bloqueio automático", type: "bool", desc: "Bloqueia via FlowSpec sozinho ao detectar. Também precisa de Mitigação > port_scan_horizontal/vertical com Automático != desligado." },
   ];

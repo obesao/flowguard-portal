@@ -90,7 +90,9 @@
     attacksSelected: {},
     attacksCollapsedGroups: {},
     incidentsApp: "flowguard",
-    incidents: { openAttacks: 0, openSignals: 0 },
+    incidents: { openAttacks: 0, openSignals: 0, openScans: 0 },
+    scanView: "active",
+    scanOffenders: [],
     status: null,
     cgStatus: null,
     cockpitEditing: false,
@@ -115,6 +117,7 @@
       flows: 1,
       attacks: 1,
       cgEdgeMitigations: 1,
+      scanOffenders: 1,
     },
     chart: {
       window: "6h",
@@ -380,6 +383,7 @@
       if (key === "flows") renderFlowsFiltered();
       if (key === "attacks") renderAttacksFiltered();
       if (key === "cgEdgeMitigations") applyRulesFilter();
+      if (key === "scanOffenders") renderFgScanOffenders(state.scanOffenders);
     });
   }
 
@@ -567,7 +571,7 @@
   function updateIncidentsBadge() {
     var badge = document.getElementById("fg-attacks-badge");
     if (!badge) return;
-    var count = (state.incidents.openAttacks || 0) + (state.incidents.openSignals || 0);
+    var count = (state.incidents.openAttacks || 0) + (state.incidents.openSignals || 0) + (state.incidents.openScans || 0);
     if (count > 0) {
       badge.style.display = "inline-block";
       badge.textContent = count;
@@ -6209,37 +6213,99 @@
     }).finally(function () { btn.disabled = false; });
   }
 
+  // port scan não tem severidade própria no backend (port_scan_offenders não
+  // tem coluna severity) — estimada aqui só pra exibição, pela contagem de
+  // hosts/portas distintos (dst_count). Cortes arbitrários, documentados na
+  // UI ("estimada"), não vêm de nenhum limiar configurado.
+  function scanSeverity(o) {
+    if (o.dst_count >= 100) return "high";
+    if (o.dst_count >= 20) return "medium";
+    return "info";
+  }
+
   function renderFgScanOffenders(offenders) {
     var el = document.getElementById("fg-scan-offenders");
     if (!el) return;
     if (!offenders.length) {
-      el.innerHTML = '<p class="fg-ok">Nenhum scanner detectado no momento.</p>';
+      el.innerHTML = '<p class="fg-ok">' +
+        (state.scanView === "active" ? "Nenhum scanner detectado no momento." : "Nenhum scanner no histórico.") +
+        "</p>";
       return;
     }
-    var rows = offenders.map(function (o) {
+    // histórico pode vir com milhares de linhas (sem limite no backend) —
+    // paginação client-side, mesmo padrão de flowguard-attacks/flows/top prefixos
+    var p = paginate(offenders, "scanOffenders");
+    var rows = p.pageRows.map(function (o) {
+      var sev = scanSeverity(o);
+      var newBadge = isNewIncident(o.ts_start) ? ' <span class="fg-badge" title="novo desde a última visita à aba">novo</span>' : "";
+      var blockBtn = o.mitigated
+        ? ""
+        : '<button class="fg-btn" data-action="block" title="Cria um bloqueio manual de 1h via FlowSpec (mesma ação da aba Regras) — não atualiza este status sozinho">Bloquear</button>';
       return (
-        "<tr><td>" + escapeHtml(o.dst_prefix) + "</td><td>" + escapeHtml(o.src_ip) + "</td><td>" +
-        (o.scan_type === "horizontal" ? "Horizontal" : "Vertical") + "</td><td>" + o.dst_count + "</td><td>" +
-        (o.mitigated ? '<span class="fg-badge">bloqueado</span>' : "detectando") + "</td><td>" +
-        new Date(o.ts_start * 1000).toLocaleString("pt-BR") + "</td></tr>"
+        '<tr data-offender-id="' + o.id + '" data-src-ip="' + escapeHtml(o.src_ip) + '">' +
+        "<td>" + fmtDateTime(o.ts_start) + newBadge + "</td>" +
+        "<td>" + escapeHtml(o.dst_prefix) + "</td><td>" + escapeHtml(o.src_ip) + "</td><td>" +
+        (o.scan_type === "horizontal" ? "Horizontal" : "Vertical") + "</td>" +
+        "<td class=\"fg-sev-" + sev + "\">" + sev + " (estimada)</td>" +
+        "<td>" + o.dst_count + "</td><td>" + (o.pps_peak || 0).toLocaleString("pt-BR") + " pps</td><td>" +
+        (o.mitigated ? '<span class="fg-mitigation-badge active">🛡 bloqueado</span>' : '<span class="fg-mitigation-badge none">detectando</span>') +
+        "</td><td>" + blockBtn + "</td></tr>"
       );
     }).join("");
     el.innerHTML =
-      "<table><thead><tr><th>Prefixo</th><th>Src IP</th><th>Tipo</th><th>Contagem</th><th>Status</th><th>Início</th></tr></thead><tbody>" +
-      rows + "</tbody></table>";
+      "<table><thead><tr><th>Início</th><th>Prefixo</th><th>Src IP</th><th>Tipo</th><th>Severidade</th>" +
+      "<th>Contagem</th><th>Pico (pps)</th><th>Status</th><th>Ações</th></tr></thead><tbody>" +
+      rows + "</tbody></table>" +
+      paginationHtml("scanOffenders", p.page, p.totalPages, p.total);
   }
 
   function loadFgScanOffenders() {
-    getJson(SCAN_OFFENDERS_ENDPOINT).then(function (data) {
+    var url = state.scanView === "history" ? SCAN_OFFENDERS_ENDPOINT + "?history=1" : SCAN_OFFENDERS_ENDPOINT;
+    getJson(url).then(function (data) {
       if (!data.ok) {
         showError(document.getElementById("fg-scan-offenders"), data.error || "erro desconhecido");
         return;
       }
-      renderFgScanOffenders(data.offenders);
+      state.scanOffenders = data.offenders || [];
+      if (state.scanView === "active") {
+        state.incidents.openScans = state.scanOffenders.filter(function (o) { return !o.mitigated; }).length;
+        updateIncidentsBadge();
+      }
+      renderFgScanOffenders(state.scanOffenders);
     }).catch(function (err) {
       showError(document.getElementById("fg-scan-offenders"), "falha ao consultar scanners detectados");
       console.error("flowguard.js:", err);
     });
+  }
+
+  function onFgScanOffendersClick(ev) {
+    var btn = ev.target.closest("button[data-action='block']");
+    if (!btn) return;
+    var row = btn.closest("tr[data-offender-id]");
+    if (!row) return;
+    var srcIp = row.getAttribute("data-src-ip");
+    if (!window.confirm("Bloquear " + srcIp + " por 1h via FlowSpec (bloqueio manual, mesmo mecanismo da aba Regras)?")) return;
+    btn.disabled = true;
+    postJson(RULES_ENDPOINT, { src_prefix: srcIp, action: "discard", ttl_s: 3600 }).then(function (resp) {
+      showToast(resp.ok ? srcIp + " bloqueado por 1h" : (resp.error || "falha ao bloquear"), resp.ok ? "success" : "error");
+      loadRulesUnified();
+    }).finally(function () { btn.disabled = false; });
+  }
+
+  function initFgScanControls() {
+    var toggle = document.getElementById("fg-scan-view-toggle");
+    if (toggle) {
+      toggle.addEventListener("click", function (ev) {
+        var btn = ev.target.closest(".fg-toggle-btn");
+        if (!btn) return;
+        state.scanView = btn.getAttribute("data-view");
+        state.page.scanOffenders = 1;
+        toggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { b.classList.toggle("active", b === btn); });
+        loadFgScanOffenders();
+      });
+    }
+    var el = document.getElementById("fg-scan-offenders");
+    if (el) el.addEventListener("click", onFgScanOffendersClick);
   }
 
   function onClearSuspiciousClick() {
@@ -6268,6 +6334,10 @@
     // — precisam ficar vivos por poll, igual aos ataques, pro badge somado
     // não ficar bolorento enquanto o operador está no lado FlowGuard
     loadClientGuardSuspicious();
+    // scanners detectados agora vivem dentro da aba Incidentes — mesmo
+    // motivo acima, precisam ficar vivos por poll (antes só carregava 1x ao
+    // abrir a extinta seção em Configuração, nunca era repolado)
+    loadFgScanOffenders();
   }
 
   function initLogin() {
@@ -6413,7 +6483,7 @@
     var fgEscalationSaveBtn = document.getElementById("fg-escalation-save-btn");
     if (fgEscalationSaveBtn) fgEscalationSaveBtn.addEventListener("click", onFgEscalationSaveClick);
 
-    if (document.getElementById("fg-scan-offenders")) loadFgScanOffenders();
+    if (document.getElementById("fg-scan-offenders")) { initFgScanControls(); loadFgScanOffenders(); }
 
     var waConnectBtn = document.getElementById("fg-wa-connect-btn");
     if (waConnectBtn) waConnectBtn.addEventListener("click", loadWaQr);

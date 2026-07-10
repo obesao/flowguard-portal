@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.49.0**
+**Versão atual: v1.50.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -82,6 +82,10 @@ mesmo host, cada um com seu próprio socket Unix de controle:
     e top clientes daquela rede; janelas longas (24h/7d) ficam desabilitadas
     nesse modo até um índice pendente ser construído (`client_flow_aggs` tem
     280M linhas hoje).
+15. **Scanners Detectados dentro de Incidentes** — a detecção de port scan
+    (antes só uma tabela somente-leitura em Configuração) virou seção
+    própria na aba Incidentes (lado FlowGuard), com toggle Ativos/Histórico,
+    paginação, severidade estimada, badge somado e botão de bloqueio manual.
 
 ## Estrutura
 
@@ -96,6 +100,39 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.50.0 — 2026-07-10 — Scanners Detectados muda de Configuração pra dentro da aba Incidentes
+
+Usuário pediu que a detecção de port scan (adicionada em v1.49.0, até então
+uma tabela somente-leitura escondida em Configuração > FlowGuard) aparecesse
+de verdade na aba Incidentes, junto com Ataques e Sinais Suspeitos. Movida
+(não duplicada) pra dentro do lado FlowGuard da aba Incidentes, como uma
+seção própria "Scanners Detectados" abaixo da tabela de Ataques — os dados
+não têm o mesmo formato de `attacks` (sem `severity`/`bps_peak`, `dst_count`
+no lugar), então ficou como sub-tabela separada em vez de forçado nas
+mesmas colunas.
+
+Ganhos no processo: toggle Ativos/Histórico (o endpoint já suportava
+`history=1`, só não estava exposto na UI); severidade **estimada**
+client-side pela contagem de hosts/portas distintos (`scanSeverity()` —
+o backend não tem coluna `severity` pra port scan, deixado explícito na UI
+como "(estimada)"); selo "novo" (mesmo `isNewIncident()` já usado pelo resto
+da aba); paginação client-side (histórico tem ~3.900 registros sem limite
+no backend — sem paginar, a tabela inteira ia pro DOM de uma vez); contador
+de scanners ativos somado ao badge único da aba Incidentes; passou a ser
+repolado a cada ciclo (antes só carregava 1x ao abrir Configuração, nunca
+atualizava sozinho). Botão "Bloquear" novo por linha — reaproveita o mesmo
+`RULES_ENDPOINT`/mecanismo do bloqueio manual já existente na aba Regras
+(TTL fixo de 1h) — **limitação honesta, não escondida na UI**: como não
+existe comando de backend que ligue esse bloqueio manual ao registro do
+scanner, o status "detectando" não muda sozinho depois de bloquear; a regra
+criada de fato aparece normalmente na aba Regras.
+
+Validado com Playwright real: scanner de verdade capturado na aba (ver
+achado da sessão anterior sobre scan detection), toggle Ativos/Histórico
+troca a lista, paginação mostra 15/página corretamente (263 páginas pros
+~3.939 registros históricos atuais), badge da aba soma corretamente, seção
+sumiu de Configuração > FlowGuard sem deixar duplicata, 0 erros de console.
 
 ### v1.49.0 — 2026-07-08 — Painéis de detecção de scan (FlowGuard) e bloqueio progressivo (FlowGuard + ClientGuard)
 

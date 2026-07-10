@@ -669,6 +669,18 @@
           </div>
           <div id="flowguard-attacks"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
           <div id="flowguard-attack-detail"></div>
+
+          <div style="margin-top:1.5rem; border-top:1px solid var(--fg-border); padding-top:1rem;">
+            <h3>Scanners Detectados (port scan de fora pra dentro)</h3>
+            <p class="fg-kpi-sub">Horizontal: 1 IP externo tocando N hosts distintos do prefixo na mesma porta. Vertical: 1 IP tocando N portas distintas do mesmo host. Sem severidade própria no backend (estimada aqui pela contagem). Bloqueio automático não está configurado — o botão "Bloquear" cria uma regra manual (mesma ação da aba Regras); não atualiza o status "detectando" sozinho, confira a regra criada na aba Regras.</p>
+            <div class="fg-toolbar">
+              <div class="fg-toggle-group" id="fg-scan-view-toggle">
+                <button class="fg-toggle-btn active" data-view="active">Ativos</button>
+                <button class="fg-toggle-btn" data-view="history">Histórico</button>
+              </div>
+            </div>
+            <div id="fg-scan-offenders"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
+          </div>
         </div>
 
         <div data-incidents-app="clientguard" hidden>
@@ -844,11 +856,6 @@
           <div class="fg-toolbar">
             <button class="fg-btn" id="fg-escalation-save-btn">Salvar bloqueio progressivo</button>
           </div>
-        </section>
-        <section class="fg-panel-section">
-          <h2>Scanners Detectados</h2>
-          <p class="fg-kpi-sub">Somente leitura — quem está sendo detectado agora (mesmo sem bloqueio automático ligado). O estado do bloqueio em si (TTL, expiração) aparece na aba Regras.</p>
-          <div id="fg-scan-offenders"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
         </section>
         <section class="fg-panel-section">
           <h2>Limiares de Detecção</h2>

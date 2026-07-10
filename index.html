@@ -681,6 +681,18 @@
             </div>
             <div id="fg-scan-offenders"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
           </div>
+
+          <div style="margin-top:1.5rem; border-top:1px solid var(--fg-border); padding-top:1rem;">
+            <h3>Destino Coordenado (N src externos → 1 host/porta protegido)</h3>
+            <p class="fg-kpi-sub">Muitos IPs externos distintos convergindo pro MESMO host/porta protegido — pega ataques distribuídos de baixo volume por fonte, que não batem o limiar de DDoS volumétrico. Severidade estimada pela contagem de fontes. Sem mitigação automática nesta versão — sem botão de ação aqui, use a aba Regras se precisar bloquear algo manualmente.</p>
+            <div class="fg-toolbar">
+              <div class="fg-toggle-group" id="fg-coordinated-view-toggle">
+                <button class="fg-toggle-btn active" data-view="active">Ativos</button>
+                <button class="fg-toggle-btn" data-view="history">Histórico</button>
+              </div>
+            </div>
+            <div id="fg-coordinated-offenders"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
+          </div>
         </div>
 
         <div data-incidents-app="clientguard" hidden>
@@ -847,6 +859,14 @@
           <div id="fg-scan-cfg"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
           <div class="fg-toolbar">
             <button class="fg-btn" id="fg-scan-cfg-save-btn">Salvar detecção de scan</button>
+          </div>
+        </section>
+        <section class="fg-panel-section">
+          <h2>Detecção de Destino Coordenado</h2>
+          <p class="fg-kpi-sub">Detecta N IPs externos distintos convergindo pro MESMO host/porta protegido (inverso do scan: lá é 1 IP -&gt; N alvos, aqui é N IPs -&gt; 1 alvo) — pega ataques distribuídos de baixo volume por fonte, que não batem o limiar de DDoS volumétrico. Limiares abaixo são valores iniciais — calibrar contra tráfego real. Sem mitigação automática nesta versão (só detecção/alerta).</p>
+          <div id="fg-coordinated-cfg"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
+          <div class="fg-toolbar">
+            <button class="fg-btn" id="fg-coordinated-cfg-save-btn">Salvar detecção de destino coordenado</button>
           </div>
         </section>
         <section class="fg-panel-section">

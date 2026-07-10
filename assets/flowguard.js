@@ -12,6 +12,8 @@
   var MITIGATION_CFG_ENDPOINT = "/cgi-bin/flowguard-mitigation-cfg.sh";
   var SCAN_CFG_ENDPOINT = "/cgi-bin/flowguard-scan-cfg.sh";
   var SCAN_OFFENDERS_ENDPOINT = "/cgi-bin/flowguard-scan-offenders.sh";
+  var COORDINATED_CFG_ENDPOINT = "/cgi-bin/flowguard-coordinated-cfg.sh";
+  var COORDINATED_OFFENDERS_ENDPOINT = "/cgi-bin/flowguard-coordinated-offenders.sh";
   var ESCALATION_CFG_ENDPOINT = "/cgi-bin/flowguard-escalation-cfg.sh";
   var AI_ENDPOINT = "/cgi-bin/flowguard-ai.sh";
   var HISTORY_ENDPOINT = "/cgi-bin/flowguard-history.sh";
@@ -90,9 +92,11 @@
     attacksSelected: {},
     attacksCollapsedGroups: {},
     incidentsApp: "flowguard",
-    incidents: { openAttacks: 0, openSignals: 0, openScans: 0 },
+    incidents: { openAttacks: 0, openSignals: 0, openScans: 0, openCoordinated: 0 },
     scanView: "active",
     scanOffenders: [],
+    coordinatedView: "active",
+    coordinatedOffenders: [],
     status: null,
     cgStatus: null,
     cockpitEditing: false,
@@ -118,6 +122,7 @@
       attacks: 1,
       cgEdgeMitigations: 1,
       scanOffenders: 1,
+      coordinatedOffenders: 1,
     },
     chart: {
       window: "6h",
@@ -384,6 +389,7 @@
       if (key === "attacks") renderAttacksFiltered();
       if (key === "cgEdgeMitigations") applyRulesFilter();
       if (key === "scanOffenders") renderFgScanOffenders(state.scanOffenders);
+      if (key === "coordinatedOffenders") renderFgCoordinatedOffenders(state.coordinatedOffenders);
     });
   }
 
@@ -571,7 +577,8 @@
   function updateIncidentsBadge() {
     var badge = document.getElementById("fg-attacks-badge");
     if (!badge) return;
-    var count = (state.incidents.openAttacks || 0) + (state.incidents.openSignals || 0) + (state.incidents.openScans || 0);
+    var count = (state.incidents.openAttacks || 0) + (state.incidents.openSignals || 0) +
+      (state.incidents.openScans || 0) + (state.incidents.openCoordinated || 0);
     if (count > 0) {
       badge.style.display = "inline-block";
       badge.textContent = count;
@@ -6308,6 +6315,122 @@
     if (el) el.addEventListener("click", onFgScanOffendersClick);
   }
 
+  // --- detecção de destino coordenado (N src externos -> 1 host/porta protegido) ---
+
+  var FG_COORDINATED_CFG_FIELDS = [
+    { key: "enabled", label: "Detecção de destino coordenado ativa", type: "bool", desc: "Liga/desliga o detector inteiro." },
+    { key: "min_distinct_sources", label: "Fontes distintas mínimas", type: "number", desc: "N IPs externos distintos convergindo no mesmo host/porta pra disparar. Placeholder — calibrar com tráfego real." },
+    { key: "max_tracked_keys_per_cycle", label: "Limite de destinos rastreados/ciclo", type: "number", desc: "Proteção de memória — acima disso, novos destinos não são rastreados até o próximo ciclo." },
+    { key: "auto_block", label: "Bloqueio automático", type: "bool", desc: "Sem efeito nesta versão — não existe mitigation_profiles.coordinated_destination ainda (detecção/alerta apenas)." },
+  ];
+
+  function renderFgCoordinatedCfg(cfg) {
+    state.fgCoordinatedCfgLoaded = cfg || {};
+    renderKvFields("fg-coordinated-cfg", FG_COORDINATED_CFG_FIELDS, state.fgCoordinatedCfgLoaded);
+  }
+
+  function loadFgCoordinatedCfg() {
+    getJson(COORDINATED_CFG_ENDPOINT).then(function (data) {
+      if (!data.ok) {
+        showError(document.getElementById("fg-coordinated-cfg"), data.error || "erro desconhecido");
+        return;
+      }
+      renderFgCoordinatedCfg(data.coordinated_destination);
+    }).catch(function (err) {
+      showError(document.getElementById("fg-coordinated-cfg"), "falha ao consultar detecção de destino coordenado");
+      console.error("flowguard.js:", err);
+    });
+  }
+
+  function onFgCoordinatedCfgSaveClick() {
+    var btn = document.getElementById("fg-coordinated-cfg-save-btn");
+    var result = collectKvChanges("fg-coordinated-cfg", FG_COORDINATED_CFG_FIELDS, state.fgCoordinatedCfgLoaded || {});
+    if (result.invalid) {
+      showToast("Valores inválidos — confira os campos numéricos", "error");
+      return;
+    }
+    if (!Object.keys(result.changes).length) {
+      showToast("Nenhum campo foi alterado");
+      return;
+    }
+    btn.disabled = true;
+    postJson(COORDINATED_CFG_ENDPOINT, { changes: result.changes }).then(function (resp) {
+      showToast(resp.ok ? "Detecção de destino coordenado atualizada" : (resp.error || "falha ao salvar"), resp.ok ? "success" : "error");
+      if (resp.ok) renderFgCoordinatedCfg(resp.coordinated_destination);
+    }).finally(function () { btn.disabled = false; });
+  }
+
+  // sem coluna severity no backend (mesma limitação do scan) — estimada aqui
+  // pela contagem de fontes distintas convergindo no mesmo destino
+  function coordinatedSeverity(o) {
+    if (o.src_count >= 100) return "high";
+    if (o.src_count >= 20) return "medium";
+    return "info";
+  }
+
+  function renderFgCoordinatedOffenders(offenders) {
+    var el = document.getElementById("fg-coordinated-offenders");
+    if (!el) return;
+    if (!offenders.length) {
+      el.innerHTML = '<p class="fg-ok">' +
+        (state.coordinatedView === "active" ? "Nenhum destino coordenado detectado no momento." : "Nenhum destino coordenado no histórico.") +
+        "</p>";
+      return;
+    }
+    var p = paginate(offenders, "coordinatedOffenders");
+    var rows = p.pageRows.map(function (o) {
+      var sev = coordinatedSeverity(o);
+      var newBadge = isNewIncident(o.ts_start) ? ' <span class="fg-badge" title="novo desde a última visita à aba">novo</span>' : "";
+      return (
+        "<tr><td>" + fmtDateTime(o.ts_start) + newBadge + "</td>" +
+        "<td>" + escapeHtml(o.dst_prefix) + "</td><td>" + escapeHtml(o.dst_ip) + "</td><td>" +
+        o.dst_port + "</td><td>" + protoName(o.protocol) + "</td>" +
+        "<td class=\"fg-sev-" + sev + "\">" + sev + " (estimada)</td>" +
+        "<td>" + o.src_count + "</td><td>" + (o.pps_peak || 0).toLocaleString("pt-BR") + " pps</td><td>" +
+        (o.mitigated ? '<span class="fg-mitigation-badge active">🛡 bloqueado</span>' : '<span class="fg-mitigation-badge none">detectando</span>') +
+        "</td></tr>"
+      );
+    }).join("");
+    el.innerHTML =
+      "<table><thead><tr><th>Início</th><th>Prefixo</th><th>Dst IP</th><th>Porta</th><th>Protocolo</th>" +
+      "<th>Severidade</th><th>Fontes</th><th>Pico (pps)</th><th>Status</th></tr></thead><tbody>" +
+      rows + "</tbody></table>" +
+      paginationHtml("coordinatedOffenders", p.page, p.totalPages, p.total);
+  }
+
+  function loadFgCoordinatedOffenders() {
+    var url = state.coordinatedView === "history" ? COORDINATED_OFFENDERS_ENDPOINT + "?history=1" : COORDINATED_OFFENDERS_ENDPOINT;
+    getJson(url).then(function (data) {
+      if (!data.ok) {
+        showError(document.getElementById("fg-coordinated-offenders"), data.error || "erro desconhecido");
+        return;
+      }
+      state.coordinatedOffenders = data.offenders || [];
+      if (state.coordinatedView === "active") {
+        state.incidents.openCoordinated = state.coordinatedOffenders.filter(function (o) { return !o.mitigated; }).length;
+        updateIncidentsBadge();
+      }
+      renderFgCoordinatedOffenders(state.coordinatedOffenders);
+    }).catch(function (err) {
+      showError(document.getElementById("fg-coordinated-offenders"), "falha ao consultar destinos coordenados");
+      console.error("flowguard.js:", err);
+    });
+  }
+
+  function initFgCoordinatedControls() {
+    var toggle = document.getElementById("fg-coordinated-view-toggle");
+    if (toggle) {
+      toggle.addEventListener("click", function (ev) {
+        var btn = ev.target.closest(".fg-toggle-btn");
+        if (!btn) return;
+        state.coordinatedView = btn.getAttribute("data-view");
+        state.page.coordinatedOffenders = 1;
+        toggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { b.classList.toggle("active", b === btn); });
+        loadFgCoordinatedOffenders();
+      });
+    }
+  }
+
   function onClearSuspiciousClick() {
     if (!window.confirm("Marcar TODOS os ataques ativos como dispensados? Eles somem da lista/contagem de Ativos (o histórico continua intacto). Isso não pode ser desfeito.")) {
       return;
@@ -6338,6 +6461,7 @@
     // motivo acima, precisam ficar vivos por poll (antes só carregava 1x ao
     // abrir a extinta seção em Configuração, nunca era repolado)
     loadFgScanOffenders();
+    loadFgCoordinatedOffenders();
   }
 
   function initLogin() {
@@ -6479,11 +6603,16 @@
     var fgScanCfgSaveBtn = document.getElementById("fg-scan-cfg-save-btn");
     if (fgScanCfgSaveBtn) fgScanCfgSaveBtn.addEventListener("click", onFgScanCfgSaveClick);
 
+    if (document.getElementById("fg-coordinated-cfg")) loadFgCoordinatedCfg();
+    var fgCoordinatedCfgSaveBtn = document.getElementById("fg-coordinated-cfg-save-btn");
+    if (fgCoordinatedCfgSaveBtn) fgCoordinatedCfgSaveBtn.addEventListener("click", onFgCoordinatedCfgSaveClick);
+
     if (document.getElementById("fg-escalation-cfg")) loadFgEscalationCfg();
     var fgEscalationSaveBtn = document.getElementById("fg-escalation-save-btn");
     if (fgEscalationSaveBtn) fgEscalationSaveBtn.addEventListener("click", onFgEscalationSaveClick);
 
     if (document.getElementById("fg-scan-offenders")) { initFgScanControls(); loadFgScanOffenders(); }
+    if (document.getElementById("fg-coordinated-offenders")) { initFgCoordinatedControls(); loadFgCoordinatedOffenders(); }
 
     var waConnectBtn = document.getElementById("fg-wa-connect-btn");
     if (waConnectBtn) waConnectBtn.addEventListener("click", loadWaQr);

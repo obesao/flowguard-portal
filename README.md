@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.50.0**
+**Versão atual: v1.51.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -100,6 +100,33 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.51.0 — 2026-07-10 — Detecção de destino coordenado (novo detector FlowGuard) no portal
+
+Usuário pediu que os detectores não-DDoS do ClientGuard fossem portados pro
+FlowGuard, "da mesma forma que eu possa habilitar quando quiser" (ver
+CHANGELOG do `flowguard` v1.36.0 pro backend). Primeiro de 4:
+`coordinated_destination` — N IPs externos distintos convergindo pro MESMO
+host/porta protegido.
+
+Wiring de portal: seção "Detecção de Destino Coordenado" em Configuração >
+FlowGuard (toggle + limiares, mesmo padrão de "Detecção de Varredura de
+Portas"), e — diferente do scan (que nasceu em Configuração e precisou de
+uma leva separada pra mover) — a visualização já nasceu direto na aba
+Incidentes (lado FlowGuard), sub-tabela "Destino Coordenado" abaixo de
+"Scanners Detectados": toggle Ativos/Histórico, severidade estimada pela
+contagem de fontes, selo "novo", paginação, contador somado ao badge único
+da aba, repolado a cada ciclo. Sem botão de ação (ao contrário do scan) —
+mitigação automática foi decisão explícita do usuário de deixar de fora
+nesta rodada; se precisar bloquear algo manualmente, usar a aba Regras.
+
+**Achado real de produção no mesmo dia**: as primeiras detecções foram
+100% UDP/ESP (P2P/torrent/WebRTC/jogo em pools CGNAT, não ataque) — corrigido
+no backend restringindo a detecção a TCP (`protocols: [6]`), documentado no
+CHANGELOG do `flowguard`. Validado com Playwright real antes e depois do
+fix: 0 erros de console, badge da aba caiu de 9 pra 4 incidentes depois do
+fix confirmar que os falsos positivos realmente desapareceram (fecharam
+sozinhos, sem intervenção manual).
 
 ### v1.50.0 — 2026-07-10 — Scanners Detectados muda de Configuração pra dentro da aba Incidentes
 

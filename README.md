@@ -308,7 +308,7 @@ customizado apagava esse limiar sem aviso nenhum. Corrigido: `renderCfg`
 agora guarda o array RAW (`state.fgProtectedPrefixes`) e `edit-monitor`
 prefila TUDO a partir dele (customer/capacidade/thresholds/auto_mitigate/
 notify_wa/template), não mais lendo célula de tabela. Validado contra dado
-real de produção: prefixo `177.86.16.0/24` (limiar 30 Gbps já configurado)
+real de produção: prefixo `x.x.x.0/24` (limiar 30 Gbps já configurado)
 sobreviveu a uma edição completa via Playwright real.
 
 **`amp_bps_threshold` exposto** (campo novo no backend, v1.34.0 do

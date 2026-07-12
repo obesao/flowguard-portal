@@ -101,6 +101,22 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 
 ## Changelog
 
+### v1.53.0 — 2026-07-12 — Reorganiza aba Regras (mesmo padrão de badges/navegação de Incidentes)
+
+Mesma melhoria da v1.52.0, aplicada na aba Regras: as 3 listas de
+histórico (RTBH/FlowSpec do FlowGuard, FlowSpec via proxy do ClientGuard,
+mitigação direta SSH/ACL legado do ClientGuard) ganharam badge de
+contagem de itens ativos ao lado do título, e entraram na barra "Ir para"
+no topo do painel (reaproveita a mesma barra/classes CSS criadas pra
+Incidentes). Diferente de Incidentes, aqui o badge fica sempre neutro
+(cinza) — regra ativa é estado normal de operação, não um alerta.
+Contagem ignora os filtros de host/tipo/janela e o toggle Ativas/Inativas
+do usuário (conta "ativas de verdade" no estado bruto, mesmo critério já
+usado em Incidentes). Validado com Playwright real: badges batendo com
+os endpoints CGI, navegação rolando pra lista certa e expandindo seção
+recolhida quando necessário, 0 erros de console, nenhuma regressão nos
+toggles/filtros/ações em massa já existentes.
+
 ### v1.52.0 — 2026-07-12 — Reorganiza aba Incidentes + KPI de Tráfego com entrada/saída
 
 Aba Incidentes tinha 4 subseções empilhadas (Ataques DDoS, Scanners

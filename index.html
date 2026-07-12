@@ -128,6 +128,25 @@
     .fg-badge { background: var(--fg-danger); color: white; font-size: 0.7rem; border-radius: 999px; padding: 0.05rem 0.45rem; }
     /* contagem informativa (ex: regras ativas), não um alerta — mais discreta que o fg-badge vermelho padrão */
     .fg-badge-neutral { background: var(--fg-bg-elevated); color: var(--fg-text-muted); border: 1px solid var(--fg-border); }
+    /* subseções empilhadas da aba Incidentes (Ataques, Scanners, Destino
+       Coordenado, Sinais) — moldura única no lugar do inline style que era
+       repetido em cada div; reaproveitável se surgir mais uma subseção */
+    .fg-incident-subsection { margin-top: 1.5rem; border-top: 1px solid var(--fg-border); padding-top: 1rem; }
+    .fg-incident-subsection h3 .fg-badge, .fg-incident-heading .fg-badge { vertical-align: middle; margin-left: 0.3rem; }
+    /* título das subseções que não têm a moldura .fg-incident-subsection
+       (Ataques DDoS e Sinais Suspeitos abrem o bloco, sem border-top) */
+    .fg-incident-heading { margin: 0.2rem 0 0.8rem; }
+    /* barra "Ir para" no topo da aba Incidentes — atalhos de scroll pra cada
+       subseção, com as MESMAS contagens do state.incidents que somam no badge
+       da aba (nenhum fetch extra) */
+    .fg-incident-nav { display: flex; gap: 0.4rem; align-items: center; margin-bottom: 0.8rem; flex-wrap: wrap; }
+    .fg-incident-nav-label { font-size: 0.75rem; color: var(--fg-text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
+    .fg-incident-nav-btn {
+      background: var(--fg-bg-elevated); color: var(--fg-text-muted); border: 1px solid var(--fg-border); border-radius: 999px;
+      padding: 0.25rem 0.7rem; cursor: pointer; font-size: 0.82rem; display: inline-flex; align-items: center; gap: 0.35rem;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+    .fg-incident-nav-btn:hover { color: var(--fg-text); background: var(--fg-border); }
     /* separa visualmente as abas do FlowGuard das do ClientGuard — são dois
        sistemas distintos compartilhando a mesma barra de navegação */
     .fg-tabs-divider { width: 1px; align-self: stretch; background: var(--fg-border); margin: 0.4rem 0.4rem; }
@@ -640,7 +659,19 @@
           </div>
         </div>
 
+        <!-- atalhos de navegação: a aba ficou longa (4 subseções empilhadas) —
+             clique pula direto pra subseção (troca o lado FlowGuard/ClientGuard
+             se preciso); contagens vêm do mesmo state.incidents do badge da aba -->
+        <div class="fg-incident-nav" id="fg-incidents-nav">
+          <span class="fg-incident-nav-label">Ir para:</span>
+          <button class="fg-incident-nav-btn" data-jump-target="fg-sub-attacks" data-jump-app="flowguard">Ataques DDoS <span class="fg-badge fg-badge-neutral" data-nav-count="openAttacks">0</span></button>
+          <button class="fg-incident-nav-btn" data-jump-target="fg-sub-scanners" data-jump-app="flowguard">Scanners <span class="fg-badge fg-badge-neutral" data-nav-count="openScans">0</span></button>
+          <button class="fg-incident-nav-btn" data-jump-target="fg-sub-coordinated" data-jump-app="flowguard">Destino Coordenado <span class="fg-badge fg-badge-neutral" data-nav-count="openCoordinated">0</span></button>
+          <button class="fg-incident-nav-btn" data-jump-target="cg-sub-suspicious" data-jump-app="clientguard">Sinais Suspeitos <span class="fg-badge fg-badge-neutral" data-nav-count="openSignals">0</span></button>
+        </div>
+
         <div data-incidents-app="flowguard">
+          <h3 class="fg-incident-heading" id="fg-sub-attacks">Ataques DDoS <span class="fg-badge fg-badge-neutral" id="fg-sub-attacks-badge">0</span></h3>
           <div class="fg-toolbar">
             <div class="fg-toggle-group" id="fg-attacks-view-toggle">
               <button class="fg-toggle-btn active" data-view="active">Ativos</button>
@@ -670,8 +701,8 @@
           <div id="flowguard-attacks"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
           <div id="flowguard-attack-detail"></div>
 
-          <div style="margin-top:1.5rem; border-top:1px solid var(--fg-border); padding-top:1rem;">
-            <h3>Scanners Detectados (port scan de fora pra dentro)</h3>
+          <div class="fg-incident-subsection" id="fg-sub-scanners">
+            <h3>Scanners Detectados (port scan de fora pra dentro) <span class="fg-badge fg-badge-neutral" id="fg-sub-scanners-badge">0</span></h3>
             <p class="fg-kpi-sub">Horizontal: 1 IP externo tocando N hosts distintos do prefixo na mesma porta. Vertical: 1 IP tocando N portas distintas do mesmo host. Sem severidade própria no backend (estimada aqui pela contagem). Bloqueio automático não está configurado — o botão "Bloquear" cria uma regra manual (mesma ação da aba Regras); não atualiza o status "detectando" sozinho, confira a regra criada na aba Regras.</p>
             <div class="fg-toolbar">
               <div class="fg-toggle-group" id="fg-scan-view-toggle">
@@ -682,8 +713,8 @@
             <div id="fg-scan-offenders"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
           </div>
 
-          <div style="margin-top:1.5rem; border-top:1px solid var(--fg-border); padding-top:1rem;">
-            <h3>Destino Coordenado (N src externos → 1 host/porta protegido)</h3>
+          <div class="fg-incident-subsection" id="fg-sub-coordinated">
+            <h3>Destino Coordenado (N src externos → 1 host/porta protegido) <span class="fg-badge fg-badge-neutral" id="fg-sub-coordinated-badge">0</span></h3>
             <p class="fg-kpi-sub">Muitos IPs externos distintos convergindo pro MESMO host/porta protegido — pega ataques distribuídos de baixo volume por fonte, que não batem o limiar de DDoS volumétrico. Severidade estimada pela contagem de fontes. Sem mitigação automática nesta versão — sem botão de ação aqui, use a aba Regras se precisar bloquear algo manualmente.</p>
             <div class="fg-toolbar">
               <div class="fg-toggle-group" id="fg-coordinated-view-toggle">
@@ -696,6 +727,7 @@
         </div>
 
         <div data-incidents-app="clientguard" hidden>
+          <h3 class="fg-incident-heading" id="cg-sub-suspicious">Sinais Suspeitos <span class="fg-badge fg-badge-neutral" id="cg-sub-suspicious-badge">0</span></h3>
           <div class="fg-toolbar">
             <div class="fg-toggle-group" id="cg-suspicious-view-toggle">
               <button class="fg-toggle-btn active" data-view="open">Abertos</button>

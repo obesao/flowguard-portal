@@ -562,6 +562,20 @@
         setIncidentsApp(btn.getAttribute("data-app"));
       });
     }
+    // barra "Ir para" — pula pra subseção (mesmo padrão de scroll suave do
+    // jumpToAttack); se a subseção está no outro lado do toggle
+    // FlowGuard/ClientGuard, troca o lado primeiro e depois rola
+    var nav = document.getElementById("fg-incidents-nav");
+    if (nav) {
+      nav.addEventListener("click", function (ev) {
+        var btn = ev.target.closest(".fg-incident-nav-btn");
+        if (!btn) return;
+        var app = btn.getAttribute("data-jump-app");
+        if (app && state.incidentsApp !== app) setIncidentsApp(app);
+        var target = document.getElementById(btn.getAttribute("data-jump-target"));
+        if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
   }
 
   // aba Incidentes mostra 1 badge só, soma dos dois lados (ataques ativos do
@@ -574,17 +588,48 @@
     return ts > lastVisit;
   }
 
+  // badge com contagem de itens ativos: >0 vira o fg-badge vermelho padrão,
+  // 0 vira o neutro cinza (em vez de sumir) — assim os títulos de subseção e
+  // a barra "Ir para" não ficam mudando de largura a cada ciclo de poll
+  function setIncidentCountBadge(el, count) {
+    if (!el) return;
+    el.textContent = count;
+    el.classList.toggle("fg-badge-neutral", count === 0);
+  }
+
+  // ids dos badges por subseção (ao lado de cada <h3> da aba Incidentes) —
+  // mesmas chaves de state.incidents usadas na soma do badge da aba e nas
+  // contagens da barra "Ir para" (data-nav-count), zero fetch extra
+  var INCIDENT_SUBSECTION_BADGES = {
+    openAttacks: "fg-sub-attacks-badge",
+    openScans: "fg-sub-scanners-badge",
+    openCoordinated: "fg-sub-coordinated-badge",
+    openSignals: "cg-sub-suspicious-badge",
+  };
+
   function updateIncidentsBadge() {
+    var counts = {
+      openAttacks: state.incidents.openAttacks || 0,
+      openSignals: state.incidents.openSignals || 0,
+      openScans: state.incidents.openScans || 0,
+      openCoordinated: state.incidents.openCoordinated || 0,
+    };
     var badge = document.getElementById("fg-attacks-badge");
-    if (!badge) return;
-    var count = (state.incidents.openAttacks || 0) + (state.incidents.openSignals || 0) +
-      (state.incidents.openScans || 0) + (state.incidents.openCoordinated || 0);
-    if (count > 0) {
-      badge.style.display = "inline-block";
-      badge.textContent = count;
-    } else {
-      badge.style.display = "none";
+    if (badge) {
+      var count = counts.openAttacks + counts.openSignals + counts.openScans + counts.openCoordinated;
+      if (count > 0) {
+        badge.style.display = "inline-block";
+        badge.textContent = count;
+      } else {
+        badge.style.display = "none";
+      }
     }
+    Object.keys(INCIDENT_SUBSECTION_BADGES).forEach(function (key) {
+      setIncidentCountBadge(document.getElementById(INCIDENT_SUBSECTION_BADGES[key]), counts[key]);
+    });
+    document.querySelectorAll("#fg-incidents-nav [data-nav-count]").forEach(function (el) {
+      setIncidentCountBadge(el, counts[el.getAttribute("data-nav-count")] || 0);
+    });
   }
 
   function updateAttacksBadge(count) {
@@ -947,8 +992,16 @@
 
     var activeEdgeMitigations = state.rulesCgEdgeData.filter(function (m) { return m.status === "active"; }).length;
 
+    // entrada + saída na MESMA caixa (pedido do usuário, 2026-07-10) — o KPI só
+    // mostrava entrada, causando confusão comparando com ferramentas externas
+    // (Grafana/SNMP) que podem somar/mostrar direção diferente. Deixar as duas
+    // explícitas evita esse tipo de comparação ambígua de novo.
+    var trafficValueHtml =
+      fmtBps(s.bps) + ' <span style="font-size:0.5em; opacity:0.7;">↓ entrada</span><br>' +
+      fmtBps(s.bps_out || 0) + ' <span style="font-size:0.5em; opacity:0.7;">↑ saída</span>';
+
     el.innerHTML =
-      kpiCard("Tráfego", fmtBps(s.bps), s.flows + " flows/s", bpsTrend) +
+      kpiCard("Tráfego", trafficValueHtml, s.flows + " flows/s", bpsTrend) +
       kpiCard("Pacotes/s", Number(s.pps).toLocaleString("pt-BR"), "", ppsTrend) +
       kpiCard("Ataques Ativos", s.active_attacks, s.active_attacks > 0 ? "requer atenção" : "tudo normal") +
       kpiCard("Regras FlowSpec", s.active_rules, "", null, s.active_rules > 0) +

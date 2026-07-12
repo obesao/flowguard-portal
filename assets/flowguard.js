@@ -648,6 +648,42 @@
     }
   }
 
+  // badges por lista da aba Regras (ao lado de cada <h3> e na barra "Ir para"
+  // #fg-rules-nav) — irmã do updateRulesBadge acima, mesmo padrão do
+  // INCIDENT_SUBSECTION_BADGES. Diferença deliberada: aqui o badge fica SEMPRE
+  // neutro (regra ativa é estado normal de operação, não um alerta — mesma
+  // decisão do fg-badge-neutral do fg-rules-badge da aba). Conta itens ATIVOS
+  // "de verdade" a partir do estado bruto (mesmos recortes por lista do
+  // applyRulesFilter: origin pro FlowSpec, mechanism pro SSH/ACL), ignorando
+  // filtros de host/tipo/janela e o toggle Ativas/Inativas do usuário.
+  var RULES_SUBSECTION_BADGES = {
+    fgRules: "rules-sub-fg-badge",
+    cgFlowspec: "rules-sub-cg-flowspec-badge",
+    cgEdge: "rules-sub-cg-edge-badge",
+  };
+
+  function setRuleCountBadge(el, count) {
+    if (el) el.textContent = count;
+  }
+
+  function updateRulesSubsectionBadges() {
+    var counts = { fgRules: 0, cgFlowspec: 0, cgEdge: 0 };
+    (state.rulesFgData || []).forEach(function (r) {
+      if (!r.active) return;
+      if (r.origin === "clientguard") counts.cgFlowspec++;
+      else counts.fgRules++;
+    });
+    (state.rulesCgEdgeData || []).forEach(function (m) {
+      if (m.mechanism !== "flowspec" && m.status === "active") counts.cgEdge++;
+    });
+    Object.keys(RULES_SUBSECTION_BADGES).forEach(function (key) {
+      setRuleCountBadge(document.getElementById(RULES_SUBSECTION_BADGES[key]), counts[key]);
+    });
+    document.querySelectorAll("#fg-rules-nav [data-nav-count]").forEach(function (el) {
+      setRuleCountBadge(el, counts[el.getAttribute("data-nav-count")] || 0);
+    });
+  }
+
   // --- cockpit (aba Visão Geral, customizável) ------------------------------
   // Regra de ouro: nenhum widget dispara fetch próprio — só lê o que o poll()
   // de 5s já trouxe (state.status/state.attacks/state.rulesFgData/
@@ -1925,6 +1961,10 @@
       fgRules = fgRules.filter(function (r) { return withinRulesWindow(r.created_at); });
       renderFlowspecRulesTable(fgRules, "rules-fg-list");
     }
+    // roda no mesmo ciclo que re-renderiza as listas (todo load do poll e todo
+    // toggle/filtro passam por aqui), mas conta a partir do estado bruto — os
+    // filtros acima não mexem na contagem dos badges
+    updateRulesSubsectionBadges();
   }
 
   function loadRulesUnified() {
@@ -2058,6 +2098,28 @@
         var btn = ev.target.closest(".fg-toggle-btn");
         if (!btn) return;
         setRulesApp(btn.getAttribute("data-app"));
+      });
+    }
+    // barra "Ir para" — mesmo padrão do fg-incidents-nav: troca o lado do
+    // toggle FlowGuard/ClientGuard se preciso e rola até o título. Diferença:
+    // esta barra fica FORA das seções colapsáveis, então o alvo pode estar
+    // dentro de uma seção recolhida — expande antes de rolar (mesmos helpers
+    // do initCollapsiblePanels/jumpToAttack)
+    var nav = document.getElementById("fg-rules-nav");
+    if (nav) {
+      nav.addEventListener("click", function (ev) {
+        var btn = ev.target.closest(".fg-incident-nav-btn");
+        if (!btn) return;
+        var app = btn.getAttribute("data-jump-app");
+        if (app && state.rulesApp !== app) setRulesApp(app);
+        var target = document.getElementById(btn.getAttribute("data-jump-target"));
+        if (!target) return;
+        var section = target.closest("section.fg-panel-section");
+        if (section && section.classList.contains("fg-panel-collapsed")) {
+          setPanelCollapsed(section, false);
+          localStorage.setItem(panelStorageKey(section), "0");
+        }
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
       });
     }
     var viewToggle = document.getElementById("rules-view-toggle");

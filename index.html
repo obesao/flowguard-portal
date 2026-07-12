@@ -132,13 +132,19 @@
        Coordenado, Sinais) — moldura única no lugar do inline style que era
        repetido em cada div; reaproveitável se surgir mais uma subseção */
     .fg-incident-subsection { margin-top: 1.5rem; border-top: 1px solid var(--fg-border); padding-top: 1rem; }
-    .fg-incident-subsection h3 .fg-badge, .fg-incident-heading .fg-badge { vertical-align: middle; margin-left: 0.3rem; }
+    /* [data-rules-app] h3: títulos das listas da aba Regras — mesmos badges de
+       contagem das subseções de Incidentes, sem a moldura border-top (as listas
+       de Regras nunca tiveram moldura própria, só o espaçamento) */
+    .fg-incident-subsection h3 .fg-badge, .fg-incident-heading .fg-badge, [data-rules-app] h3 .fg-badge { vertical-align: middle; margin-left: 0.3rem; }
+    /* subtítulo empilhado da 2ª lista do ClientGuard na aba Regras — substitui
+       o antigo style="margin-top:1rem;" inline */
+    .fg-rules-subheading { margin-top: 1rem; }
     /* título das subseções que não têm a moldura .fg-incident-subsection
        (Ataques DDoS e Sinais Suspeitos abrem o bloco, sem border-top) */
     .fg-incident-heading { margin: 0.2rem 0 0.8rem; }
-    /* barra "Ir para" no topo da aba Incidentes — atalhos de scroll pra cada
-       subseção, com as MESMAS contagens do state.incidents que somam no badge
-       da aba (nenhum fetch extra) */
+    /* barra "Ir para" no topo das abas Incidentes (#fg-incidents-nav) e Regras
+       (#fg-rules-nav) — atalhos de scroll pra cada subseção/lista, com as
+       MESMAS contagens que o poll já traz pros badges (nenhum fetch extra) */
     .fg-incident-nav { display: flex; gap: 0.4rem; align-items: center; margin-bottom: 0.8rem; flex-wrap: wrap; }
     .fg-incident-nav-label { font-size: 0.75rem; color: var(--fg-text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
     .fg-incident-nav-btn {
@@ -764,7 +770,19 @@
     </div>
 
     <div class="fg-tab-panel" data-tab="rules">
-      <section class="fg-panel-section">
+      <!-- atalhos de navegação: mesmo padrão da aba Incidentes (fg-incidents-nav),
+           reusando as classes .fg-incident-nav* — clique pula direto pra lista
+           (troca o lado FlowGuard/ClientGuard se preciso); contagens vêm do mesmo
+           state.rulesFgData/state.rulesCgEdgeData que o poll já traz. Fica FORA
+           das seções colapsáveis, por isso o handler expande a seção alvo. -->
+      <div class="fg-incident-nav" id="fg-rules-nav">
+        <span class="fg-incident-nav-label">Ir para:</span>
+        <button class="fg-incident-nav-btn" data-jump-target="rules-block-section">Bloquear IP</button>
+        <button class="fg-incident-nav-btn" data-jump-target="rules-sub-fg" data-jump-app="flowguard">RTBH e FlowSpec <span class="fg-badge fg-badge-neutral" data-nav-count="fgRules">0</span></button>
+        <button class="fg-incident-nav-btn" data-jump-target="rules-sub-cg-flowspec" data-jump-app="clientguard">FlowSpec via ClientGuard <span class="fg-badge fg-badge-neutral" data-nav-count="cgFlowspec">0</span></button>
+        <button class="fg-incident-nav-btn" data-jump-target="rules-sub-cg-edge" data-jump-app="clientguard">SSH/ACL legado <span class="fg-badge fg-badge-neutral" data-nav-count="cgEdge">0</span></button>
+      </div>
+      <section class="fg-panel-section" id="rules-block-section">
         <h2>Bloquear IP manualmente</h2>
         <p class="fg-kpi-sub">Bloqueia todo o tráfego de origem desse IP/rede via FlowSpec (BGP) — não precisa estar ligado a um ataque. Mesma sessão BGP real nos dois casos; a origem é só rótulo (aparece no histórico da aba, FlowGuard ou ClientGuard).</p>
         <div class="fg-toolbar">
@@ -816,13 +834,13 @@
           </div>
         </div>
         <div data-rules-app="flowguard">
-          <h3>RTBH e FlowSpec (BGP)</h3>
+          <h3 id="rules-sub-fg">RTBH e FlowSpec (BGP) <span class="fg-badge fg-badge-neutral" id="rules-sub-fg-badge">0</span></h3>
           <div id="rules-fg-list"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
         </div>
         <div data-rules-app="clientguard" hidden>
-          <h3>Bloqueio via FlowSpec (proxy BGP pro FlowGuard) — manual e automático</h3>
+          <h3 id="rules-sub-cg-flowspec">Bloqueio via FlowSpec (proxy BGP pro FlowGuard) — manual e automático <span class="fg-badge fg-badge-neutral" id="rules-sub-cg-flowspec-badge">0</span></h3>
           <div id="rules-cg-flowspec-list"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
-          <h3 style="margin-top:1rem;">Mitigação direta na borda (SSH/ACL legado)</h3>
+          <h3 class="fg-rules-subheading" id="rules-sub-cg-edge">Mitigação direta na borda (SSH/ACL legado) <span class="fg-badge fg-badge-neutral" id="rules-sub-cg-edge-badge">0</span></h3>
           <div id="rules-cg-edge-list"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
         </div>
         <div id="rules-detail"></div>

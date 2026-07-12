@@ -101,6 +101,30 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 
 ## Changelog
 
+### v1.54.0 — 2026-07-12 — Corrige card do cockpit oculto sem volta na Visão Geral
+
+Achado real: na aba Visão Geral (grid de cards customizável — arrastar
+pra reordenar, checkbox pra esconder), desmarcar um widget o escondia de
+verdade demais — `cockpitCardHtml` usava o atributo `[hidden]` nativo na
+div inteira do card, e o próprio checkbox de reativar visibilidade morava
+dentro dessa mesma div, então sumia junto. Não tinha jeito de trazer o
+widget de volta pela interface, só limpando `localStorage` no devtools.
+Corrigido: "oculto" agora é uma classe própria (`.fg-cockpit-hidden`) —
+durante o modo edição o card fica esmaecido mas continua no grid com o
+checkbox acessível; some de fato só quando o usuário conclui a
+personalização.
+
+Novo botão "Restaurar layout padrão" (aparece só durante a edição) limpa
+o layout salvo e remonta o grid com a ordem/tamanho/visibilidade
+originais dos 9 widgets, sem precisar recarregar a página — dá uma saída
+pra quem bagunçar o layout demais. Extra: botão "Personalizar" perdia o
+ícone na primeira troca pra "Concluir personalização" (`textContent` no
+botão inteiro apagava o SVG) — corrigido isolando o rótulo num `<span>`
+próprio. Validado com Playwright real: esconder/reexibir durante edição,
+concluir e confirmar que some de verdade, recarregar e confirmar que o
+estado oculto persiste (esmaecido) ao reabrir a edição, restaurar layout
+padrão, drag & drop continua funcionando — 0 erros de console.
+
 ### v1.53.0 — 2026-07-12 — Reorganiza aba Regras (mesmo padrão de badges/navegação de Incidentes)
 
 Mesma melhoria da v1.52.0, aplicada na aba Regras: as 3 listas de

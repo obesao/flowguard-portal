@@ -101,6 +101,30 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 
 ## Changelog
 
+### v1.52.0 — 2026-07-12 — Reorganiza aba Incidentes + KPI de Tráfego com entrada/saída
+
+Aba Incidentes tinha 4 subseções empilhadas (Ataques DDoS, Scanners
+Detectados, Destino Coordenado, Sinais Suspeitos do ClientGuard) sem
+título/contagem consistentes — só o botão da aba mostrava 1 número somado.
+Cada `<h3>` de subseção ganhou badge próprio com a contagem de itens
+ativos daquela subseção específica (mesmos dados já buscados no polling,
+sem requisição nova); nova barra "Ir para" no topo do painel pula direto
+pra cada subseção (scroll suave, troca o lado FlowGuard/ClientGuard se
+preciso) — painel ficou longo o suficiente pra justificar isso. As duas
+subseções mais antigas (Scanners, Destino Coordenado) tinham o mesmo
+inline style de moldura repetido em cada uma — extraído pra uma classe
+CSS única (`.fg-incident-subsection`), reaproveitável se aparecer mais
+alguma subseção no futuro. Validado com Playwright real: badges batendo
+com contagem real dos endpoints CGI, navegação rolando/trocando de lado
+corretamente, nenhuma regressão nos toggles/filtros/seleção em lote já
+existentes, 0 erros de console.
+
+KPI "Tráfego" do topo (todas as abas) passou a mostrar entrada e saída
+separadas em vez de só entrada — motivo: usuário comparando com
+ferramentas externas de monitoramento (que mostram as duas direções
+separadas) estranhava o número único. Ver changelog do FlowGuard v1.36.5
+pro detalhe do backend (`daemon_stats()` ganhou `bps_out`/`pps_out`).
+
 ### v1.51.1 — 2026-07-10 — Campos de filtro de bytes médios no painel de scan (evita bloquear Google/YouTube)
 
 Dois campos novos em "Detecção de Varredura de Portas" (aba Configuração >

@@ -695,7 +695,10 @@
 
   var COCKPIT_WIDGETS = [
     { id: "traffic", title: "Tráfego em Tempo Real", size: "lg", accent: "var(--fg-accent)" },
-    { id: "attacks", title: "Ataques Ativos", size: "sm", accent: "var(--fg-danger)" },
+    // hint: mesmo contador do KPI global "Ataques Ativos" (barra do topo,
+    // sempre visível) — o card acrescenta o detalhe por severidade e pode
+    // ser ocultado/reordenado; o tooltip só deixa a redundância explícita
+    { id: "attacks", title: "Ataques Ativos", size: "sm", accent: "var(--fg-danger)", hint: "Mesmo contador do indicador “Ataques Ativos” da barra do topo — aqui com o detalhe por severidade." },
     { id: "bgp", title: "BGP (ExaBGP)", size: "sm", accent: "var(--fg-success)" },
     { id: "mitigations", title: "Mitigações de Borda", size: "sm", accent: "var(--fg-orange)" },
     { id: "warmode", title: "Modo Guerra", size: "sm", accent: "var(--fg-danger)" },
@@ -730,7 +733,7 @@
     var layout = Array.prototype.map.call(grid.querySelectorAll(".fg-cockpit-card"), function (card) {
       return {
         id: card.getAttribute("data-widget-id"),
-        visible: !card.hidden,
+        visible: !card.classList.contains("fg-cockpit-hidden"),
         size: card.getAttribute("data-size"),
       };
     });
@@ -753,13 +756,15 @@
   }
 
   function cockpitCardHtml(w, size, visible) {
+    // "oculto" é uma CLASSE (fg-cockpit-hidden), não o atributo [hidden]
+    // nativo: o CSS só some com o card fora do modo edição — durante a
+    // edição ele fica esmaecido, com o checkbox acessível pra reexibir
     return (
-      '<div class="fg-cockpit-card" data-widget-id="' + w.id + '" data-size="' + size + '" style="--cockpit-accent:' + w.accent + '"' +
-      (visible ? "" : " hidden") + ">" +
+      '<div class="fg-cockpit-card' + (visible ? "" : " fg-cockpit-hidden") + '" data-widget-id="' + w.id + '" data-size="' + size + '" style="--cockpit-accent:' + w.accent + '">' +
       '<div class="fg-cockpit-card-head">' +
       '<label class="fg-cockpit-visibility" hidden><input type="checkbox"' + (visible ? " checked" : "") + '></label>' +
       '<span class="fg-cockpit-drag-handle" hidden>⠿</span>' +
-      "<h3>" + escapeHtml(w.title) + "</h3>" +
+      "<h3" + (w.hint ? ' title="' + escapeHtml(w.hint) + '"' : "") + ">" + escapeHtml(w.title) + "</h3>" +
       "</div>" +
       '<div class="fg-cockpit-card-body">' + cockpitWidgetBodyHtml(w.id) + "</div>" +
       "</div>"
@@ -812,19 +817,25 @@
       if (vis) vis.hidden = !editing;
       if (handle) handle.hidden = !editing;
     });
-    var btn = document.getElementById("fg-cockpit-customize-btn");
-    if (btn) btn.textContent = editing ? "Concluir personalização" : "Personalizar";
+    // troca só o texto do span de rótulo — setar textContent no botão
+    // inteiro apagava o ícone SVG na primeira alternância
+    var btnLabel = document.getElementById("fg-cockpit-customize-label");
+    if (btnLabel) btnLabel.textContent = editing ? "Concluir personalização" : "Personalizar";
+    var resetBtn = document.getElementById("fg-cockpit-reset-btn");
+    if (resetBtn) resetBtn.hidden = !editing;
     var hint = document.getElementById("fg-cockpit-edit-hint");
     if (hint) hint.hidden = !editing;
     if (!editing) cockpitPersistCurrentOrder();
   }
 
-  function initCockpit() {
+  // (re)monta os cards do grid a partir de um layout (salvo ou padrão) e
+  // religa o drag&drop de cada card — extraído do initCockpit pra que o
+  // "Restaurar layout padrão" reuse sem recarregar a página
+  function cockpitRenderGrid(layout) {
     var grid = document.getElementById("fg-cockpit-grid");
     if (!grid) return;
     var widgetsById = {};
     COCKPIT_WIDGETS.forEach(function (w) { widgetsById[w.id] = w; });
-    var layout = cockpitLoadLayout();
 
     grid.innerHTML = layout
       .map(function (entry) {
@@ -835,18 +846,52 @@
       .join("");
 
     grid.querySelectorAll(".fg-cockpit-card").forEach(cockpitEnableDragForCard);
+  }
+
+  function initCockpit() {
+    var grid = document.getElementById("fg-cockpit-grid");
+    if (!grid) return;
+    cockpitRenderGrid(cockpitLoadLayout());
 
     grid.addEventListener("change", function (ev) {
       var checkbox = ev.target.closest(".fg-cockpit-visibility input");
       if (!checkbox) return;
       var card = checkbox.closest(".fg-cockpit-card");
-      card.hidden = !checkbox.checked;
+      // classe própria em vez de card.hidden: em modo edição o CSS mantém o
+      // card visível (esmaecido) pra dar como desfazer; ele só some de fato
+      // quando o usuário conclui a personalização
+      card.classList.toggle("fg-cockpit-hidden", !checkbox.checked);
       cockpitPersistCurrentOrder();
+    });
+
+    // delegação no grid (não no input direto) porque o "Restaurar layout
+    // padrão" recria o innerHTML — um listener no input morreria junto
+    grid.addEventListener("input", function (ev) {
+      if (!ev.target || ev.target.id !== "fg-top-prefixes-search") return;
+      state.filter.topPrefixes = ev.target.value;
+      state.page.topPrefixes = 1;
+      renderTopPrefixesFiltered();
     });
 
     var customizeBtn = document.getElementById("fg-cockpit-customize-btn");
     if (customizeBtn) {
       customizeBtn.addEventListener("click", function () { cockpitSetEditing(!state.cockpitEditing); });
+    }
+
+    var resetBtn = document.getElementById("fg-cockpit-reset-btn");
+    if (resetBtn) {
+      resetBtn.addEventListener("click", function () {
+        localStorage.removeItem(COCKPIT_STORAGE_KEY);
+        cockpitRenderGrid(cockpitLoadLayout()); // sem layout salvo → catálogo padrão
+        cockpitSetEditing(state.cockpitEditing); // reaplica controles/draggable nos cards novos
+        // repopula na hora com o que o poll já trouxe (senão ficaria em
+        // skeleton até o próximo ciclo de 5s)
+        if (state.status && state.status.ok) {
+          renderSparklines(state.status.protocol_series);
+          renderTopPrefixesFiltered();
+        }
+        cockpitRefreshAll();
+      });
     }
 
     cockpitRefreshAll();
@@ -6649,8 +6694,8 @@
     initRouterCfg();
     initCockpit();
 
-    var topSearch = document.getElementById("fg-top-prefixes-search");
-    if (topSearch) topSearch.addEventListener("input", function () { state.filter.topPrefixes = topSearch.value; state.page.topPrefixes = 1; renderTopPrefixesFiltered(); });
+    // (busca de "Meus Prefixos" é delegada no grid do cockpit — ver
+    // initCockpit — pra sobreviver ao rebuild do "Restaurar layout padrão")
 
     var flowsSearch = document.getElementById("fg-flows-search");
     if (flowsSearch) flowsSearch.addEventListener("input", function () { state.filter.flows = flowsSearch.value; state.page.flows = 1; renderFlowsFiltered(); });

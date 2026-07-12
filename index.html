@@ -420,7 +420,15 @@
       .fg-cockpit-card[data-size="md"] { grid-column: span 2; }
     }
     .fg-cockpit-card[data-size="lg"] { grid-column: 1 / -1; }
-    .fg-cockpit-card[hidden] { display: none; }
+    /* card "oculto" (classe própria, não o [hidden] nativo): fora do modo
+       edição some de verdade; DURANTE a edição continua no grid, esmaecido,
+       pra que o checkbox de visibilidade fique acessível e dê pra reexibir
+       (achado real: com [hidden] o card sumia junto com o próprio checkbox
+       de reativação — só limpando o localStorage na mão pra recuperar) */
+    .fg-cockpit-card.fg-cockpit-hidden { display: none; }
+    .fg-cockpit-grid.fg-cockpit-editing-mode .fg-cockpit-card.fg-cockpit-hidden {
+      display: block; opacity: 0.45; filter: grayscale(0.6);
+    }
     .fg-cockpit-card-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; }
     .fg-cockpit-card-head h3 { margin: 0; font-size: 0.95rem; flex: 1; }
     /* [hidden] explícito pra vencer o display:flex logo abaixo — regra do
@@ -649,8 +657,9 @@
 
     <div class="fg-tab-panel active" data-tab="overview">
       <div class="fg-toolbar">
-        <button class="fg-btn" id="fg-cockpit-customize-btn"><span class="fg-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="9" cy="18" r="2"/></svg></span>Personalizar</button>
-        <span class="fg-kpi-sub" id="fg-cockpit-edit-hint" hidden>Arraste os cards pelo título pra reordenar, desmarque pra esconder. Clique em "Concluir" quando terminar.</span>
+        <button class="fg-btn" id="fg-cockpit-customize-btn"><span class="fg-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="9" cy="18" r="2"/></svg></span><span id="fg-cockpit-customize-label">Personalizar</span></button>
+        <button class="fg-btn" id="fg-cockpit-reset-btn" hidden>Restaurar layout padrão</button>
+        <span class="fg-kpi-sub" id="fg-cockpit-edit-hint" hidden>Arraste os cards pelo título pra reordenar. Cards desmarcados ficam esmaecidos e somem quando você concluir — marque de novo pra reexibir. Clique em "Concluir" quando terminar.</span>
       </div>
       <div class="fg-cockpit-grid" id="fg-cockpit-grid"></div>
     </div>

@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.57.0**
+**Versão atual: v1.58.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -100,6 +100,18 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.58.0 — 2026-07-13 — Card "Mitigações de Borda" também mostra a lista num popover
+
+Terceiro card no mesmo padrão das v1.56.0/v1.57.0: "Mitigações de Borda"
+entra em `COCKPIT_POPOVER_TARGETS` — clique mostra src_ip, mecanismo
+(FlowSpec ou SSH legado), motivo (reaproveita `edgeMitigationReason`, já
+usado na tabela da aba Regras) e expiração de cada mitigação com
+`status === "active"` (mesmo filtro do número do card, qualquer
+mecanismo). Fonte é `state.rulesCgEdgeData`, já polado a cada 5s.
+Validado com Playwright real: popover mostra as mitigações reais em
+FlowSpec com motivo e expiração corretos, fecha ao clicar fora, Visão
+Geral permanece ativa, 0 erros de console associados à mudança.
 
 ### v1.57.0 — 2026-07-13 — Card "ClientGuard" também mostra a lista num popover
 

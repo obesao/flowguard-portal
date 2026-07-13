@@ -723,6 +723,7 @@
   var COCKPIT_POPOVER_TARGETS = {
     rules: { build: cockpitRulesPopoverHtml },
     clientguard: { build: cockpitClientGuardPopoverHtml },
+    mitigations: { build: cockpitMitigationsPopoverHtml },
   };
 
   function cockpitRulesPopoverHtml() {
@@ -735,6 +736,25 @@
         return (
           "<li><code>" + escapeHtml(target) + "</code> · " + escapeHtml(fmtRuleType(r)) +
           ' · expira <span class="fg-kpi-sub">' + escapeHtml(expires) + "</span></li>"
+        );
+      })
+      .join("");
+    return '<ul class="fg-cockpit-popover-list">' + rows + "</ul>";
+  }
+
+  // mesma fonte do número do card (m.status === "active", qualquer
+  // mecanismo — FlowSpec ou SSH legado, mesmo critério de cockpitRenderMitigations)
+  function cockpitMitigationsPopoverHtml() {
+    var mitigations = (state.rulesCgEdgeData || []).filter(function (m) { return m.status === "active"; });
+    if (!mitigations.length) return '<p class="fg-kpi-sub fg-ok">Nenhuma mitigação ativa agora.</p>';
+    var rows = mitigations
+      .map(function (m) {
+        var mechanism = (m.mechanism || "ssh") === "flowspec" ? "FlowSpec" : "SSH (legado)";
+        var reason = edgeMitigationReason(m) || (m.trigger_type === "auto" ? "-" : "bloqueio manual");
+        var when = m.ts_expires ? "expira " + fmtDateTime(m.ts_expires) : "sem expiração";
+        return (
+          "<li><code>" + escapeHtml(m.src_ip) + "</code> · " + escapeHtml(mechanism) + " · " +
+          escapeHtml(reason) + ' · <span class="fg-kpi-sub">' + escapeHtml(when) + "</span></li>"
         );
       })
       .join("");
@@ -1066,6 +1086,7 @@
     cockpitSetBody("mitigations",
       '<div class="fg-cockpit-big-number' + (active ? " fg-sev-high" : " fg-ok") + '">' + active + "</div>" +
       '<div class="fg-kpi-sub">ClientGuard · FlowSpec/SSH</div>');
+    cockpitRefreshOpenPopover("mitigations");
   }
 
   function cockpitRenderWarmode() {

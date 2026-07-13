@@ -412,6 +412,7 @@
     .fg-cockpit-card {
       background: var(--fg-bg-panel); border: 1px solid var(--fg-border); border-radius: 8px;
       padding: 1rem; border-top: 3px solid var(--cockpit-accent, var(--fg-accent));
+      position: relative; /* ancora o .fg-cockpit-popover (position:absolute) */
     }
     /* "span 2" força uma coluna implícita extra (achado real: overflow
        horizontal em mobile) quando a tela só cabe 1 coluna de 240px — só
@@ -446,6 +447,18 @@
     .fg-cockpit-card.fg-cockpit-clickable { cursor: pointer; }
     .fg-cockpit-card.fg-cockpit-clickable:hover { border-color: var(--cockpit-accent, var(--fg-accent)); }
     .fg-cockpit-grid.fg-cockpit-editing-mode .fg-cockpit-card.fg-cockpit-clickable { cursor: default; }
+    /* popover de detalhe (ex: lista de regras ativas) ancorado no card que o
+       abriu — ver COCKPIT_POPOVER_TARGETS/cockpitTogglePopover em flowguard.js.
+       position:absolute não empurra o grid; z-index alto pra ficar por cima
+       dos cards vizinhos (que podem ter altura menor) */
+    .fg-cockpit-popover {
+      position: absolute; top: 100%; left: 0; right: 0; margin-top: 0.4rem; z-index: 20;
+      background: var(--fg-bg-panel); border: 1px solid var(--cockpit-accent, var(--fg-accent));
+      border-radius: 8px; padding: 0.7rem; box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+      max-height: 260px; overflow-y: auto; cursor: default;
+    }
+    .fg-cockpit-popover-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.85rem; }
+    .fg-cockpit-popover-list code { background: var(--fg-bg-inset, rgba(255,255,255,0.06)); padding: 0.1rem 0.3rem; border-radius: 4px; }
 
     .fg-cockpit-big-number { font-size: 1.8rem; font-weight: bold; line-height: 1.2; }
     .fg-cockpit-sev-row { display: flex; gap: 0.6rem; flex-wrap: wrap; font-size: 0.78rem; margin-top: 0.3rem; }

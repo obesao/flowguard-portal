@@ -710,12 +710,61 @@
 
   // cards com destino de navegação — clique fora do modo edição pula pra
   // aba/subseção correspondente (mesmo padrão de scroll do jumpToAttack /
-  // fg-rules-nav / fg-incidents-nav), pra não deixar "Regras Ativas" e
-  // "ClientGuard" como número solto sem link pro detalhe
+  // fg-rules-nav / fg-incidents-nav), pra não deixar "ClientGuard" como
+  // número solto sem link pro detalhe
   var COCKPIT_JUMP_TARGETS = {
-    rules: { tab: "rules", target: "rules-sub-fg", setApp: function () { setRulesApp("flowguard"); } },
     clientguard: { tab: "attacks", target: "cg-sub-suspicious", setApp: function () { setIncidentsApp("clientguard"); } },
   };
+
+  // "Regras Ativas": pedido do usuário foi diferente do jump acima — em vez
+  // de sair da Visão Geral, mostra a lista (IP/prefixo, tipo, expiração) num
+  // popover ancorado no próprio card. build() é chamado tanto no clique
+  // quanto a cada poll (cockpitRefreshOpenPopover) pra não deixar a lista
+  // aberta desatualizada em relação ao número do card.
+  var COCKPIT_POPOVER_TARGETS = {
+    rules: { build: cockpitRulesPopoverHtml },
+  };
+
+  function cockpitRulesPopoverHtml() {
+    var rules = (state.rulesFgData || []).filter(function (r) { return r.active; });
+    if (!rules.length) return '<p class="fg-kpi-sub fg-ok">Nenhuma regra ativa agora.</p>';
+    var rows = rules
+      .map(function (r) {
+        var target = r.dst_prefix || r.src_prefix || "-";
+        var expires = r.expires_at ? fmtDateTime(r.expires_at) : "sem expiração";
+        return (
+          "<li><code>" + escapeHtml(target) + "</code> · " + escapeHtml(fmtRuleType(r)) +
+          ' · expira <span class="fg-kpi-sub">' + escapeHtml(expires) + "</span></li>"
+        );
+      })
+      .join("");
+    return '<ul class="fg-cockpit-popover-list">' + rows + "</ul>";
+  }
+
+  function cockpitCloseAllPopovers() {
+    document.querySelectorAll(".fg-cockpit-popover").forEach(function (p) { p.remove(); });
+  }
+
+  function cockpitTogglePopover(card) {
+    if (card.querySelector(".fg-cockpit-popover")) { cockpitCloseAllPopovers(); return; }
+    var target = COCKPIT_POPOVER_TARGETS[card.getAttribute("data-widget-id")];
+    if (!target) return;
+    cockpitCloseAllPopovers();
+    var pop = document.createElement("div");
+    pop.className = "fg-cockpit-popover";
+    pop.innerHTML = target.build();
+    card.appendChild(pop);
+  }
+
+  // chamado pelos cockpitRender* de cada widget a cada ciclo de poll — se o
+  // popover desse widget estiver aberto na hora, reconstrói o conteúdo
+  function cockpitRefreshOpenPopover(id) {
+    var target = COCKPIT_POPOVER_TARGETS[id];
+    if (!target) return;
+    var card = document.querySelector('.fg-cockpit-card[data-widget-id="' + id + '"]');
+    var pop = card && card.querySelector(".fg-cockpit-popover");
+    if (pop) pop.innerHTML = target.build();
+  }
 
   function cockpitJumpToWidget(id) {
     var jump = COCKPIT_JUMP_TARGETS[id];
@@ -790,7 +839,7 @@
     // "oculto" é uma CLASSE (fg-cockpit-hidden), não o atributo [hidden]
     // nativo: o CSS só some com o card fora do modo edição — durante a
     // edição ele fica esmaecido, com o checkbox acessível pra reexibir
-    var jumpable = !!COCKPIT_JUMP_TARGETS[w.id];
+    var jumpable = !!COCKPIT_JUMP_TARGETS[w.id] || !!COCKPIT_POPOVER_TARGETS[w.id];
     return (
       '<div class="fg-cockpit-card' + (visible ? "" : " fg-cockpit-hidden") + (jumpable ? " fg-cockpit-clickable" : "") + '" data-widget-id="' + w.id + '" data-size="' + size + '" style="--cockpit-accent:' + w.accent + '"' +
       (jumpable ? ' title="Clique para ver o detalhe"' : "") + ">" +
@@ -897,14 +946,24 @@
       cockpitPersistCurrentOrder();
     });
 
-    // clique no card (fora do modo edição, fora do checkbox/handle) pula pra
-    // aba/subseção do detalhe — só cards em COCKPIT_JUMP_TARGETS respondem
+    // clique no card (fora do modo edição, fora do checkbox/handle): cards em
+    // COCKPIT_POPOVER_TARGETS abrem a lista ali mesmo, sem sair da Visão
+    // Geral; os demais (COCKPIT_JUMP_TARGETS) pulam pra aba/subseção do detalhe
     grid.addEventListener("click", function (ev) {
       if (state.cockpitEditing) return;
       if (ev.target.closest(".fg-cockpit-visibility") || ev.target.closest(".fg-cockpit-drag-handle")) return;
+      if (ev.target.closest(".fg-cockpit-popover")) return;
       var card = ev.target.closest(".fg-cockpit-card");
       if (!card) return;
-      cockpitJumpToWidget(card.getAttribute("data-widget-id"));
+      var id = card.getAttribute("data-widget-id");
+      if (COCKPIT_POPOVER_TARGETS[id]) { cockpitTogglePopover(card); return; }
+      cockpitJumpToWidget(id);
+    });
+
+    // clique fora de qualquer card fecha popover aberto (mesmo padrão de
+    // outros menus/dropdowns do portal)
+    document.addEventListener("click", function (ev) {
+      if (!ev.target.closest(".fg-cockpit-card")) cockpitCloseAllPopovers();
     });
 
     // delegação no grid (não no input direto) porque o "Restaurar layout
@@ -1006,6 +1065,7 @@
   function cockpitRenderRules() {
     var active = (state.rulesFgData || []).filter(function (r) { return r.active; }).length;
     cockpitSetBody("rules", '<div class="fg-cockpit-big-number">' + active + '</div><div class="fg-kpi-sub">FlowSpec/RTBH</div>');
+    cockpitRefreshOpenPopover("rules");
   }
 
   function cockpitRenderDaemon() {

@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.55.0**
+**Versão atual: v1.56.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -100,6 +100,24 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.56.0 — 2026-07-13 — Card "Regras Ativas" mostra a lista num popover em vez de trocar de aba
+
+Ajuste sobre a v1.55.0: usuário testou o clique no card "Regras Ativas" e
+achou melhor não sair da Visão Geral pra ver a lista — pediu um popover
+ancorado no próprio card em vez do redirecionamento pra aba Regras. Novo
+mapa `COCKPIT_POPOVER_TARGETS` (paralelo ao `COCKPIT_JUMP_TARGETS` da
+v1.55.0): clique no card abre uma lista com IP/prefixo, tipo (RTBH/FlowSpec)
+e expiração de cada regra ativa, sem navegar; clique fora do popover ou no
+mesmo card de novo fecha (toggle). Conteúdo é reconstruído a cada ciclo de
+poll (5s) se o popover estiver aberto, pra não ficar desatualizado em
+relação ao número mostrado no card. O card "ClientGuard" não mudou —
+continua levando pra aba Incidentes (sinais suspeitos), único pedido
+original que fazia sentido como navegação de página mesmo. Validado com
+Playwright real (sessão local): popover abre com os dados reais das
+regras ativas, fecha ao clicar fora, toggle funciona, Visão Geral
+permanece ativa, ClientGuard sem regressão, 0 erros de console associados
+à mudança.
 
 ### v1.55.0 — 2026-07-13 — Cards "Regras Ativas" e "ClientGuard" do cockpit ficam clicáveis
 

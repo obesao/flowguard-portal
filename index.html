@@ -117,13 +117,27 @@
        valor normal de KPI (1.5rem) pra caber "NE8000-PPPOE Down/Idle" no card */
     .fg-bgp-peer { font-size: 0.92rem; font-weight: 600; line-height: 1.6; white-space: nowrap; }
 
-    .fg-tabs { display: flex; gap: 0.3rem; margin-bottom: 1rem; border-bottom: 1px solid var(--fg-border); flex-wrap: wrap; }
-    .fg-tab-btn {
-      background: transparent; border: none; color: var(--fg-text-muted); padding: 0.6rem 1rem; cursor: pointer;
-      font-size: 0.95rem; border-bottom: 2px solid transparent; display: flex; align-items: center; gap: 0.4rem;
-      transition: color 0.15s ease, border-color 0.15s ease;
+    /* menu principal (#fg-tabs) virou sidebar vertical fixa à esquerda — ver
+       #fg-app abaixo pro layout flex pai. Baixo de 700px volta a virar uma
+       barra horizontal no topo (mesmo breakpoint já usado pro grid do
+       cockpit), pra não sobrar barra fininha demais em tela de celular. */
+    #fg-app { display: flex; align-items: flex-start; }
+    .fg-sidebar {
+      flex: 0 0 200px; display: flex; flex-direction: column; gap: 0.1rem;
+      position: sticky; top: 0; align-self: flex-start; height: 100vh; overflow-y: auto;
+      border-right: 1px solid var(--fg-border); padding: 0.8rem 0.5rem; box-sizing: border-box;
     }
-    .fg-tab-btn.active { color: var(--fg-text); border-bottom-color: var(--fg-accent); }
+    .fg-main { flex: 1 1 auto; min-width: 0; padding: 1rem; box-sizing: border-box; }
+    @media (max-width: 699px) {
+      #fg-app { flex-direction: column; }
+      .fg-sidebar { flex-direction: row; flex-wrap: wrap; position: static; height: auto; width: 100%; border-right: none; border-bottom: 1px solid var(--fg-border); }
+    }
+    .fg-tab-btn {
+      background: transparent; border: none; border-left: 3px solid transparent; color: var(--fg-text-muted);
+      padding: 0.6rem 0.8rem; cursor: pointer; font-size: 0.95rem; display: flex; align-items: center; gap: 0.4rem;
+      text-align: left; width: 100%; transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+    }
+    .fg-tab-btn.active { color: var(--fg-text); border-left-color: var(--fg-accent); background: var(--fg-bg-panel); }
     .fg-tab-btn:hover { color: var(--fg-text); }
     .fg-badge { background: var(--fg-danger); color: white; font-size: 0.7rem; border-radius: 999px; padding: 0.05rem 0.45rem; }
     /* contagem informativa (ex: regras ativas), não um alerta — mais discreta que o fg-badge vermelho padrão */
@@ -154,8 +168,11 @@
     }
     .fg-incident-nav-btn:hover { color: var(--fg-text); background: var(--fg-border); }
     /* separa visualmente as abas do FlowGuard das do ClientGuard — são dois
-       sistemas distintos compartilhando a mesma barra de navegação */
-    .fg-tabs-divider { width: 1px; align-self: stretch; background: var(--fg-border); margin: 0.4rem 0.4rem; }
+       sistemas distintos compartilhando o mesmo menu de navegação */
+    .fg-tabs-divider { height: 1px; align-self: stretch; background: var(--fg-border); margin: 0.4rem 0.2rem; }
+    @media (max-width: 699px) {
+      .fg-tabs-divider { width: 1px; height: auto; margin: 0.2rem 0.4rem; }
+    }
 
     .fg-tab-panel { display: none; }
     .fg-tab-panel.active { display: block; animation: fg-fade-in 0.15s ease; }
@@ -507,6 +524,17 @@
   </div>
 
   <div id="fg-app" class="fg-wrap" style="display: none;">
+    <nav class="fg-sidebar" id="fg-tabs">
+      <button class="fg-tab-btn active" data-tab="overview">Visão Geral</button>
+      <button class="fg-tab-btn" data-tab="attacks">Incidentes <span class="fg-badge" id="fg-attacks-badge" style="display:none;">0</span></button>
+      <button class="fg-tab-btn" data-tab="flows">Flows</button>
+      <button class="fg-tab-btn" data-tab="rules">Regras <span class="fg-badge fg-badge-neutral" id="fg-rules-badge" style="display:none;">0</span></button>
+      <button class="fg-tab-btn" data-tab="cfg">Configuração</button>
+      <button class="fg-tab-btn" data-tab="charts">Gráficos</button>
+      <span class="fg-tabs-divider" title="ClientGuard é um sistema à parte (detecção por cliente, não por prefixo)"></span>
+      <button class="fg-tab-btn" data-tab="clientguard">Clientes</button>
+    </nav>
+    <div class="fg-main">
     <div class="fg-topbar">
       <h1 style="font-size: 1.3rem; margin: 0;">FlowGuard — POX Network</h1>
       <div style="display:flex; gap:0.6rem; align-items:center; flex-wrap:wrap;">
@@ -661,17 +689,6 @@
     </div>
 
     <div id="fg-kpis" class="fg-kpis"></div>
-
-    <div class="fg-tabs" id="fg-tabs">
-      <button class="fg-tab-btn active" data-tab="overview">Visão Geral</button>
-      <button class="fg-tab-btn" data-tab="attacks">Incidentes <span class="fg-badge" id="fg-attacks-badge" style="display:none;">0</span></button>
-      <button class="fg-tab-btn" data-tab="flows">Flows</button>
-      <button class="fg-tab-btn" data-tab="rules">Regras <span class="fg-badge fg-badge-neutral" id="fg-rules-badge" style="display:none;">0</span></button>
-      <button class="fg-tab-btn" data-tab="cfg">Configuração</button>
-      <button class="fg-tab-btn" data-tab="charts">Gráficos</button>
-      <span class="fg-tabs-divider" title="ClientGuard é um sistema à parte (detecção por cliente, não por prefixo)"></span>
-      <button class="fg-tab-btn" data-tab="clientguard">Clientes</button>
-    </div>
 
     <div class="fg-tab-panel active" data-tab="overview">
       <div class="fg-toolbar">
@@ -1129,6 +1146,7 @@
           <canvas id="fg-chart-timeline" class="fg-chart-sm" width="900" height="140"></canvas>
         </div>
       </section>
+    </div>
     </div>
   </div>
 

@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.58.0**
+**Versão atual: v1.59.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -100,6 +100,24 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.59.0 — 2026-07-13 — Menu principal vira sidebar vertical fixa na lateral esquerda
+
+Pedido do usuário: layout mudou de barra horizontal de abas (`#fg-tabs`
+acima do conteúdo) pra menu vertical fixo na lateral esquerda, sempre
+visível (sem opção de recolher). `#fg-app` passa a ser flex-row: a
+sidebar (`#fg-tabs`, mesmo id, `position: sticky` + `height: 100vh`) fica
+à esquerda, e todo o resto do conteúdo antigo (topbar, KPIs, abas,
+modais) entrou num wrapper novo `.fg-main` à direita. Abaixo de 700px
+(mesmo breakpoint já usado no grid do cockpit) a sidebar volta a virar
+uma barra horizontal no topo, pra não sobrar uma faixa vertical fininha
+demais em tela de celular. Só CSS + reposicionamento de HTML — nenhuma
+mudança em `flowguard.js` (o `initTabs()` já lia por `id="fg-tabs"`,
+não pela classe, então clique nas abas continua funcionando sem
+alteração). Validado com Playwright real: sidebar renderiza à esquerda,
+conteúdo não fica embaixo dela, clique em qualquer item continua trocando
+de aba certinho, item ativo destacado, fallback mobile funcionando,
+0 erros de console associados à mudança.
 
 ### v1.58.0 — 2026-07-13 — Card "Mitigações de Borda" também mostra a lista num popover
 

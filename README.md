@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.56.0**
+**Versão atual: v1.57.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -100,6 +100,23 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.57.0 — 2026-07-13 — Card "ClientGuard" também mostra a lista num popover
+
+Mesmo tratamento da v1.56.0, agora pro segundo card: "ClientGuard" saiu
+de `COCKPIT_JUMP_TARGETS` e entrou em `COCKPIT_POPOVER_TARGETS` — clique
+abre popover ancorado no card com cada sinal aberto (src_ip, cliente,
+tipo de sinal, confiança/severidade), fonte é o mesmo `state.cgSuspicious`
+já polado a cada 5s pro badge da aba Incidentes. Filtra `!resolved`
+explicitamente (não confia só na view atual estar em "Abertos", pra não
+vazar sinal resolvido se o usuário tiver trocado a view antes de voltar
+pra Visão Geral). `COCKPIT_JUMP_TARGETS` fica vazio por ora — nenhum
+widget usa mais navegação de página, só popover; mapa continua existindo
+pronto pro próximo card que precisar sair da Visão Geral de verdade.
+Validado com Playwright real: popover mostra os sinais reais (scan
+vertical/horizontal, confiança e severidade corretas), fecha ao clicar
+fora, abrir um card fecha popover do outro (só 1 por vez, comportamento
+natural do toggle), 0 erros de console associados à mudança.
 
 ### v1.56.0 — 2026-07-13 — Card "Regras Ativas" mostra a lista num popover em vez de trocar de aba
 

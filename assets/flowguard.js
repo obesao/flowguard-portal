@@ -710,19 +710,19 @@
 
   // cards com destino de navegação — clique fora do modo edição pula pra
   // aba/subseção correspondente (mesmo padrão de scroll do jumpToAttack /
-  // fg-rules-nav / fg-incidents-nav), pra não deixar "ClientGuard" como
-  // número solto sem link pro detalhe
-  var COCKPIT_JUMP_TARGETS = {
-    clientguard: { tab: "attacks", target: "cg-sub-suspicious", setApp: function () { setIncidentsApp("clientguard"); } },
-  };
+  // fg-rules-nav / fg-incidents-nav). Hoje nenhum card usa mais esse
+  // caminho (rules e clientguard migraram pra popover, ver abaixo) — mapa
+  // fica pronto pra um próximo widget que precise mesmo sair da Visão Geral.
+  var COCKPIT_JUMP_TARGETS = {};
 
-  // "Regras Ativas": pedido do usuário foi diferente do jump acima — em vez
-  // de sair da Visão Geral, mostra a lista (IP/prefixo, tipo, expiração) num
-  // popover ancorado no próprio card. build() é chamado tanto no clique
-  // quanto a cada poll (cockpitRefreshOpenPopover) pra não deixar a lista
-  // aberta desatualizada em relação ao número do card.
+  // "Regras Ativas" e "ClientGuard": pedido do usuário foi mostrar a lista
+  // sem sair da Visão Geral — em vez do jump acima, abrem um popover
+  // ancorado no próprio card. build() é chamado tanto no clique quanto a
+  // cada poll (cockpitRefreshOpenPopover) pra não deixar a lista aberta
+  // desatualizada em relação ao número do card.
   var COCKPIT_POPOVER_TARGETS = {
     rules: { build: cockpitRulesPopoverHtml },
+    clientguard: { build: cockpitClientGuardPopoverHtml },
   };
 
   function cockpitRulesPopoverHtml() {
@@ -735,6 +735,28 @@
         return (
           "<li><code>" + escapeHtml(target) + "</code> · " + escapeHtml(fmtRuleType(r)) +
           ' · expira <span class="fg-kpi-sub">' + escapeHtml(expires) + "</span></li>"
+        );
+      })
+      .join("");
+    return '<ul class="fg-cockpit-popover-list">' + rows + "</ul>";
+  }
+
+  // mesma fonte da badge "sinais abertos" do card (state.cgStatus.open_signals)
+  // — aqui detalha cada um: cliente/prefixo, src_ip, tipo de sinal e confiança.
+  // Filtra !resolved explicitamente (não confia só em state.cgSuspiciousView
+  // já estar em "open") porque o usuário pode ter trocado pra "Resolvidos"
+  // na aba Incidentes antes de voltar pra Visão Geral.
+  function cockpitClientGuardPopoverHtml() {
+    var signals = (state.cgSuspicious || []).filter(function (r) { return !r.resolved; });
+    if (!signals.length) return '<p class="fg-kpi-sub fg-ok">Nenhum sinal aberto agora.</p>';
+    var rows = signals
+      .map(function (r) {
+        var sev = signalSeverity(r);
+        var label = CG_SIGNAL_LABELS[r.signal_type] || r.signal_type;
+        return (
+          "<li><code>" + escapeHtml(r.src_ip) + "</code> (" + escapeHtml(r.customer_prefix || "-") + ") · " +
+          escapeHtml(label) + ' · <span class="' + signalSevClass(sev) + '">' +
+          Math.round((r.confidence || 0) * 100) + "% (" + sev + ")</span></li>"
         );
       })
       .join("");
@@ -1060,6 +1082,7 @@
     cockpitSetBody("clientguard",
       '<div class="fg-cockpit-big-number' + (s.open_signals ? " fg-sev-high" : " fg-ok") + '">' + s.open_signals +
       '</div><div class="fg-kpi-sub">sinais abertos</div>');
+    cockpitRefreshOpenPopover("clientguard");
   }
 
   function cockpitRenderRules() {

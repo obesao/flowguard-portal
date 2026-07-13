@@ -708,6 +708,37 @@
     { id: "daemon", title: "Daemon", size: "sm", accent: "var(--fg-success)" },
   ];
 
+  // cards com destino de navegação — clique fora do modo edição pula pra
+  // aba/subseção correspondente (mesmo padrão de scroll do jumpToAttack /
+  // fg-rules-nav / fg-incidents-nav), pra não deixar "Regras Ativas" e
+  // "ClientGuard" como número solto sem link pro detalhe
+  var COCKPIT_JUMP_TARGETS = {
+    rules: { tab: "rules", target: "rules-sub-fg", setApp: function () { setRulesApp("flowguard"); } },
+    clientguard: { tab: "attacks", target: "cg-sub-suspicious", setApp: function () { setIncidentsApp("clientguard"); } },
+  };
+
+  function cockpitJumpToWidget(id) {
+    var jump = COCKPIT_JUMP_TARGETS[id];
+    if (!jump) return;
+    document.querySelectorAll(".fg-tab-btn").forEach(function (b) {
+      b.classList.toggle("active", b.getAttribute("data-tab") === jump.tab);
+    });
+    document.querySelectorAll(".fg-tab-panel").forEach(function (p) {
+      p.classList.toggle("active", p.getAttribute("data-tab") === jump.tab);
+    });
+    if (jump.setApp) jump.setApp();
+    var target = document.getElementById(jump.target);
+    if (!target) return;
+    // alvo na aba Regras vive dentro de uma seção colapsável (diferente da
+    // aba Incidentes) — expande antes de rolar, mesmo tratamento do fg-rules-nav
+    var section = target.closest("section.fg-panel-section");
+    if (section && section.classList.contains("fg-panel-collapsed")) {
+      setPanelCollapsed(section, false);
+      localStorage.setItem(panelStorageKey(section), "0");
+    }
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   function cockpitLoadLayout() {
     var fallback = COCKPIT_WIDGETS.map(function (w) { return { id: w.id, visible: true, size: null }; });
     try {
@@ -759,8 +790,10 @@
     // "oculto" é uma CLASSE (fg-cockpit-hidden), não o atributo [hidden]
     // nativo: o CSS só some com o card fora do modo edição — durante a
     // edição ele fica esmaecido, com o checkbox acessível pra reexibir
+    var jumpable = !!COCKPIT_JUMP_TARGETS[w.id];
     return (
-      '<div class="fg-cockpit-card' + (visible ? "" : " fg-cockpit-hidden") + '" data-widget-id="' + w.id + '" data-size="' + size + '" style="--cockpit-accent:' + w.accent + '">' +
+      '<div class="fg-cockpit-card' + (visible ? "" : " fg-cockpit-hidden") + (jumpable ? " fg-cockpit-clickable" : "") + '" data-widget-id="' + w.id + '" data-size="' + size + '" style="--cockpit-accent:' + w.accent + '"' +
+      (jumpable ? ' title="Clique para ver o detalhe"' : "") + ">" +
       '<div class="fg-cockpit-card-head">' +
       '<label class="fg-cockpit-visibility" hidden><input type="checkbox"' + (visible ? " checked" : "") + '></label>' +
       '<span class="fg-cockpit-drag-handle" hidden>⠿</span>' +
@@ -862,6 +895,16 @@
       // quando o usuário conclui a personalização
       card.classList.toggle("fg-cockpit-hidden", !checkbox.checked);
       cockpitPersistCurrentOrder();
+    });
+
+    // clique no card (fora do modo edição, fora do checkbox/handle) pula pra
+    // aba/subseção do detalhe — só cards em COCKPIT_JUMP_TARGETS respondem
+    grid.addEventListener("click", function (ev) {
+      if (state.cockpitEditing) return;
+      if (ev.target.closest(".fg-cockpit-visibility") || ev.target.closest(".fg-cockpit-drag-handle")) return;
+      var card = ev.target.closest(".fg-cockpit-card");
+      if (!card) return;
+      cockpitJumpToWidget(card.getAttribute("data-widget-id"));
     });
 
     // delegação no grid (não no input direto) porque o "Restaurar layout

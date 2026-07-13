@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.51.1**
+**Versão atual: v1.55.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -100,6 +100,23 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.55.0 — 2026-07-13 — Cards "Regras Ativas" e "ClientGuard" do cockpit ficam clicáveis
+
+Pedido do usuário: na Visão Geral, os cards "Regras Ativas (FlowSpec/RTBH)"
+e "ClientGuard" só mostravam um número solto, sem jeito de ver o detalhe
+por trás dele. Agora os dois ficam clicáveis (cursor muda, borda destaca
+no hover) fora do modo de edição do cockpit — clicar em "Regras Ativas"
+leva pra aba Regras, ativa o lado FlowGuard, expande a seção se estiver
+recolhida e rola até a lista RTBH/FlowSpec; clicar em "ClientGuard" leva
+pra aba Incidentes, ativa o lado ClientGuard e rola até "Sinais
+Suspeitos". Mesmo padrão de navegação já usado no `jumpToAttack` e nas
+barras "Ir para" de Incidentes/Regras (`COCKPIT_JUMP_TARGETS`, novo mapa
+id→destino). Drag & drop e o checkbox de visibilidade continuam
+funcionando normalmente durante a edição — o clique de navegação só age
+fora desse modo. Validado com Playwright real (sessão local): clique nos
+dois cards troca de aba, ativa o toggle certo e deixa a subseção visível
+na viewport, sem erros de console associados à mudança.
 
 ### v1.54.0 — 2026-07-12 — Corrige card do cockpit oculto sem volta na Visão Geral
 

@@ -315,6 +315,7 @@
   function showToast(message, type) {
     var container = document.getElementById("fg-toast-container");
     if (!container) return;
+    container.setAttribute("aria-live", type === "error" ? "assertive" : "polite");
     var el = document.createElement("div");
     el.className = "fg-toast fg-toast-" + (type || "info");
     el.textContent = message;
@@ -323,6 +324,22 @@
       el.classList.add("fg-toast-out");
       setTimeout(function () { el.remove(); }, 300);
     }, 4000);
+  }
+
+  // --- estado ativo (toggle/tab) com ARIA sincronizado --------------------
+  // usado por todo botão .fg-toggle-btn / .fg-tab-btn / .fg-btn que funciona
+  // como toggle — mantém a classe visual "active" e o atributo ARIA
+  // correspondente sempre em sincronia, em vez de só a classe (que some pro
+  // leitor de tela e pro print/WhatsApp sem uma segunda pista).
+  function setActive(el, active) {
+    if (!el) return;
+    el.classList.toggle("active", active);
+    if (el.classList.contains("fg-tab-btn")) {
+      if (active) el.setAttribute("aria-current", "page");
+      else el.removeAttribute("aria-current");
+    } else if (el.classList.contains("fg-toggle-btn") || el.classList.contains("fg-btn")) {
+      el.setAttribute("aria-pressed", active ? "true" : "false");
+    }
   }
 
   // --- sort/filter helpers ------------------------------------------------
@@ -348,8 +365,14 @@
   }
 
   function sortableTh(label, key, sort) {
-    var cls = sort.key === key ? "fg-sorted" + (sort.dir === "asc" ? " fg-sorted-asc" : "") : "";
-    return '<th data-sort-key="' + key + '" class="' + cls + '">' + escapeHtml(label) + "</th>";
+    var active = sort.key === key;
+    var cls = active ? "fg-sorted" + (sort.dir === "asc" ? " fg-sorted-asc" : "") : "";
+    var ariaSort = active ? (sort.dir === "asc" ? "ascending" : "descending") : "none";
+    // botão interno em vez de só o th com onclick: dá foco/teclado de graça
+    // (Enter/Espaço num <button> disparam "click", que é o que o listener
+    // delegado de initSortHandlers já escuta via th[data-sort-key])
+    return '<th data-sort-key="' + key + '" scope="col" class="' + cls + '" aria-sort="' + ariaSort + '">' +
+      '<button type="button" class="fg-th-sort-btn">' + escapeHtml(label) + "</button></th>";
   }
 
   // --- paginação genérica (client-side, sobre a lista já filtrada/ordenada) --
@@ -454,12 +477,32 @@
       if (ev.target.closest(".fg-menu-list input")) return;
       var toggle = ev.target.closest("[data-menu-toggle]");
       document.querySelectorAll(".fg-menu-list").forEach(function (list) {
-        if (!toggle || list !== toggle.nextElementSibling) list.hidden = true;
+        if (!toggle || list !== toggle.nextElementSibling) {
+          list.hidden = true;
+          var otherToggle = list.previousElementSibling;
+          if (otherToggle && otherToggle.hasAttribute("data-menu-toggle")) otherToggle.setAttribute("aria-expanded", "false");
+        }
       });
       if (toggle) {
         var list = toggle.nextElementSibling;
-        if (list) list.hidden = !list.hidden;
+        if (list) {
+          list.hidden = !list.hidden;
+          toggle.setAttribute("aria-expanded", list.hidden ? "false" : "true");
+        }
         ev.stopPropagation();
+      }
+    });
+
+    // Escape fecha o menu de ações aberto e devolve o foco pro botão que abriu
+    document.addEventListener("keydown", function (ev) {
+      if (ev.key !== "Escape") return;
+      var openList = document.querySelector(".fg-menu-list:not([hidden])");
+      if (!openList) return;
+      openList.hidden = true;
+      var toggle = openList.previousElementSibling;
+      if (toggle && toggle.hasAttribute("data-menu-toggle")) {
+        toggle.setAttribute("aria-expanded", "false");
+        toggle.focus();
       }
     });
   }
@@ -486,7 +529,10 @@
     if (!body) return;
     body.hidden = collapsed;
     section.classList.toggle("fg-panel-collapsed", collapsed);
-    if (btn) btn.textContent = collapsed ? "▸" : "▾";
+    if (btn) {
+      btn.textContent = collapsed ? "▸" : "▾";
+      btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+    }
   }
 
   // usado por jumpToAttack (clique num ataque no gráfico) — se o operador
@@ -514,6 +560,7 @@
       btn.type = "button";
       btn.className = "fg-panel-collapse-btn";
       btn.setAttribute("aria-label", "Recolher ou expandir este painel");
+      btn.setAttribute("aria-expanded", "true");
       btn.textContent = "▾";
       h2.appendChild(btn);
       h2.classList.add("fg-panel-h2-collapsible");
@@ -576,8 +623,8 @@
       if (!btn) return;
       var tab = btn.getAttribute("data-tab");
       var wasIncidents = document.querySelector('.fg-tab-btn[data-tab="attacks"]').classList.contains("active");
-      document.querySelectorAll(".fg-tab-btn").forEach(function (b) { b.classList.toggle("active", b === btn); });
-      document.querySelectorAll(".fg-tab-panel").forEach(function (p) { p.classList.toggle("active", p.getAttribute("data-tab") === tab); });
+      document.querySelectorAll(".fg-tab-btn").forEach(function (b) { setActive(b, b === btn); });
+      document.querySelectorAll(".fg-tab-panel").forEach(function (p) { setActive(p, p.getAttribute("data-tab") === tab); });
       // saindo da aba Incidentes: marca "visto até aqui" — o que chegar depois
       // disso aparece com o selo "novo" na próxima vez que a aba for aberta
       if (wasIncidents && tab !== "attacks") {
@@ -597,7 +644,7 @@
     var appToggle = document.getElementById("incidents-app-toggle");
     if (appToggle) {
       appToggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) {
-        b.classList.toggle("active", b.getAttribute("data-app") === app);
+        setActive(b, b.getAttribute("data-app") === app);
       });
     }
     document.querySelectorAll("[data-incidents-app]").forEach(function (p) {
@@ -864,10 +911,10 @@
     var jump = COCKPIT_JUMP_TARGETS[id];
     if (!jump) return;
     document.querySelectorAll(".fg-tab-btn").forEach(function (b) {
-      b.classList.toggle("active", b.getAttribute("data-tab") === jump.tab);
+      setActive(b, b.getAttribute("data-tab") === jump.tab);
     });
     document.querySelectorAll(".fg-tab-panel").forEach(function (p) {
-      p.classList.toggle("active", p.getAttribute("data-tab") === jump.tab);
+      setActive(p, p.getAttribute("data-tab") === jump.tab);
     });
     if (jump.setApp) jump.setApp();
     var target = document.getElementById(jump.target);
@@ -1357,7 +1404,7 @@
     el.innerHTML =
       '<table data-table="topPrefixes"><thead><tr>' +
       sortableTh("Prefixo", "dst_prefix", state.sort.topPrefixes) +
-      "<th>Cliente</th>" +
+      "<th scope='col'>Cliente</th>" +
       sortableTh("Tráfego", "bps", state.sort.topPrefixes) +
       sortableTh("Pacotes", "pps", state.sort.topPrefixes) +
       "</tr></thead><tbody>" +
@@ -1403,7 +1450,7 @@
       "<td>" + (a.pps_peak || 0).toLocaleString("pt-BR") + " pps</td>" +
       "<td>" + fgAttackMitigationBadgeHtml(a.mitigation, isGenuinelyActive(a.ts_end, a.ts_last_seen)) + "</td>" +
       '<td><div class="fg-menu">' +
-      '<button class="fg-btn" data-menu-toggle>Ações ▾</button>' +
+      '<button class="fg-btn" data-menu-toggle aria-haspopup="true" aria-expanded="false">Ações ▾</button>' +
       '<div class="fg-menu-list" hidden>' +
       '<button data-action="detail">Detalhes</button>' +
       '<button data-action="analyze">Detalhes IA</button>' +
@@ -1417,8 +1464,8 @@
   }
 
   var ATTACKS_TABLE_HEAD =
-    "<th>Início</th><th>Duração</th><th>Alvo</th><th>Cliente</th><th>Tipo</th><th>Severidade</th>" +
-    "<th>Pico (bps)</th><th>Pico (pps)</th><th>Mitigação</th><th>Ações</th>";
+    "<th scope='col'>Início</th><th scope='col'>Duração</th><th scope='col'>Alvo</th><th scope='col'>Cliente</th><th scope='col'>Tipo</th><th scope='col'>Severidade</th>" +
+    "<th scope='col'>Pico (bps)</th><th scope='col'>Pico (pps)</th><th scope='col'>Mitigação</th><th scope='col'>Ações</th>";
 
   // agrupamento por prefixo (botão "Agrupar por prefixo") — grupo com pior
   // severidade abaixo de high começa colapsado, igual ao padrão da aba
@@ -1448,7 +1495,7 @@
       );
     }).join("");
     return (
-      "<table><thead><tr>" + (state.attacksSelectMode ? "<th></th>" : "") + ATTACKS_TABLE_HEAD + "</tr></thead><tbody>" +
+      "<table><thead><tr>" + (state.attacksSelectMode ? "<th scope='col'></th>" : "") + ATTACKS_TABLE_HEAD + "</tr></thead><tbody>" +
       body + "</tbody></table>"
     );
   }
@@ -1482,7 +1529,7 @@
     var rows = p.pageRows.map(attackRowHtml).join("");
 
     el.innerHTML =
-      "<table><thead><tr>" + (state.attacksSelectMode ? "<th></th>" : "") + ATTACKS_TABLE_HEAD + "</tr></thead><tbody>" +
+      "<table><thead><tr>" + (state.attacksSelectMode ? "<th scope='col'></th>" : "") + ATTACKS_TABLE_HEAD + "</tr></thead><tbody>" +
       rows +
       "</tbody></table>" +
       paginationHtml("attacks", p.page, p.totalPages, p.total);
@@ -1606,12 +1653,12 @@
       '<p class="fg-kpi-sub">' + summaryLine + "</p>" +
       timelineHtml +
       "<h5>Linha do tempo (bps recebido)</h5>" +
-      '<canvas id="fg-attack-detail-chart" width="760" height="140"></canvas>' +
+      '<canvas id="fg-attack-detail-chart" width="760" height="140" role="img" aria-label="Linha do tempo de tráfego recebido — carregando dados"></canvas>' +
       "<h5>Host(s) atacado(s) (top " + topHosts.length + ")</h5>" +
       "<ul>" + hostItems + "</ul>" +
       "<h5>Tráfego por protocolo/porta</h5>" +
-      "<table><thead><tr><th>Protocolo</th><th>Porta</th><th>bps</th><th>pps</th><th>Bytes totais</th>" +
-      "<th>Pacotes totais</th><th>Tam. médio pkt</th><th>Flows</th></tr></thead><tbody>" + portRows + "</tbody></table>" +
+      "<table><thead><tr><th scope='col'>Protocolo</th><th scope='col'>Porta</th><th scope='col'>bps</th><th scope='col'>pps</th><th scope='col'>Bytes totais</th>" +
+      "<th scope='col'>Pacotes totais</th><th scope='col'>Tam. médio pkt</th><th scope='col'>Flows</th></tr></thead><tbody>" + portRows + "</tbody></table>" +
       "<h5>IPs de origem observados (top " + topSources.length + ")</h5>" +
       "<ul>" + sourceItems + "</ul>" +
       '<p class="fg-kpi-sub">Ocorrências = em quantos ciclos de agregação o IP apareceu entre os top 10 daquele grupo — não é volume exato por IP. ' +
@@ -1621,6 +1668,7 @@
     var canvas = document.getElementById("fg-attack-detail-chart");
     if (canvas) {
       drawLineChart(canvas, series, [{ key: "bps", color: "#58a6ff", label: "tráfego (bps)" }]);
+      setCanvasAriaLabel("fg-attack-detail-chart", summarizePeakSeries(series, "bps", "Tráfego recebido em " + prefix));
     }
     if (noteKey) {
       var noteEl = document.getElementById("fg-attack-note");
@@ -1671,7 +1719,7 @@
       state.attacksSelected = {};
       state.attacksSelectMode = false;
       var selectBtn = document.getElementById("fg-attacks-select-btn");
-      if (selectBtn) selectBtn.classList.remove("active");
+      if (selectBtn) setActive(selectBtn, false);
       loadAttacks();
     }).catch(function () {
       showToast("falha ao liberar ataques em lote", "error");
@@ -1758,7 +1806,7 @@
         if (!btn) return;
         state.attacksView = btn.getAttribute("data-view");
         state.page.attacks = 1;
-        toggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { b.classList.toggle("active", b === btn); });
+        toggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { setActive(b, b === btn); });
         if (windowToggle) windowToggle.hidden = state.attacksView !== "history";
         loadAttacks();
       });
@@ -1769,7 +1817,7 @@
         if (!btn) return;
         state.attacksWindow = btn.getAttribute("data-window");
         state.page.attacks = 1;
-        windowToggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { b.classList.toggle("active", b === btn); });
+        windowToggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { setActive(b, b === btn); });
         loadAttacks();
       });
     }
@@ -1780,8 +1828,8 @@
         if (!btn) return;
         var sev = btn.getAttribute("data-sev");
         var idx = state.filter.attacksSeverities.indexOf(sev);
-        if (idx === -1) { state.filter.attacksSeverities.push(sev); btn.classList.add("active"); }
-        else { state.filter.attacksSeverities.splice(idx, 1); btn.classList.remove("active"); }
+        if (idx === -1) { state.filter.attacksSeverities.push(sev); setActive(btn, true); }
+        else { state.filter.attacksSeverities.splice(idx, 1); setActive(btn, false); }
         state.page.attacks = 1;
         renderAttacksFiltered();
       });
@@ -1798,7 +1846,7 @@
     if (groupBtn) {
       groupBtn.addEventListener("click", function () {
         state.attacksGroupBy = !state.attacksGroupBy;
-        groupBtn.classList.toggle("active", state.attacksGroupBy);
+        setActive(groupBtn, state.attacksGroupBy);
         renderAttacksFiltered();
       });
     }
@@ -1806,7 +1854,7 @@
     if (selectBtn) {
       selectBtn.addEventListener("click", function () {
         state.attacksSelectMode = !state.attacksSelectMode;
-        selectBtn.classList.toggle("active", state.attacksSelectMode);
+        setActive(selectBtn, state.attacksSelectMode);
         if (!state.attacksSelectMode) state.attacksSelected = {};
         renderAttacksFiltered();
       });
@@ -1930,9 +1978,9 @@
       })
       .join("");
     el.innerHTML =
-      "<table><thead><tr><th>ID</th><th>Criada em</th><th>Tipo</th><th>Origem</th><th>Destino</th>" +
-      "<th>Protocolo</th><th>Portas</th><th>Equipamento</th><th>Gatilho</th><th>Rótulo</th><th>Ataque</th>" +
-      "<th>Status</th><th>Expira</th><th>Ação</th></tr></thead><tbody>" + rows + "</tbody></table>";
+      "<table><thead><tr><th scope='col'>ID</th><th scope='col'>Criada em</th><th scope='col'>Tipo</th><th scope='col'>Origem</th><th scope='col'>Destino</th>" +
+      "<th scope='col'>Protocolo</th><th scope='col'>Portas</th><th scope='col'>Equipamento</th><th scope='col'>Gatilho</th><th scope='col'>Rótulo</th><th scope='col'>Ataque</th>" +
+      "<th scope='col'>Status</th><th scope='col'>Expira</th><th scope='col'>Ação</th></tr></thead><tbody>" + rows + "</tbody></table>";
   }
 
   // --- verificação ao vivo no roteador (SSH, só leitura) --------------------
@@ -2074,8 +2122,8 @@
       })
       .join("");
     el.innerHTML =
-      "<table><thead><tr><th>Status</th><th>Cliente</th><th>Motivo</th><th>Mecanismo</th><th>Equipamento</th>" +
-      "<th>Gatilho</th><th>Aplicada em</th><th></th></tr></thead><tbody>" + rows + "</tbody></table>" +
+      "<table><thead><tr><th scope='col'>Status</th><th scope='col'>Cliente</th><th scope='col'>Motivo</th><th scope='col'>Mecanismo</th><th scope='col'>Equipamento</th>" +
+      "<th scope='col'>Gatilho</th><th scope='col'>Aplicada em</th><th scope='col'></th></tr></thead><tbody>" + rows + "</tbody></table>" +
       paginationHtml(pageKey, p.page, p.totalPages, p.total);
   }
 
@@ -2218,7 +2266,7 @@
         return;
       }
       state.rulesFgData = data.rules;
-      applyRulesFilter();
+      if (!pollPayloadUnchanged("rulesFg", data.rules)) applyRulesFilter();
       cockpitRefreshAll();
     }).catch(function (err) {
       showError(document.getElementById("rules-fg-list"), "falha ao consultar regras");
@@ -2231,7 +2279,7 @@
         return;
       }
       state.rulesCgEdgeData = data.mitigations;
-      applyRulesFilter();
+      if (!pollPayloadUnchanged("rulesCgEdge", data.mitigations)) applyRulesFilter();
       cockpitRefreshAll();
     }).catch(function (err) {
       showError(document.getElementById("rules-cg-edge-list"), "falha ao consultar mitigações de borda");
@@ -2329,7 +2377,7 @@
     var appToggle = document.getElementById("rules-app-toggle");
     if (appToggle) {
       appToggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) {
-        b.classList.toggle("active", b.getAttribute("data-app") === app);
+        setActive(b, b.getAttribute("data-app") === app);
       });
     }
     applyRulesFilter();
@@ -2372,7 +2420,7 @@
         var btn = ev.target.closest(".fg-toggle-btn");
         if (!btn) return;
         state.rulesView = btn.getAttribute("data-view");
-        viewToggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { b.classList.toggle("active", b === btn); });
+        viewToggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { setActive(b, b === btn); });
         applyRulesFilter();
       });
     }
@@ -2401,7 +2449,7 @@
         var btn = ev.target.closest(".fg-toggle-btn");
         if (!btn) return;
         state.filter.rulesWindow = btn.getAttribute("data-window");
-        windowFilter.querySelectorAll(".fg-toggle-btn").forEach(function (b) { b.classList.toggle("active", b === btn); });
+        windowFilter.querySelectorAll(".fg-toggle-btn").forEach(function (b) { setActive(b, b === btn); });
         applyRulesFilter();
       });
     }
@@ -2412,7 +2460,7 @@
         var btn = ev.target.closest(".fg-toggle-btn");
         if (!btn) return;
         state.blockSource = btn.getAttribute("data-source");
-        blockSourceToggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { b.classList.toggle("active", b === btn); });
+        blockSourceToggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { setActive(b, b === btn); });
       });
     }
   }
@@ -2446,7 +2494,7 @@
           if (viewToggle) {
             state.rulesView = "active";
             viewToggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) {
-              b.classList.toggle("active", b.getAttribute("data-view") === "active");
+              setActive(b, b.getAttribute("data-view") === "active");
             });
           }
         }
@@ -2462,7 +2510,7 @@
       var btn = ev.target.closest(".fg-toggle-btn");
       if (!btn) return;
       state.cfgApp = btn.getAttribute("data-app");
-      appToggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { b.classList.toggle("active", b === btn); });
+      appToggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { setActive(b, b === btn); });
       var fgSection = document.querySelector('[data-cfg-app="flowguard"]');
       var cgSection = document.querySelector('[data-cfg-app="clientguard"]');
       if (fgSection) fgSection.hidden = state.cfgApp !== "flowguard";
@@ -2788,21 +2836,21 @@
       "</div>" +
       '<div class="fg-wm-body"' + (expanded ? "" : " hidden") + ">" +
       '<div class="fg-wm-device-grid">' +
-      '<div><label>Nome</label><input type="text" class="fg-wm-name" value="' + escapeHtml(d.name) + '" placeholder="ex: NE8000BGP"></div>' +
-      '<div><label>Host</label><input type="text" class="fg-wm-host" value="' + escapeHtml(d.host) + '" placeholder="IP de gerência"></div>' +
-      '<div><label>Porta</label><input type="text" class="fg-wm-port" value="' + (d.port || 22) + '"></div>' +
-      '<div><label>Tipo (driver Netmiko)</label><input type="text" class="fg-wm-device-type" value="' + escapeHtml(d.device_type) +
-      '" placeholder="huawei_vrp, a10, cisco_ios..." list="fg-wm-device-types"></div>' +
-      '<div><label>Usuário</label><input type="text" class="fg-wm-username" value="' + escapeHtml(d.username) + '"></div>' +
+      '<div><label>Nome<input type="text" class="fg-wm-name" value="' + escapeHtml(d.name) + '" placeholder="ex: NE8000BGP"></label></div>' +
+      '<div><label>Host<input type="text" class="fg-wm-host" value="' + escapeHtml(d.host) + '" placeholder="IP de gerência"></label></div>' +
+      '<div><label>Porta<input type="text" class="fg-wm-port" value="' + (d.port || 22) + '"></label></div>' +
+      '<div><label>Tipo (driver Netmiko)<input type="text" class="fg-wm-device-type" value="' + escapeHtml(d.device_type) +
+      '" placeholder="huawei_vrp, a10, cisco_ios..." list="fg-wm-device-types"></label></div>' +
+      '<div><label>Usuário<input type="text" class="fg-wm-username" value="' + escapeHtml(d.username) + '"></label></div>' +
       '<div><label>Senha' + (d.has_password ? ' (já definida — deixe em branco pra manter)' : '') +
-      '</label><input type="password" class="fg-wm-password" placeholder="' + (d.has_password ? "••••••••" : "definir senha") + '"></div>' +
+      '<input type="password" class="fg-wm-password" placeholder="' + (d.has_password ? "••••••••" : "definir senha") + '"></label></div>' +
       "</div>" +
       '<label style="margin-top:0.5rem;"><input type="checkbox" class="fg-wm-enable-mode"' + (d.enable_mode ? " checked" : "") +
       '> precisa de "enable" antes dos comandos</label>' +
-      '<label>Comandos (um por linha)</label>' +
-      '<textarea class="fg-wm-commands" placeholder="ex: display version">' + escapeHtml((d.commands || []).join("\n")) + "</textarea>" +
-      '<label>Comandos de reversão (um por linha) — rodados no 2º clique do botão único do Modo Guerra, pra desfazer os comandos acima</label>' +
-      '<textarea class="fg-wm-revert-commands" placeholder="ex: system-view / undo acl number 3006 / quit">' + escapeHtml((d.revert_commands || []).join("\n")) + "</textarea>" +
+      '<label>Comandos (um por linha)' +
+      '<textarea class="fg-wm-commands" placeholder="ex: display version">' + escapeHtml((d.commands || []).join("\n")) + "</textarea></label>" +
+      '<label>Comandos de reversão (um por linha) — rodados no 2º clique do botão único do Modo Guerra, pra desfazer os comandos acima' +
+      '<textarea class="fg-wm-revert-commands" placeholder="ex: system-view / undo acl number 3006 / quit">' + escapeHtml((d.revert_commands || []).join("\n")) + "</textarea></label>" +
       '<div class="fg-wm-test-row">' +
       '<button type="button" class="fg-btn" data-action="test-device">Testar conexão</button>' +
       '<span class="fg-kpi-sub">só autentica por SSH, nenhum comando é enviado</span>' +
@@ -3190,17 +3238,17 @@
     el.innerHTML =
       '<p class="fg-kpi-sub">AS local: <strong>' + escapeHtml(d.local_as || "?") + "</strong></p>" +
       "<h4>Peers BGP (" + d.peers.length + ")</h4>" +
-      "<table><thead><tr><th>IP</th><th>AS remoto</th><th>Descrição</th><th>Estado</th><th></th></tr></thead><tbody>" +
+      "<table><thead><tr><th scope='col'>IP</th><th scope='col'>AS remoto</th><th scope='col'>Descrição</th><th scope='col'>Estado</th><th scope='col'></th></tr></thead><tbody>" +
       (peersRows || '<tr><td colspan="5">nenhum peer encontrado</td></tr>') + "</tbody></table>" +
       '<div id="fg-rc-peer-routes"></div>' +
       "<h4>Prefixos anunciados (" + d.networks.length + ")</h4>" +
-      "<table><thead><tr><th>CIDR</th></tr></thead><tbody>" +
+      "<table><thead><tr><th scope='col'>CIDR</th></tr></thead><tbody>" +
       (netsRows || '<tr><td>nenhum</td></tr>') + "</tbody></table>" +
       "<h4>Interfaces (" + (d.interfaces || []).length + ")</h4>" +
-      "<table><thead><tr><th>Nome</th><th>IP</th><th>Físico</th><th>Protocolo</th></tr></thead><tbody>" +
+      "<table><thead><tr><th scope='col'>Nome</th><th scope='col'>IP</th><th scope='col'>Físico</th><th scope='col'>Protocolo</th></tr></thead><tbody>" +
       (ifRows || '<tr><td colspan="4">nenhuma interface encontrada</td></tr>') + "</tbody></table>" +
       "<h4>VLANs (" + (d.vlans || []).length + ")</h4>" +
-      "<table><thead><tr><th>VID</th><th>Nome</th><th>Status</th><th>Portas</th></tr></thead><tbody>" +
+      "<table><thead><tr><th scope='col'>VID</th><th scope='col'>Nome</th><th scope='col'>Status</th><th scope='col'>Portas</th></tr></thead><tbody>" +
       (vlanRows || '<tr><td colspan="4">nenhuma VLAN encontrada</td></tr>') + "</tbody></table>";
   }
 
@@ -3210,8 +3258,8 @@
     var dirLabel = direction === "received" ? "recebidas de" : "anunciadas para";
     var toggle =
       '<div class="fg-toggle-group" style="margin:0.4rem 0;">' +
-      '<button class="fg-toggle-btn' + (direction === "advertised" ? " active" : "") + '" data-rc-routes-dir="advertised" data-rc-routes-peer="' + escapeHtml(peerIp) + '">Anunciadas</button>' +
-      '<button class="fg-toggle-btn' + (direction === "received" ? " active" : "") + '" data-rc-routes-dir="received" data-rc-routes-peer="' + escapeHtml(peerIp) + '">Recebidas</button>' +
+      '<button class="fg-toggle-btn' + (direction === "advertised" ? " active" : "") + '" aria-pressed="' + (direction === "advertised" ? "true" : "false") + '" data-rc-routes-dir="advertised" data-rc-routes-peer="' + escapeHtml(peerIp) + '">Anunciadas</button>' +
+      '<button class="fg-toggle-btn' + (direction === "received" ? " active" : "") + '" aria-pressed="' + (direction === "received" ? "true" : "false") + '" data-rc-routes-dir="received" data-rc-routes-peer="' + escapeHtml(peerIp) + '">Recebidas</button>' +
       "</div>";
     if (!data) {
       el.innerHTML = '<div class="fg-rc-job"><strong>Rotas ' + dirLabel + " " + escapeHtml(peerIp) + "</strong>" + toggle + '<p class="fg-kpi-sub">Consultando...</p></div>';
@@ -3455,7 +3503,7 @@
         );
       })
       .join("");
-    el.innerHTML = "<table><thead><tr><th>Quando</th><th>Template</th><th>Status</th></tr></thead><tbody>" + rows + "</tbody></table>";
+    el.innerHTML = "<table><thead><tr><th scope='col'>Quando</th><th scope='col'>Template</th><th scope='col'>Status</th></tr></thead><tbody>" + rows + "</tbody></table>";
   }
 
   function loadRouterCfgHistory() {
@@ -3567,19 +3615,20 @@
     state.fgDetectionCfg = detection || {};
     el.innerHTML = FG_DETECTION_CFG_FIELDS.map(function (f) {
       var val = state.fgDetectionCfg[f.key];
+      var fieldId = "fg-detection-cfg-" + f.key;
       var fieldHtml;
       if (f.type === "boolean") {
-        fieldHtml = '<select data-detection-key="' + f.key + '" data-detection-type="boolean">' +
+        fieldHtml = '<select id="' + fieldId + '" data-detection-key="' + f.key + '" data-detection-type="boolean">' +
           '<option value="true"' + (val !== false ? " selected" : "") + ">sim</option>" +
           '<option value="false"' + (val === false ? " selected" : "") + ">não</option></select>";
       } else {
         var inputVal = f.type === "mbps" ? (val != null ? val / 1e6 : "") : (val != null ? val : "");
-        fieldHtml = '<input type="text" data-detection-key="' + f.key + '" data-detection-type="' + f.type +
+        fieldHtml = '<input type="text" id="' + fieldId + '" data-detection-key="' + f.key + '" data-detection-type="' + f.type +
           '" value="' + escapeHtml(String(inputVal)) + '">';
       }
       return (
         '<div style="margin-bottom:0.7rem;">' +
-        '<label style="display:block; font-weight:600; margin-bottom:0.15rem;">' + escapeHtml(f.label) + "</label>" +
+        '<label for="' + fieldId + '" style="display:block; font-weight:600; margin-bottom:0.15rem;">' + escapeHtml(f.label) + "</label>" +
         '<p class="fg-kpi-sub" style="margin:0 0 0.3rem;">' + escapeHtml(f.desc) + "</p>" +
         fieldHtml +
         "</div>"
@@ -3669,7 +3718,7 @@
       );
     }).join("");
     el.innerHTML =
-      "<table><thead><tr><th>Nome</th><th>Limiar DDoS</th><th>Limiar pps</th><th>Limiar amplificação</th><th>Descrição</th><th></th></tr></thead><tbody>" +
+      "<table><thead><tr><th scope='col'>Nome</th><th scope='col'>Limiar DDoS</th><th scope='col'>Limiar pps</th><th scope='col'>Limiar amplificação</th><th scope='col'>Descrição</th><th scope='col'></th></tr></thead><tbody>" +
       rows + "</tbody></table>";
   }
 
@@ -3770,7 +3819,7 @@
 
     el.innerHTML =
       "<h4>Prefixos monitorados</h4>" +
-      "<table><thead><tr><th>Prefixo</th><th>Cliente</th><th>Capacidade</th><th>Auto-mitigar</th><th>Limiar bps</th><th>Limiar amplif.</th><th>Template</th><th></th></tr></thead><tbody>" +
+      "<table><thead><tr><th scope='col'>Prefixo</th><th scope='col'>Cliente</th><th scope='col'>Capacidade</th><th scope='col'>Auto-mitigar</th><th scope='col'>Limiar bps</th><th scope='col'>Limiar amplif.</th><th scope='col'>Template</th><th scope='col'></th></tr></thead><tbody>" +
       prefixRows +
       "</tbody></table>" +
       '<form id="fg-monitor-form" class="fg-form">' +
@@ -3784,7 +3833,7 @@
       '<label><input type="checkbox" name="notify_wa"> notificar WhatsApp</label>' +
       '<button type="submit" class="fg-btn">Salvar</button></form>' +
       "<h4>Whitelist</h4>" +
-      "<table><thead><tr><th>Prefixo</th><th></th></tr></thead><tbody>" +
+      "<table><thead><tr><th scope='col'>Prefixo</th><th scope='col'></th></tr></thead><tbody>" +
       wlRows +
       "</tbody></table>" +
       '<form id="fg-whitelist-form" class="fg-form">' +
@@ -4025,8 +4074,8 @@
       })
       .join("");
     el.innerHTML =
-      "<table><thead><tr><th>src_ip</th><th>Cliente</th><th>Tráfego</th><th>Pacotes</th><th>Flows</th>" +
-      "<th>Ações</th></tr></thead><tbody>" + body + "</tbody></table>";
+      "<table><thead><tr><th scope='col'>src_ip</th><th scope='col'>Cliente</th><th scope='col'>Tráfego</th><th scope='col'>Pacotes</th><th scope='col'>Flows</th>" +
+      "<th scope='col'>Ações</th></tr></thead><tbody>" + body + "</tbody></table>";
   }
 
   function loadCgTop() {
@@ -4061,7 +4110,7 @@
       var btn = ev.target.closest(".fg-toggle-btn");
       if (!btn) return;
       state.cgTopWindow = Number(btn.getAttribute("data-window-s"));
-      toggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { b.classList.toggle("active", b === btn); });
+      toggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { setActive(b, b === btn); });
       loadCgTop();
       var detailEl = document.getElementById("cg-client-detail");
       if (detailEl) detailEl.innerHTML = "";
@@ -4092,14 +4141,15 @@
       '<div class="fg-ai-panel"><div class="fg-panel-header"><h4>Consumo de dados — ' + escapeHtml(srcIp) + "</h4>" +
       '<button class="fg-btn" data-action="close-detail">Fechar</button></div>' +
       "<h5>Tráfego ao longo do tempo</h5>" +
-      '<canvas id="cg-client-detail-chart" width="760" height="160"></canvas>' +
+      '<canvas id="cg-client-detail-chart" width="760" height="160" role="img" aria-label="Tráfego do cliente ao longo do tempo — carregando dados"></canvas>' +
       "<h5>Top destinos (" + (data.top_destinations || []).length + ")</h5>" +
-      "<table><thead><tr><th>Destino</th><th>Protocolo</th><th>Porta</th><th>ASN/País</th>" +
-      "<th>Tráfego</th><th>Pacotes</th></tr></thead><tbody>" + destRows + "</tbody></table>" +
+      "<table><thead><tr><th scope='col'>Destino</th><th scope='col'>Protocolo</th><th scope='col'>Porta</th><th scope='col'>ASN/País</th>" +
+      "<th scope='col'>Tráfego</th><th scope='col'>Pacotes</th></tr></thead><tbody>" + destRows + "</tbody></table>" +
       "</div>";
     var canvas = document.getElementById("cg-client-detail-chart");
     if (canvas) {
       drawLineChart(canvas, data.timeseries || [], [{ key: "bps", color: "#58a6ff", label: "Tráfego" }]);
+      setCanvasAriaLabel("cg-client-detail-chart", summarizePeakSeries(data.timeseries || [], "bps", "Tráfego de " + srcIp));
     }
     el.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -4171,8 +4221,8 @@
   }
 
   var CG_SUSPICIOUS_TABLE_HEAD =
-    "<th>src_ip</th><th>Cliente</th><th>Sinal</th><th>Confiança</th><th>Detectado</th>" +
-    "<th>Última vez</th><th>Mitigação</th><th>Ações</th>";
+    "<th scope='col'>src_ip</th><th scope='col'>Cliente</th><th scope='col'>Sinal</th><th scope='col'>Confiança</th><th scope='col'>Detectado</th>" +
+    "<th scope='col'>Última vez</th><th scope='col'>Mitigação</th><th scope='col'>Ações</th>";
 
   function renderCgSuspiciousGrouped(rows) {
     var groups = {};
@@ -4198,7 +4248,7 @@
       );
     }).join("");
     return (
-      "<table><thead><tr>" + (state.cgSuspiciousSelectMode ? "<th></th>" : "") + CG_SUSPICIOUS_TABLE_HEAD + "</tr></thead><tbody>" +
+      "<table><thead><tr>" + (state.cgSuspiciousSelectMode ? "<th scope='col'></th>" : "") + CG_SUSPICIOUS_TABLE_HEAD + "</tr></thead><tbody>" +
       body + "</tbody></table>"
     );
   }
@@ -4230,7 +4280,7 @@
     }
     var body = rows.map(cgSuspiciousRowHtml).join("");
     el.innerHTML =
-      "<table><thead><tr>" + (state.cgSuspiciousSelectMode ? "<th></th>" : "") + CG_SUSPICIOUS_TABLE_HEAD + "</tr></thead><tbody>" +
+      "<table><thead><tr>" + (state.cgSuspiciousSelectMode ? "<th scope='col'></th>" : "") + CG_SUSPICIOUS_TABLE_HEAD + "</tr></thead><tbody>" +
       body + "</tbody></table>";
     refreshCgSuspiciousBulkBar();
   }
@@ -4246,7 +4296,7 @@
       // contagem do badge é sobre o total não filtrado (a busca é só uma
       // lente sobre a mesma lista, não deve mudar quantos sinais existem)
       if (state.cgSuspiciousView === "open") updateCgBadge(data.suspicious.length);
-      renderCgSuspiciousFiltered();
+      if (!pollPayloadUnchanged("cgSuspicious:" + state.cgSuspiciousView, data.suspicious)) renderCgSuspiciousFiltered();
     }).catch(function (err) {
       showError(document.getElementById("cg-suspicious"), "falha ao consultar sinais suspeitos");
       console.error("flowguard.js:", err);
@@ -4385,7 +4435,7 @@
       state.cgSuspiciousSelected = {};
       state.cgSuspiciousSelectMode = false;
       var selectBtn = document.getElementById("cg-suspicious-select-btn");
-      if (selectBtn) selectBtn.classList.remove("active");
+      if (selectBtn) setActive(selectBtn, false);
       loadClientGuardSuspicious();
     }).catch(function () {
       showToast("falha ao resolver sinais em lote", "error");
@@ -4461,7 +4511,7 @@
         var btn = ev.target.closest(".fg-toggle-btn");
         if (!btn) return;
         state.cgSuspiciousView = btn.getAttribute("data-view");
-        toggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { b.classList.toggle("active", b === btn); });
+        toggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { setActive(b, b === btn); });
         loadClientGuardSuspicious();
       });
     }
@@ -4472,8 +4522,8 @@
         if (!btn) return;
         var sev = btn.getAttribute("data-sev");
         var idx = state.filter.cgSuspiciousSeverities.indexOf(sev);
-        if (idx === -1) { state.filter.cgSuspiciousSeverities.push(sev); btn.classList.add("active"); }
-        else { state.filter.cgSuspiciousSeverities.splice(idx, 1); btn.classList.remove("active"); }
+        if (idx === -1) { state.filter.cgSuspiciousSeverities.push(sev); setActive(btn, true); }
+        else { state.filter.cgSuspiciousSeverities.splice(idx, 1); setActive(btn, false); }
         renderCgSuspiciousFiltered();
       });
     }
@@ -4488,7 +4538,7 @@
     if (groupBtn) {
       groupBtn.addEventListener("click", function () {
         state.cgSuspiciousGroupBy = !state.cgSuspiciousGroupBy;
-        groupBtn.classList.toggle("active", state.cgSuspiciousGroupBy);
+        setActive(groupBtn, state.cgSuspiciousGroupBy);
         renderCgSuspiciousFiltered();
       });
     }
@@ -4496,7 +4546,7 @@
     if (selectBtn) {
       selectBtn.addEventListener("click", function () {
         state.cgSuspiciousSelectMode = !state.cgSuspiciousSelectMode;
-        selectBtn.classList.toggle("active", state.cgSuspiciousSelectMode);
+        setActive(selectBtn, state.cgSuspiciousSelectMode);
         if (!state.cgSuspiciousSelectMode) state.cgSuspiciousSelected = {};
         renderCgSuspiciousFiltered();
       });
@@ -4516,11 +4566,12 @@
       var inputVal = f.type === "ports"
         ? (Array.isArray(val) ? val.join(", ") : "")
         : (val != null ? val : "");
+      var fieldId = "cg-detection-cfg-" + f.key;
       return (
         '<div style="margin-bottom:0.7rem;">' +
-        '<label style="display:block; font-weight:600; margin-bottom:0.15rem;">' + escapeHtml(f.label) + "</label>" +
+        '<label for="' + fieldId + '" style="display:block; font-weight:600; margin-bottom:0.15rem;">' + escapeHtml(f.label) + "</label>" +
         '<p class="fg-kpi-sub" style="margin:0 0 0.3rem;">' + escapeHtml(f.desc) + "</p>" +
-        '<input type="text" data-detection-key="' + f.key + '" data-detection-type="' + f.type +
+        '<input type="text" id="' + fieldId + '" data-detection-key="' + f.key + '" data-detection-type="' + f.type +
         '" value="' + escapeHtml(String(inputVal)) + '">' +
         "</div>"
       );
@@ -4608,7 +4659,7 @@
       );
     }).join("");
     el.innerHTML =
-      "<table><thead><tr><th>Nome</th><th>Hosts (horizontal)</th><th>Portas (vertical)</th><th>Descrição</th><th></th></tr></thead><tbody>" +
+      "<table><thead><tr><th scope='col'>Nome</th><th scope='col'>Hosts (horizontal)</th><th scope='col'>Portas (vertical)</th><th scope='col'>Descrição</th><th scope='col'></th></tr></thead><tbody>" +
       rows + "</tbody></table>";
   }
 
@@ -4651,7 +4702,7 @@
       })
       .join("");
     el.innerHTML =
-      "<table><thead><tr><th>Rede</th><th>Rótulo</th><th>Nome</th><th>Template</th><th>Multiplicador</th><th></th></tr></thead><tbody>" +
+      "<table><thead><tr><th scope='col'>Rede</th><th scope='col'>Rótulo</th><th scope='col'>Nome</th><th scope='col'>Template</th><th scope='col'>Multiplicador</th><th scope='col'></th></tr></thead><tbody>" +
       rows + "</tbody></table>";
   }
 
@@ -4670,7 +4721,7 @@
         );
       })
       .join("");
-    el.innerHTML = "<table><thead><tr><th>IP</th><th></th></tr></thead><tbody>" + rows + "</tbody></table>";
+    el.innerHTML = "<table><thead><tr><th scope='col'>IP</th><th scope='col'></th></tr></thead><tbody>" + rows + "</tbody></table>";
   }
 
   function loadClientGuardCfg() {
@@ -4964,11 +5015,12 @@
       }
       var val = values[f.key];
       var inputVal = val != null ? val : "";
+      var fieldId = containerId + "-" + f.key;
       return (
         '<div style="margin-bottom:0.7rem;">' +
-        '<label style="display:block; font-weight:600; margin-bottom:0.15rem;">' + escapeHtml(f.label) + "</label>" +
+        '<label for="' + fieldId + '" style="display:block; font-weight:600; margin-bottom:0.15rem;">' + escapeHtml(f.label) + "</label>" +
         '<p class="fg-kpi-sub" style="margin:0 0 0.3rem;">' + escapeHtml(f.desc) + "</p>" +
-        '<input type="text" data-kv-key="' + f.key + '" data-kv-type="number" value="' + escapeHtml(String(inputVal)) + '"></div>'
+        '<input type="text" id="' + fieldId + '" data-kv-key="' + f.key + '" data-kv-type="number" value="' + escapeHtml(String(inputVal)) + '"></div>'
       );
     }).join("");
   }
@@ -5193,6 +5245,7 @@
     s.ctx.textAlign = "center";
     s.ctx.fillText(message, s.w / 2, s.h / 2);
     s.ctx.textAlign = "left";
+    canvas.setAttribute("aria-label", message);
   }
 
   function pad2(n) {
@@ -5618,24 +5671,24 @@
     state.attacksWindow = "7d";
     state.filter.attacksPrefix = attack.dst_prefix || "";
     document.querySelectorAll(".fg-tab-btn").forEach(function (b) {
-      b.classList.toggle("active", b.getAttribute("data-tab") === "attacks");
+      setActive(b, b.getAttribute("data-tab") === "attacks");
     });
     document.querySelectorAll(".fg-tab-panel").forEach(function (p) {
-      p.classList.toggle("active", p.getAttribute("data-tab") === "attacks");
+      setActive(p, p.getAttribute("data-tab") === "attacks");
     });
     setIncidentsApp("flowguard");
     expandPanelSectionsIn(document.querySelector('.fg-tab-panel[data-tab="attacks"]'));
     var viewToggle = document.getElementById("fg-attacks-view-toggle");
     if (viewToggle) {
       viewToggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) {
-        b.classList.toggle("active", b.getAttribute("data-view") === "history");
+        setActive(b, b.getAttribute("data-view") === "history");
       });
     }
     var windowToggle = document.getElementById("fg-attacks-window");
     if (windowToggle) {
       windowToggle.hidden = false;
       windowToggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) {
-        b.classList.toggle("active", b.getAttribute("data-window") === "7d");
+        setActive(b, b.getAttribute("data-window") === "7d");
       });
     }
     var prefixFilter = document.getElementById("fg-attacks-prefix-filter");
@@ -5709,6 +5762,53 @@
     return { peak: peak, avg: n ? sum / n : 0 };
   }
 
+  // --- resumo textual de gráficos canvas (acessibilidade) -------------------
+  // canvas não expõe conteúdo pra leitor de tela — cada gráfico ganha
+  // role="img" (no HTML) e aqui a gente mantém o aria-label sincronizado com
+  // um resumo curto e dinâmico dos dados desenhados, pra sobreviver sem visão.
+  function setCanvasAriaLabel(canvasId, text) {
+    var canvas = document.getElementById(canvasId);
+    if (canvas) canvas.setAttribute("aria-label", text);
+  }
+
+  // pico de uma série (linha única, ex.: bps de um ataque/cliente) com o
+  // horário em que ocorreu — usado nos gráficos de detalhe (ataque/cliente)
+  function summarizePeakSeries(series, key, label) {
+    if (!series || !series.length) return label + ": sem dados na janela selecionada.";
+    var peak = 0, peakTs = null;
+    series.forEach(function (pt) {
+      var v = pt[key] || 0;
+      if (v >= peak) { peak = v; peakTs = pt.ts; }
+    });
+    return label + " — pico " + fmtBps(peak) + (peakTs ? " às " + fmtDateTime(peakTs) : "") + ".";
+  }
+
+  // pico do total empilhado (soma das chaves em cada ponto) — usado no
+  // gráfico de tráfego por protocolo (área empilhada TCP/UDP/ICMP/Outro)
+  function summarizeStackedPeak(series, keys, keyLabels) {
+    if (!series || !series.length) return "Tráfego por protocolo: sem dados na janela selecionada.";
+    var peakTotal = 0, peakTs = null, peakBreakdown = null;
+    series.forEach(function (pt) {
+      var total = 0;
+      keys.forEach(function (k) { total += pt[k] || 0; });
+      if (total >= peakTotal) { peakTotal = total; peakTs = pt.ts; peakBreakdown = pt; }
+    });
+    var topKeyIdx = 0;
+    keys.forEach(function (k, i) { if (peakBreakdown && (peakBreakdown[k] || 0) > (peakBreakdown[keys[topKeyIdx]] || 0)) topKeyIdx = i; });
+    var topLabel = keyLabels ? keyLabels[topKeyIdx] : keys[topKeyIdx];
+    return "Tráfego por protocolo — pico total " + fmtBps(peakTotal) + (peakTs ? " às " + fmtDateTime(peakTs) : "") +
+      ", predominância " + topLabel + ".";
+  }
+
+  // resumo da linha do tempo de incidentes (Gantt por severidade)
+  function summarizeTimeline(attacks, windowLabel) {
+    if (!attacks || !attacks.length) return "Linha do tempo de ataques: nenhum incidente na janela " + windowLabel + ".";
+    var bySev = {};
+    attacks.forEach(function (a) { bySev[a.severity] = (bySev[a.severity] || 0) + 1; });
+    var parts = Object.keys(bySev).map(function (sev) { return bySev[sev] + " " + sev; }).join(", ");
+    return "Linha do tempo de ataques (" + windowLabel + ") — " + attacks.length + " incidente(s): " + parts + ".";
+  }
+
   // tabela-resumo (pico/média/% de utilização da capacidade contratada) por
   // barramento — 1 linha no modo individual, N ordenadas por pico no modo
   // "Todos". % usa a mesma fórmula já usada no flowguard-cli.py.
@@ -5732,7 +5832,7 @@
       })
       .join("");
     el.innerHTML =
-      "<table><thead><tr><th>Barramento</th><th>Cliente</th><th>Pico (in)</th><th>Média (in)</th><th>Utilização</th></tr></thead><tbody>" +
+      "<table><thead><tr><th scope='col'>Barramento</th><th scope='col'>Cliente</th><th scope='col'>Pico (in)</th><th scope='col'>Média (in)</th><th scope='col'>Utilização</th></tr></thead><tbody>" +
       body + "</tbody></table>";
   }
 
@@ -5847,7 +5947,7 @@
         "</td></tr>";
     }).join("");
     el.innerHTML =
-      "<table><thead><tr><th>Cliente (src_ip)</th><th>Tráfego na janela</th></tr></thead><tbody>" + body + "</tbody></table>";
+      "<table><thead><tr><th scope='col'>Cliente (src_ip)</th><th scope='col'>Tráfego na janela</th></tr></thead><tbody>" + body + "</tbody></table>";
   }
 
   function loadCharts() {
@@ -5908,13 +6008,14 @@
           });
           drawLineChart(canvas, data.series, lines, null);
           if (legendEl) renderChartLegend(legendEl, lines);
-          if (summaryEl) {
-            var rows = prefixes.map(function (p) {
-              var stats = computePeakAvg(data.series, p.prefix);
-              return { prefix: p.prefix, customer: p.customer, peakBps: stats.peak, avgBps: stats.avg, capacityMbps: p.capacity_mbps };
-            });
-            renderChartSummary(summaryEl, rows);
-          }
+          var rows = prefixes.map(function (p) {
+            var stats = computePeakAvg(data.series, p.prefix);
+            return { prefix: p.prefix, customer: p.customer, peakBps: stats.peak, avgBps: stats.avg, capacityMbps: p.capacity_mbps };
+          });
+          if (summaryEl) renderChartSummary(summaryEl, rows);
+          var topRow = rows.reduce(function (best, r) { return (!best || r.peakBps > best.peakBps) ? r : best; }, null);
+          setCanvasAriaLabel("fg-chart-traffic", "Tráfego de entrada por barramento — " + rows.length + " barramento(s)" +
+            (topRow ? ", pico " + fmtBps(topRow.peakBps) + " em " + topRow.prefix : "") + ".");
         } else {
           var series = data.series.map(function (pt) {
             var withExtra = { ts: pt.ts, bps_in: pt.bps_in, bps_out: pt.bps_out };
@@ -5951,13 +6052,14 @@
           }
           drawLineChart(canvas, series, chartLines, band, attacksOverlay);
           if (legendEl) renderChartLegend(legendEl, legendItems);
+          var stats = computePeakAvg(series, "bps_in");
+          var meta = state.chart.prefixMeta[state.chart.prefix] || {};
           if (summaryEl) {
-            var stats = computePeakAvg(series, "bps_in");
-            var meta = state.chart.prefixMeta[state.chart.prefix] || {};
             renderChartSummary(summaryEl, [
               { prefix: state.chart.prefix, customer: meta.customer, peakBps: stats.peak, avgBps: stats.avg, capacityMbps: data.capacity_mbps },
             ]);
           }
+          setCanvasAriaLabel("fg-chart-traffic", summarizePeakSeries(series, "bps_in", "Tráfego de entrada em " + state.chart.prefix));
         }
       });
 
@@ -5967,7 +6069,10 @@
       var canvas = document.getElementById("fg-chart-protocol");
       if (!canvas) return;
       if (!data.ok) { drawEmpty(canvas, data.error || "erro ao carregar"); return; }
-      drawStackedArea(canvas, data.series, ["tcp", "udp", "icmp", "other"], ["#58a6ff", "#3fb950", "#d29922", "#8b949e"], ["TCP", "UDP", "ICMP", "Outro"]);
+      var protoKeys = ["tcp", "udp", "icmp", "other"];
+      var protoLabels = ["TCP", "UDP", "ICMP", "Outro"];
+      drawStackedArea(canvas, data.series, protoKeys, ["#58a6ff", "#3fb950", "#d29922", "#8b949e"], protoLabels);
+      setCanvasAriaLabel("fg-chart-protocol", summarizeStackedPeak(data.series, protoKeys, protoLabels));
     });
 
     attacksPromise.then(function (data) {
@@ -5978,6 +6083,7 @@
       if (!data.ok) { drawEmpty(canvas, data.error || "erro ao carregar"); return; }
       var windowSeconds = { "1h": 3600, "6h": 21600, "24h": 86400, "7d": 604800 }[windowName] || 21600;
       drawTimeline(canvas, data.attacks, windowSeconds);
+      setCanvasAriaLabel("fg-chart-timeline", summarizeTimeline(data.attacks, windowName));
     });
 
     if (isAll) {
@@ -6013,7 +6119,7 @@
       })
       .join("");
     el.innerHTML =
-      "<table><thead><tr><th>Host</th><th>Presença na janela</th></tr></thead><tbody>" + rows + "</tbody></table>" +
+      "<table><thead><tr><th scope='col'>Host</th><th scope='col'>Presença na janela</th></tr></thead><tbody>" + rows + "</tbody></table>" +
       '<p class="fg-kpi-sub">Presença = em quantos ciclos de agregação o host apareceu entre os top 10 de destino do prefixo — não é volume exato por host.</p>';
   }
 
@@ -6035,7 +6141,7 @@
     if (isCg && (state.chart.window === "24h" || state.chart.window === "7d")) {
       state.chart.window = "6h";
       windowToggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) {
-        b.classList.toggle("active", b.getAttribute("data-window") === "6h");
+        setActive(b, b.getAttribute("data-window") === "6h");
       });
     }
   }
@@ -6055,7 +6161,7 @@
         var btn = ev.target.closest(".fg-toggle-btn");
         if (!btn || btn.disabled) return;
         state.chart.window = btn.getAttribute("data-window");
-        windowToggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { b.classList.toggle("active", b === btn); });
+        windowToggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { setActive(b, b === btn); });
         loadCharts();
       });
     }
@@ -6088,8 +6194,10 @@
       renderKpis(data);
       if (data.ok) {
         state.topPrefixes = data.top_prefixes;
-        renderSparklines(data.protocol_series);
-        renderTopPrefixesFiltered();
+        if (!pollPayloadUnchanged("status:lists", { tp: data.top_prefixes, ps: data.protocol_series })) {
+          renderSparklines(data.protocol_series);
+          renderTopPrefixesFiltered();
+        }
       } else {
         showError(document.getElementById("flowguard-top-prefixes"), data.error);
       }
@@ -6110,7 +6218,7 @@
         return;
       }
       state.attacks = data.attacks;
-      renderAttacksFiltered();
+      if (!pollPayloadUnchanged("attacks:" + state.attacksView, data.attacks)) renderAttacksFiltered();
       cockpitRefreshAll();
     }).catch(function (err) {
       showError(document.getElementById("flowguard-attacks"), "falha ao consultar ataques");
@@ -6125,7 +6233,7 @@
         return;
       }
       state.flows = data.flows;
-      renderFlowsFiltered();
+      if (!pollPayloadUnchanged("flows", data.flows)) renderFlowsFiltered();
     }).catch(function (err) {
       showError(document.getElementById("flowguard-flows"), "falha ao consultar flows");
       console.error("flowguard.js:", err);
@@ -6383,8 +6491,8 @@
     }).join("");
     var rtbhTtlMin = Math.round((profiles[RTBH_TTL_KEY] || 3600) / 60);
     el.innerHTML =
-      "<table><thead><tr><th>Tipo de ataque</th><th>Estratégia</th><th>Limiar de pacote</th>" +
-      "<th>Limite de banda</th><th>Automático</th></tr></thead><tbody>" + rows + "</tbody></table>" +
+      "<table><thead><tr><th scope='col'>Tipo de ataque</th><th scope='col'>Estratégia</th><th scope='col'>Limiar de pacote</th>" +
+      "<th scope='col'>Limite de banda</th><th scope='col'>Automático</th></tr></thead><tbody>" + rows + "</tbody></table>" +
       '<p class="fg-rtbh-ttl-row"><label>Duração padrão do bloqueio RTBH (botão "Mitigar" e ' +
       'automático): <input type="number" min="1" step="1" id="fg-rtbh-ttl-input" value="' +
       rtbhTtlMin + '"> minutos</label> <span class="fg-kpi-sub">(pode ser sobrescrita pontualmente ' +
@@ -6622,8 +6730,8 @@
       );
     }).join("");
     el.innerHTML =
-      "<table><thead><tr><th>Início</th><th>Prefixo</th><th>Src IP</th><th>Tipo</th><th>Severidade</th>" +
-      "<th>Contagem</th><th>Pico (pps)</th><th>Status</th><th>Ações</th></tr></thead><tbody>" +
+      "<table><thead><tr><th scope='col'>Início</th><th scope='col'>Prefixo</th><th scope='col'>Src IP</th><th scope='col'>Tipo</th><th scope='col'>Severidade</th>" +
+      "<th scope='col'>Contagem</th><th scope='col'>Pico (pps)</th><th scope='col'>Status</th><th scope='col'>Ações</th></tr></thead><tbody>" +
       rows + "</tbody></table>" +
       paginationHtml("scanOffenders", p.page, p.totalPages, p.total);
   }
@@ -6640,7 +6748,7 @@
         state.incidents.openScans = state.scanOffenders.filter(function (o) { return !o.mitigated; }).length;
         updateIncidentsBadge();
       }
-      renderFgScanOffenders(state.scanOffenders);
+      if (!pollPayloadUnchanged("scanOffenders:" + state.scanView, state.scanOffenders)) renderFgScanOffenders(state.scanOffenders);
     }).catch(function (err) {
       showError(document.getElementById("fg-scan-offenders"), "falha ao consultar scanners detectados");
       console.error("flowguard.js:", err);
@@ -6669,7 +6777,7 @@
         if (!btn) return;
         state.scanView = btn.getAttribute("data-view");
         state.page.scanOffenders = 1;
-        toggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { b.classList.toggle("active", b === btn); });
+        toggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { setActive(b, b === btn); });
         loadFgScanOffenders();
       });
     }
@@ -6754,8 +6862,8 @@
       );
     }).join("");
     el.innerHTML =
-      "<table><thead><tr><th>Início</th><th>Prefixo</th><th>Dst IP</th><th>Porta</th><th>Protocolo</th>" +
-      "<th>Severidade</th><th>Fontes</th><th>Pico (pps)</th><th>Status</th></tr></thead><tbody>" +
+      "<table><thead><tr><th scope='col'>Início</th><th scope='col'>Prefixo</th><th scope='col'>Dst IP</th><th scope='col'>Porta</th><th scope='col'>Protocolo</th>" +
+      "<th scope='col'>Severidade</th><th scope='col'>Fontes</th><th scope='col'>Pico (pps)</th><th scope='col'>Status</th></tr></thead><tbody>" +
       rows + "</tbody></table>" +
       paginationHtml("coordinatedOffenders", p.page, p.totalPages, p.total);
   }
@@ -6772,7 +6880,7 @@
         state.incidents.openCoordinated = state.coordinatedOffenders.filter(function (o) { return !o.mitigated; }).length;
         updateIncidentsBadge();
       }
-      renderFgCoordinatedOffenders(state.coordinatedOffenders);
+      if (!pollPayloadUnchanged("coordinatedOffenders:" + state.coordinatedView, state.coordinatedOffenders)) renderFgCoordinatedOffenders(state.coordinatedOffenders);
     }).catch(function (err) {
       showError(document.getElementById("fg-coordinated-offenders"), "falha ao consultar destinos coordenados");
       console.error("flowguard.js:", err);
@@ -6787,7 +6895,7 @@
         if (!btn) return;
         state.coordinatedView = btn.getAttribute("data-view");
         state.page.coordinatedOffenders = 1;
-        toggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { b.classList.toggle("active", b === btn); });
+        toggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) { setActive(b, b === btn); });
         loadFgCoordinatedOffenders();
       });
     }
@@ -6805,8 +6913,25 @@
     }).finally(function () { btn.disabled = false; });
   }
 
+  // --- polling guard: evita reconstrução de listas via innerHTML quando (a)
+  // o payload novo é idêntico ao anterior, ou (b) o operador tem um menu de
+  // ações aberto — sem isso, o poll de ~5s fecha qualquer menu aberto e
+  // redesenha tabelas inteiras mesmo sem dado novo, a cada ciclo.
+  var pollDataCache = {};
+  function pollPayloadUnchanged(key, data) {
+    var json = JSON.stringify(data);
+    var unchanged = pollDataCache[key] === json;
+    pollDataCache[key] = json;
+    return unchanged;
+  }
+
+  function hasOpenActionMenu() {
+    return !!document.querySelector(".fg-menu-list:not([hidden])");
+  }
+
   function poll() {
     if (!getToken()) return;
+    if (hasOpenActionMenu()) return; // adia o ciclo inteiro pro próximo tick — não interrompe o operador com um menu aberto
     loadStatus();
     loadAttacks();
     loadFlows();
@@ -6883,6 +7008,54 @@
     }
   }
 
+  // --- wrapper de tabelas roláveis (acessibilidade) -------------------------
+  // toda <table> do sistema é gerada por innerHTML em ~30 pontos diferentes
+  // (não vale a pena tocar em cada um) e já rola horizontalmente sozinha em
+  // telas estreitas (table { overflow-x: auto } no CSS). Só falta dar a essa
+  // região um jeito de ganhar foco de teclado e ser anunciada — um
+  // MutationObserver único envolve qualquer <table> nova (poll, troca de
+  // aba, filtro) num wrapper com tabindex/role/aria-label, sem precisar
+  // editar cada função de render.
+  function tableAriaLabel(table) {
+    var dataTable = table.getAttribute("data-table");
+    var section = table.closest("section.fg-panel-section, .fg-ai-panel, .fg-cockpit-widget");
+    var heading = section ? section.querySelector(":scope > h2, :scope > h3, :scope > h4, h2, h3, h4") : null;
+    var text = heading ? heading.textContent.trim().replace(/\s+/g, " ") : "";
+    if (text) return "Tabela: " + text + " — role horizontalmente com as setas do teclado";
+    if (dataTable) return "Tabela: " + dataTable + " — role horizontalmente com as setas do teclado";
+    return "Tabela de dados — role horizontalmente com as setas do teclado";
+  }
+
+  function wrapSingleTable(table) {
+    if (!table || table.closest(".fg-table-scroll-wrap")) return;
+    var wrap = document.createElement("div");
+    wrap.className = "fg-table-scroll-wrap";
+    wrap.setAttribute("tabindex", "0");
+    wrap.setAttribute("role", "region");
+    wrap.setAttribute("aria-label", tableAriaLabel(table));
+    table.parentNode.insertBefore(wrap, table);
+    wrap.appendChild(table);
+  }
+
+  function wrapScrollableTables(root) {
+    (root || document).querySelectorAll("table").forEach(wrapSingleTable);
+  }
+
+  function initTableScrollWrap() {
+    var root = document.getElementById("fg-app") || document.body;
+    wrapScrollableTables(root);
+    var observer = new MutationObserver(function (mutations) {
+      mutations.forEach(function (m) {
+        m.addedNodes.forEach(function (node) {
+          if (node.nodeType !== 1) return;
+          if (node.tagName === "TABLE") wrapSingleTable(node);
+          else if (node.querySelectorAll) node.querySelectorAll("table").forEach(wrapSingleTable);
+        });
+      });
+    });
+    observer.observe(root, { childList: true, subtree: true });
+  }
+
   function init() {
     if (!document.getElementById("fg-kpis")) return;
 
@@ -6898,6 +7071,7 @@
     initWarmode();
     initRouterCfg();
     initCockpit();
+    initTableScrollWrap();
 
     // (busca de "Meus Prefixos" é delegada no grid do cockpit — ver
     // initCockpit — pra sobreviver ao rebuild do "Restaurar layout padrão")
@@ -7062,8 +7236,26 @@
 
     initChartControls();
 
+    // aba em segundo plano (operador trocou de janela/aba) não precisa poll
+    // de ~5s — reduz pra 45s até voltar a ficar visível, quando faz um poll
+    // imediato (não espera o próximo tick) e retoma a frequência normal
+    var HIDDEN_REFRESH_MS = 45000;
+    var pollTimer = null;
+    function schedulePoll(intervalMs) {
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = setInterval(poll, intervalMs);
+    }
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) {
+        schedulePoll(HIDDEN_REFRESH_MS);
+      } else {
+        poll();
+        schedulePoll(REFRESH_MS);
+      }
+    });
+
     poll();
-    setInterval(poll, REFRESH_MS);
+    schedulePoll(REFRESH_MS);
   }
 
   if (document.readyState === "loading") {

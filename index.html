@@ -2,9 +2,11 @@
 <html lang="pt-br">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Portal POX Network</title>
   <style>
     :root {
+      color-scheme: dark;
       --fg-bg: #0d1117;
       --fg-bg-panel: #161b22;
       --fg-bg-elevated: #21262d;
@@ -81,7 +83,12 @@
     }
     .fg-warmode-badge.off { color: var(--fg-success); border-color: var(--fg-success); }
     .fg-warmode-badge.on {
-      color: var(--fg-danger); border-color: var(--fg-danger); background: rgba(248,81,73,0.15);
+      /* texto em --fg-danger-hover (#ff7b72), não --fg-danger (#f85149): sobre o
+         fundo tingido de vermelho (0.15 alpha, dobrado quando a topbar inteira
+         também pulsa em Modo Guerra ativo) o tom mais escuro media 3.84–4.12:1,
+         abaixo do mínimo AA de 4.5:1 pra texto pequeno; o hover mais claro
+         garante >=5.4:1 nos dois cenários mantendo a identidade "alerta vermelho" */
+      color: var(--fg-danger-hover); border-color: var(--fg-danger); background: rgba(248,81,73,0.15);
       animation: fg-warmode-pulse 1.6s ease-in-out infinite;
     }
     @media (prefers-reduced-motion: reduce) {
@@ -128,7 +135,12 @@
       border-right: 1px solid var(--fg-border); padding: 0.8rem 0.5rem; box-sizing: border-box;
     }
     .fg-main { flex: 1 1 auto; min-width: 0; padding: 1rem; box-sizing: border-box; }
-    @media (max-width: 699px) {
+    /* breakpoint mobile único do sistema: 700px. Antes havia dois valores
+       próximos (699px / 760px) espalhados pelo CSS conforme cada trecho foi
+       escrito — consolidado aqui num só, reaplicado em todo media query
+       abaixo, pra layout/touch-target/tabela não trocarem de estado em
+       larguras ligeiramente diferentes. */
+    @media (max-width: 700px) {
       #fg-app { flex-direction: column; }
       .fg-sidebar { flex-direction: row; flex-wrap: wrap; position: static; height: auto; width: 100%; border-right: none; border-bottom: 1px solid var(--fg-border); }
     }
@@ -139,7 +151,7 @@
     }
     .fg-tab-btn.active { color: var(--fg-text); border-left-color: var(--fg-accent); background: var(--fg-bg-panel); }
     .fg-tab-btn:hover { color: var(--fg-text); }
-    .fg-badge { background: var(--fg-danger); color: white; font-size: 0.7rem; border-radius: 999px; padding: 0.05rem 0.45rem; }
+    .fg-badge { background: var(--fg-danger); color: var(--fg-bg); font-size: 0.7rem; border-radius: 999px; padding: 0.05rem 0.45rem; }
     /* contagem informativa (ex: regras ativas), não um alerta — mais discreta que o fg-badge vermelho padrão */
     .fg-badge-neutral { background: var(--fg-bg-elevated); color: var(--fg-text-muted); border: 1px solid var(--fg-border); }
     /* subseções empilhadas da aba Incidentes (Ataques, Scanners, Destino
@@ -170,14 +182,14 @@
     /* separa visualmente as abas do FlowGuard das do ClientGuard — são dois
        sistemas distintos compartilhando o mesmo menu de navegação */
     .fg-tabs-divider { height: 1px; align-self: stretch; background: var(--fg-border); margin: 0.4rem 0.2rem; }
-    @media (max-width: 699px) {
+    @media (max-width: 700px) {
       .fg-tabs-divider { width: 1px; height: auto; margin: 0.2rem 0.4rem; }
     }
     /* alvo de toque mínimo (44x44px, WCAG 2.5.5) só abaixo de 700px — em
        desktop os botões continuam pequenos de propósito (densidade é a
        escolha confirmada do DESIGN.md); só em touch/mobile o dedo precisa do
        espaço extra que o mouse não precisa. */
-    @media (max-width: 699px) {
+    @media (max-width: 700px) {
       .fg-btn, .fg-toggle-btn, .fg-incident-nav-btn, .fg-menu-list button, .fg-pagination .fg-btn {
         min-height: 44px; min-width: 44px; padding-top: 0.55rem; padding-bottom: 0.55rem;
       }
@@ -233,12 +245,25 @@
        só passa a clipar/rolar o conteúdo que exceder a largura do container
        em vez de estourar a página inteira (WCAG 1.4.10 Reflow). */
     table { display: block; width: 100%; max-width: 100%; overflow-x: auto; border-collapse: collapse; font-size: 0.85rem; }
+    /* wrapper injetado via JS (ver wrapScrollableTables em flowguard.js) em
+       toda <table> — o scroll horizontal continua na própria table (regra
+       acima), este wrapper só existe pra dar tabindex/role/aria-label de
+       região navegável por teclado sem tocar na semântica de tabela */
+    .fg-table-scroll-wrap:focus-visible { outline: 2px solid var(--fg-accent); outline-offset: -2px; }
     table th, table td { text-align: left; padding: 0.32rem 0.55rem; border-bottom: 1px solid var(--fg-border); white-space: nowrap; }
     table td.fg-wrap-cell { white-space: normal; }
-    table th[data-sort-key] { cursor: pointer; user-select: none; }
-    table th[data-sort-key]:hover { color: var(--fg-accent); }
-    table th.fg-sorted::after { content: " ▾"; }
-    table th.fg-sorted.fg-sorted-asc::after { content: " ▴"; }
+    table th[data-sort-key] { padding: 0; }
+    /* botão interno ocupa a célula inteira — dá foco/teclado nativo (Enter/
+       Espaço) ao cabeçalho ordenável sem mudar a aparência do th original */
+    table th[data-sort-key] .fg-th-sort-btn {
+      all: unset; box-sizing: border-box; display: block; width: 100%;
+      padding: 0.32rem 0.55rem; font: inherit; color: inherit; text-align: left;
+      cursor: pointer; user-select: none;
+    }
+    table th[data-sort-key] .fg-th-sort-btn:hover { color: var(--fg-accent); }
+    table th[data-sort-key] .fg-th-sort-btn:focus-visible { outline: 2px solid var(--fg-accent); outline-offset: -2px; }
+    table th.fg-sorted .fg-th-sort-btn::after { content: " ▾"; }
+    table th.fg-sorted.fg-sorted-asc .fg-th-sort-btn::after { content: " ▴"; }
 
     .fg-pagination { display: flex; align-items: center; gap: 0.8rem; margin-top: 0.6rem; font-size: 0.82rem; color: var(--fg-text-muted); }
     .fg-pagination .fg-btn:disabled { opacity: 0.4; cursor: default; }
@@ -332,6 +357,10 @@
     .fg-wm-device { background: var(--fg-bg); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.8rem; margin-bottom: 0.8rem; }
     .fg-wm-device-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
     .fg-wm-device-grid input { background: var(--fg-bg-panel); color: var(--fg-text); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.3rem 0.5rem; width: 100%; }
+    /* label agora envolve o input/textarea (associação programática sem
+       precisar de id/for único por campo) — display:block mantém o mesmo
+       empilhamento visual "texto em cima, campo embaixo" de antes */
+    .fg-wm-device-grid label, .fg-wm-device > .fg-wm-body > label { display: block; }
     .fg-wm-device textarea { width: 100%; background: var(--fg-bg-panel); color: var(--fg-text); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.4rem 0.5rem; margin-top: 0.5rem; font-family: monospace; font-size: 0.82rem; min-height: 70px; }
     .fg-wm-device label { font-size: 0.72rem; color: var(--fg-text-muted); display: block; margin-bottom: 0.15rem; }
     .fg-wm-device .fg-wm-row-top { display: flex; align-items: center; gap: 0.6rem; }
@@ -521,7 +550,7 @@
     /* responsividade — telas estreitas priorizam ler a tabela por completo
        (quebra de linha) em vez de recortar; densidade compacta de Ataques/Top
        Prefixos/Flows continua intacta em telas normais */
-    @media (max-width: 760px) {
+    @media (max-width: 700px) {
       body { margin: 1rem; }
       table th, table td { white-space: normal; }
       .fg-form, .fg-toolbar { gap: 0.4rem; }
@@ -543,7 +572,7 @@
 
   <div id="fg-app" class="fg-wrap" style="display: none;">
     <nav class="fg-sidebar" id="fg-tabs">
-      <button class="fg-tab-btn active" data-tab="overview">Visão Geral</button>
+      <button class="fg-tab-btn active" aria-current="page" data-tab="overview">Visão Geral</button>
       <button class="fg-tab-btn" data-tab="attacks">Incidentes <span class="fg-badge" id="fg-attacks-badge" style="display:none;">0</span></button>
       <button class="fg-tab-btn" data-tab="flows">Flows</button>
       <button class="fg-tab-btn" data-tab="rules">Regras <span class="fg-badge fg-badge-neutral" id="fg-rules-badge" style="display:none;">0</span></button>
@@ -552,14 +581,14 @@
       <span class="fg-tabs-divider" title="ClientGuard é um sistema à parte (detecção por cliente, não por prefixo)"></span>
       <button class="fg-tab-btn" data-tab="clientguard">Clientes</button>
     </nav>
-    <div class="fg-main">
+    <main class="fg-main">
     <div class="fg-topbar">
       <h1 style="font-size: 1.3rem; margin: 0;">FlowGuard — POX Network</h1>
       <div style="display:flex; gap:0.6rem; align-items:center; flex-wrap:wrap;">
         <span id="fg-warmode-badge" class="fg-warmode-badge off" title="Estado do Modo Guerra">WARMODE-OFF</span>
         <span id="fg-warmode-timer" class="fg-warmode-timer" hidden>00:00:00</span>
         <button id="fg-warmode-open-btn" class="fg-btn fg-btn-danger" title="Clique para ativar o Modo Guerra"><span class="fg-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3Z"/><path d="M12 9v5"/><path d="M12 17h.01"/></svg></span>Modo Guerra</button>
-        <button id="fg-warmode-cfg-open-btn" class="fg-btn" title="Configurar equipamentos do Modo Guerra"><span class="fg-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg></span>Modo Guerra</button>
+        <button id="fg-warmode-cfg-open-btn" class="fg-btn" title="Configurar equipamentos do Modo Guerra"><span class="fg-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg></span>Config. Modo Guerra</button>
         <button id="fg-routercfg-open-btn" class="fg-btn" title="Editar configuração do roteador de borda via templates validados"><span class="fg-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>Config. Roteador</button>
         <button id="fg-logout-btn" class="fg-btn">Sair</button>
       </div>
@@ -722,8 +751,8 @@
         <h2>Incidentes</h2>
         <div class="fg-toolbar">
           <div class="fg-toggle-group" id="incidents-app-toggle">
-            <button class="fg-toggle-btn active" data-app="flowguard">FlowGuard — vítimas</button>
-            <button class="fg-toggle-btn" data-app="clientguard">ClientGuard — clientes</button>
+            <button class="fg-toggle-btn active" aria-pressed="true" data-app="flowguard">FlowGuard — vítimas</button>
+            <button class="fg-toggle-btn" aria-pressed="false" data-app="clientguard">ClientGuard — clientes</button>
           </div>
         </div>
 
@@ -742,24 +771,24 @@
           <h3 class="fg-incident-heading" id="fg-sub-attacks">Ataques DDoS <span class="fg-badge fg-badge-neutral" id="fg-sub-attacks-badge">0</span></h3>
           <div class="fg-toolbar">
             <div class="fg-toggle-group" id="fg-attacks-view-toggle">
-              <button class="fg-toggle-btn active" data-view="active">Ativos</button>
-              <button class="fg-toggle-btn" data-view="history">Histórico</button>
+              <button class="fg-toggle-btn active" aria-pressed="true" data-view="active">Ativos</button>
+              <button class="fg-toggle-btn" aria-pressed="false" data-view="history">Histórico</button>
             </div>
             <div class="fg-toggle-group" id="fg-attacks-window" hidden>
-              <button class="fg-toggle-btn" data-window="1h">1h</button>
-              <button class="fg-toggle-btn" data-window="6h">6h</button>
-              <button class="fg-toggle-btn active" data-window="24h">24h</button>
-              <button class="fg-toggle-btn" data-window="7d">7d</button>
+              <button class="fg-toggle-btn" aria-pressed="false" data-window="1h">1h</button>
+              <button class="fg-toggle-btn" aria-pressed="false" data-window="6h">6h</button>
+              <button class="fg-toggle-btn active" aria-pressed="true" data-window="24h">24h</button>
+              <button class="fg-toggle-btn" aria-pressed="false" data-window="7d">7d</button>
             </div>
             <div class="fg-toggle-group" id="fg-attacks-severity-chips">
-              <button class="fg-toggle-btn" data-sev="critical">critical</button>
-              <button class="fg-toggle-btn" data-sev="high">high</button>
-              <button class="fg-toggle-btn" data-sev="medium">medium</button>
-              <button class="fg-toggle-btn" data-sev="info">info</button>
+              <button class="fg-toggle-btn" aria-pressed="false" data-sev="critical">critical</button>
+              <button class="fg-toggle-btn" aria-pressed="false" data-sev="high">high</button>
+              <button class="fg-toggle-btn" aria-pressed="false" data-sev="medium">medium</button>
+              <button class="fg-toggle-btn" aria-pressed="false" data-sev="info">info</button>
             </div>
             <input type="text" id="fg-attacks-prefix-filter" placeholder="filtrar por prefixo/cliente..." aria-label="Filtrar ataques por prefixo ou cliente">
-            <button class="fg-btn" id="fg-attacks-group-btn">Agrupar por prefixo</button>
-            <button class="fg-btn" id="fg-attacks-select-btn">Selecionar</button>
+            <button class="fg-btn" id="fg-attacks-group-btn" aria-pressed="false">Agrupar por prefixo</button>
+            <button class="fg-btn" id="fg-attacks-select-btn" aria-pressed="false">Selecionar</button>
             <button class="fg-btn fg-btn-danger" id="fg-clear-suspicious-btn">Dispensar todos os ataques ativos</button>
           </div>
           <div class="fg-toolbar" id="fg-attacks-bulkbar" hidden>
@@ -774,8 +803,8 @@
             <p class="fg-kpi-sub">Horizontal: 1 IP externo tocando N hosts distintos do prefixo na mesma porta. Vertical: 1 IP tocando N portas distintas do mesmo host. Sem severidade própria no backend (estimada aqui pela contagem). Bloqueio automático não está configurado — o botão "Bloquear" cria uma regra manual (mesma ação da aba Regras); não atualiza o status "detectando" sozinho, confira a regra criada na aba Regras.</p>
             <div class="fg-toolbar">
               <div class="fg-toggle-group" id="fg-scan-view-toggle">
-                <button class="fg-toggle-btn active" data-view="active">Ativos</button>
-                <button class="fg-toggle-btn" data-view="history">Histórico</button>
+                <button class="fg-toggle-btn active" aria-pressed="true" data-view="active">Ativos</button>
+                <button class="fg-toggle-btn" aria-pressed="false" data-view="history">Histórico</button>
               </div>
             </div>
             <div id="fg-scan-offenders"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
@@ -786,8 +815,8 @@
             <p class="fg-kpi-sub">Muitos IPs externos distintos convergindo pro MESMO host/porta protegido — pega ataques distribuídos de baixo volume por fonte, que não batem o limiar de DDoS volumétrico. Severidade estimada pela contagem de fontes. Sem mitigação automática nesta versão — sem botão de ação aqui, use a aba Regras se precisar bloquear algo manualmente.</p>
             <div class="fg-toolbar">
               <div class="fg-toggle-group" id="fg-coordinated-view-toggle">
-                <button class="fg-toggle-btn active" data-view="active">Ativos</button>
-                <button class="fg-toggle-btn" data-view="history">Histórico</button>
+                <button class="fg-toggle-btn active" aria-pressed="true" data-view="active">Ativos</button>
+                <button class="fg-toggle-btn" aria-pressed="false" data-view="history">Histórico</button>
               </div>
             </div>
             <div id="fg-coordinated-offenders"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
@@ -798,17 +827,17 @@
           <h3 class="fg-incident-heading" id="cg-sub-suspicious">Sinais Suspeitos <span class="fg-badge fg-badge-neutral" id="cg-sub-suspicious-badge">0</span></h3>
           <div class="fg-toolbar">
             <div class="fg-toggle-group" id="cg-suspicious-view-toggle">
-              <button class="fg-toggle-btn active" data-view="open">Abertos</button>
-              <button class="fg-toggle-btn" data-view="history">Resolvidos</button>
+              <button class="fg-toggle-btn active" aria-pressed="true" data-view="open">Abertos</button>
+              <button class="fg-toggle-btn" aria-pressed="false" data-view="history">Resolvidos</button>
             </div>
             <div class="fg-toggle-group" id="cg-suspicious-severity-chips">
-              <button class="fg-toggle-btn" data-sev="high">high</button>
-              <button class="fg-toggle-btn" data-sev="medium">medium</button>
-              <button class="fg-toggle-btn" data-sev="watch">watch</button>
+              <button class="fg-toggle-btn" aria-pressed="false" data-sev="high">high</button>
+              <button class="fg-toggle-btn" aria-pressed="false" data-sev="medium">medium</button>
+              <button class="fg-toggle-btn" aria-pressed="false" data-sev="watch">watch</button>
             </div>
             <input type="text" id="cg-suspicious-search" placeholder="filtrar por IP, cliente ou tipo de sinal..." aria-label="Filtrar sinais suspeitos por IP, cliente ou tipo">
-            <button class="fg-btn" id="cg-suspicious-group-btn">Agrupar por cliente</button>
-            <button class="fg-btn" id="cg-suspicious-select-btn">Selecionar</button>
+            <button class="fg-btn" id="cg-suspicious-group-btn" aria-pressed="false">Agrupar por cliente</button>
+            <button class="fg-btn" id="cg-suspicious-select-btn" aria-pressed="false">Selecionar</button>
             <button class="fg-btn fg-btn-danger" id="cg-clear-suspicious-btn">Limpar hosts suspeitos</button>
           </div>
           <div class="fg-toolbar" id="cg-suspicious-bulkbar" hidden>
@@ -849,8 +878,8 @@
         <p class="fg-kpi-sub">Bloqueia todo o tráfego de origem desse IP/rede via FlowSpec (BGP) — não precisa estar ligado a um ataque. Mesma sessão BGP real nos dois casos; a origem é só rótulo (aparece no histórico da aba, FlowGuard ou ClientGuard).</p>
         <div class="fg-toolbar">
           <div class="fg-toggle-group" id="fg-block-source-toggle">
-            <button class="fg-toggle-btn active" data-source="flowguard">FlowGuard</button>
-            <button class="fg-toggle-btn" data-source="clientguard">ClientGuard</button>
+            <button class="fg-toggle-btn active" aria-pressed="true" data-source="flowguard">FlowGuard</button>
+            <button class="fg-toggle-btn" aria-pressed="false" data-source="clientguard">ClientGuard</button>
           </div>
           <input type="text" id="fg-block-ip" placeholder="IP ou CIDR a bloquear, ex: 203.0.113.7" aria-label="IP ou CIDR a bloquear">
           <select id="fg-block-ttl" aria-label="TTL do bloqueio">
@@ -867,13 +896,13 @@
         <p class="fg-kpi-sub">Tudo que já foi gerado ou enviado pra borda, de qualquer sistema — RTBH e FlowSpec via BGP (FlowGuard) e mitigação direta via SSH/ACL (ClientGuard).</p>
         <div class="fg-toolbar">
           <div class="fg-toggle-group" id="rules-app-toggle">
-            <button class="fg-toggle-btn active" data-app="flowguard">FlowGuard</button>
-            <button class="fg-toggle-btn" data-app="clientguard">ClientGuard</button>
+            <button class="fg-toggle-btn active" aria-pressed="true" data-app="flowguard">FlowGuard</button>
+            <button class="fg-toggle-btn" aria-pressed="false" data-app="clientguard">ClientGuard</button>
           </div>
           <div class="fg-toggle-group" id="rules-view-toggle">
-            <button class="fg-toggle-btn active" data-view="active">Ativas</button>
-            <button class="fg-toggle-btn" data-view="inactive">Inativas</button>
-            <button class="fg-toggle-btn" data-view="all">Todas</button>
+            <button class="fg-toggle-btn active" aria-pressed="true" data-view="active">Ativas</button>
+            <button class="fg-toggle-btn" aria-pressed="false" data-view="inactive">Inativas</button>
+            <button class="fg-toggle-btn" aria-pressed="false" data-view="all">Todas</button>
           </div>
           <button class="fg-btn fg-btn-danger" id="fg-rules-del-all-btn">Apagar todas as regras ativas</button>
           <button class="fg-btn fg-btn-danger" id="rules-cg-edge-revert-all-btn" title="Reverte TODAS as mitigações do ClientGuard, tanto FlowSpec (tabela de cima) quanto SSH/ACL (tabela de baixo)">Reverter todas as mitigações do ClientGuard</button>
@@ -888,11 +917,11 @@
             <option value="redirect">FlowSpec: redirect</option>
           </select>
           <div class="fg-toggle-group" id="rules-window-filter">
-            <button class="fg-toggle-btn active" data-window="">qualquer período</button>
-            <button class="fg-toggle-btn" data-window="1h">1h</button>
-            <button class="fg-toggle-btn" data-window="6h">6h</button>
-            <button class="fg-toggle-btn" data-window="24h">24h</button>
-            <button class="fg-toggle-btn" data-window="7d">7d</button>
+            <button class="fg-toggle-btn active" aria-pressed="true" data-window="">qualquer período</button>
+            <button class="fg-toggle-btn" aria-pressed="false" data-window="1h">1h</button>
+            <button class="fg-toggle-btn" aria-pressed="false" data-window="6h">6h</button>
+            <button class="fg-toggle-btn" aria-pressed="false" data-window="24h">24h</button>
+            <button class="fg-toggle-btn" aria-pressed="false" data-window="7d">7d</button>
           </div>
         </div>
         <div data-rules-app="flowguard">
@@ -943,8 +972,8 @@
       </section>
       <div class="fg-toolbar">
         <div class="fg-toggle-group" id="cfg-app-toggle">
-          <button class="fg-toggle-btn active" data-app="flowguard">FlowGuard</button>
-          <button class="fg-toggle-btn" data-app="clientguard">ClientGuard</button>
+          <button class="fg-toggle-btn active" aria-pressed="true" data-app="flowguard">FlowGuard</button>
+          <button class="fg-toggle-btn" aria-pressed="false" data-app="clientguard">ClientGuard</button>
         </div>
       </div>
 
@@ -1104,10 +1133,10 @@
         <h2>Top Clientes por Consumo de Dados</h2>
         <div class="fg-toolbar">
           <div class="fg-toggle-group" id="cg-top-window">
-            <button class="fg-toggle-btn" data-window-s="3600">1h</button>
-            <button class="fg-toggle-btn active" data-window-s="21600">6h</button>
-            <button class="fg-toggle-btn" data-window-s="86400">24h</button>
-            <button class="fg-toggle-btn" data-window-s="604800">7d</button>
+            <button class="fg-toggle-btn" aria-pressed="false" data-window-s="3600">1h</button>
+            <button class="fg-toggle-btn active" aria-pressed="true" data-window-s="21600">6h</button>
+            <button class="fg-toggle-btn" aria-pressed="false" data-window-s="86400">24h</button>
+            <button class="fg-toggle-btn" aria-pressed="false" data-window-s="604800">7d</button>
           </div>
           <input type="text" id="cg-top-search" placeholder="filtrar por IP ou cliente..." aria-label="Filtrar top clientes por IP ou nome">
         </div>
@@ -1120,17 +1149,17 @@
       <div class="fg-toolbar">
         <select id="fg-chart-prefix" aria-label="Selecionar prefixo do gráfico"></select>
         <div class="fg-toggle-group" id="fg-chart-window">
-          <button class="fg-toggle-btn" data-window="1h">1h</button>
-          <button class="fg-toggle-btn active" data-window="6h">6h</button>
-          <button class="fg-toggle-btn" data-window="24h">24h</button>
-          <button class="fg-toggle-btn" data-window="7d">7d</button>
+          <button class="fg-toggle-btn" aria-pressed="false" data-window="1h">1h</button>
+          <button class="fg-toggle-btn active" aria-pressed="true" data-window="6h">6h</button>
+          <button class="fg-toggle-btn" aria-pressed="false" data-window="24h">24h</button>
+          <button class="fg-toggle-btn" aria-pressed="false" data-window="7d">7d</button>
         </div>
       </div>
 
       <section class="fg-panel-section">
         <h2><span id="fg-chart-traffic-title">Tráfego — entrada x saída (com faixa de baseline)</span></h2>
         <div class="fg-chart-box">
-          <canvas id="fg-chart-traffic" class="fg-chart-lg" width="900" height="220"></canvas>
+          <canvas id="fg-chart-traffic" class="fg-chart-lg" width="900" height="220" role="img" aria-label="Gráfico de tráfego — carregando dados"></canvas>
           <div class="fg-legend" id="fg-chart-traffic-legend"></div>
         </div>
       </section>
@@ -1148,7 +1177,7 @@
       <section class="fg-panel-section">
         <h2>Tráfego por protocolo (histórico)</h2>
         <div class="fg-chart-box">
-          <canvas id="fg-chart-protocol" class="fg-chart-lg" width="900" height="220"></canvas>
+          <canvas id="fg-chart-protocol" class="fg-chart-lg" width="900" height="220" role="img" aria-label="Gráfico de tráfego por protocolo — carregando dados"></canvas>
           <div class="fg-legend">
             <span><i style="background:var(--fg-accent)"></i> TCP</span>
             <span><i style="background:var(--fg-success)"></i> UDP</span>
@@ -1161,15 +1190,15 @@
       <section class="fg-panel-section">
         <h2>Linha do tempo de ataques</h2>
         <div class="fg-chart-box">
-          <canvas id="fg-chart-timeline" class="fg-chart-sm" width="900" height="140"></canvas>
+          <canvas id="fg-chart-timeline" class="fg-chart-sm" width="900" height="140" role="img" aria-label="Linha do tempo de ataques — carregando dados"></canvas>
         </div>
       </section>
     </div>
-    </div>
+    </main>
   </div>
 
   <div id="fg-chart-tooltip" class="fg-chart-tooltip" hidden></div>
-  <div id="fg-toast-container"></div>
+  <div id="fg-toast-container" role="status" aria-live="polite"></div>
 
   <script src="/assets/flowguard.js"></script>
 </body>

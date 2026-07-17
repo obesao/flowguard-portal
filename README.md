@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.60.0**
+**Versão atual: v1.61.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -100,6 +100,101 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.61.0 — 2026-07-17 — Segunda rodada de acessibilidade: viewport mobile, contraste, teclado, performance de poll
+
+Auditoria técnica de acompanhamento (16 issues, P0→P3) sobre o que a rodada
+`impeccable` da v1.60.0 não cobriu — todos corrigidos nesta versão:
+
+- **P0 — viewport meta ausente**: `<meta name="viewport" content="width=
+  device-width, initial-scale=1">` nunca existia no `<head>` — sem ela,
+  todo o CSS responsivo/touch-target da v1.60.0 ficava inerte em celular
+  real (o browser mobile renderiza a página numa viewport virtual larga e
+  dá zoom-out, ignorando os breakpoints). Validado com Playwright em
+  390×844: o card de login agora reduz corretamente pra ~340px de largura.
+- **Contraste de badges abaixo de AA**: `.fg-badge` (contagem de alerta,
+  fundo vermelho sólido) usava texto branco — media 3.35:1, abaixo do
+  mínimo de 4.5:1. Trocado pra `var(--fg-bg)` (mesmo tom escuro já usado em
+  `.fg-btn-danger`, que mede 5.65:1). O selo `WARMODE-ON` (texto
+  `--fg-danger` sobre fundo vermelho translúcido) media 3.84–4.12:1
+  dependendo se a topbar inteira também está pulsando — trocado pro tom
+  mais claro `--fg-danger-hover` (#ff7b72), que garante ≥5.4:1 nos dois
+  cenários mantendo a identidade "alerta vermelho".
+- **Toast sem `aria-live`**: `#fg-toast-container` ganhou `role="status"
+  aria-live="polite"`; `showToast()` agora alterna o próprio `aria-live`
+  pra `"assertive"` quando o toast é de erro, pra leitor de tela não
+  esperar uma pausa de fala antes de anunciar uma falha.
+- **Ordenação de tabela só por mouse**: cabeçalhos `<th data-sort-key>` só
+  respondiam a `click`. Cada label agora vive dentro de um `<button>`
+  interno (foco/Enter/Espaço nativos, sem handler novo — o `click`
+  sintético do teclado já é escutado pelo listener delegado existente) e
+  ganhou `aria-sort="ascending"|"descending"|"none"`; todo `<th>` do
+  sistema (ordenável ou não) ganhou `scope="col"`.
+- **Performance/UX do poll de ~5s**: `poll()` reconstruía listas via
+  `innerHTML` a cada ciclo mesmo sem dado novo, fechando qualquer menu de
+  ações aberto no meio do trabalho do operador. Duas guardas: (a) hash do
+  payload por endpoint (`pollPayloadUnchanged`) pula o re-render quando o
+  dado é idêntico ao ciclo anterior; (b) o ciclo inteiro é adiado pro
+  próximo tick se houver um menu de ações aberto (`.fg-menu-list:not(
+  [hidden])`) no momento do poll.
+- **Aba em segundo plano continuava fazendo poll de 5s**: `visibilitychange`
+  agora reduz a frequência pra 45s quando `document.hidden`, e faz um poll
+  imediato + retoma 5s assim que a aba volta a ficar visível.
+- **Formulários dinâmicos sem `<label for>`**: os campos de config gerados
+  por JS (equipamentos do Modo Guerra, `renderFgDetectionCfg`/
+  `renderCgDetectionCfg`, `renderKvFields` usado por scan/escalation)
+  tinham `<label>` visual solto, sem `for`/`id` nem input aninhado —
+  ganharam `id` gerado a partir da chave do campo + `for` correspondente,
+  ou passaram a envolver o input/textarea dentro do próprio `<label>`.
+- **Estados sem ARIA**: `.fg-toggle-btn`/abas `.fg-tab-btn`/botões-toggle
+  genéricos (`Agrupar por prefixo`, `Selecionar`) só tinham a classe
+  visual `.active` — um helper único (`setActive()`) sincroniza a classe
+  com `aria-pressed` (toggles) ou `aria-current="page"` (abas) em todo
+  ponto do código que já alternava esse estado. Botão de colapso de
+  painel ganhou `aria-expanded` sincronizado; menus dropdown
+  (`data-menu-toggle`) ganharam `aria-haspopup="true"`/`aria-expanded`, e
+  Escape agora fecha o menu de ações aberto (devolve o foco pro botão).
+- **Canvas sem alternativa textual**: os 5 gráficos de canvas (tráfego,
+  protocolo, timeline de ataques, detalhe de ataque, detalhe de cliente)
+  ganharam `role="img"` + `aria-label` dinâmico resumindo os dados
+  desenhados (ex.: pico em bps e horário, ou contagem de incidentes por
+  severidade), recalculado a cada load/redesenho.
+- **Scrollbars/controles no esquema claro do SO**: `:root { color-scheme:
+  dark; }` — sem isso, scrollbar nativa e alguns controles de formulário
+  renderizavam no tema claro do sistema mesmo com o portal 100% escuro.
+- **Tabelas roláveis sem foco de teclado**: todas as ~30 tabelas (geradas
+  via `innerHTML`, cada uma já rolando horizontalmente sozinha desde a
+  v1.60.0) ganharam um wrapper com `tabindex="0"` + `role="region"` +
+  `aria-label` descritivo — um único `MutationObserver` em `#fg-app`
+  envolve qualquer `<table>` nova automaticamente, sem precisar editar as
+  ~30 funções de render uma a uma.
+- **Dois botões "Modo Guerra" com o mesmo nome acessível**: o de
+  configuração (ícone de engrenagem) só se diferenciava do de execução por
+  `title` e ícone decorativo — nome visível renomeado pra "Config. Modo
+  Guerra".
+- **Dois breakpoints mobile quase iguais**: `699px` e `760px` espalhados
+  pelo CSS consolidados num único breakpoint de `700px`, documentado no
+  CSS.
+- **`<main>` landmark ausente**: `.fg-main` (conteúdo central, ao lado da
+  sidebar de navegação) virou um `<main class="fg-main">` de verdade —
+  antes era só uma `<div>`, sem landmark pra pular direto pro conteúdo via
+  leitor de tela.
+- **Minificação de `flowguard.js`**: avaliado e **pulado** deliberadamente —
+  o projeto não tem pipeline de build (sem `package.json`/bundler/Makefile
+  nesta pasta), e introduzir um só pra minificar um arquivo estático
+  contradiz a filosofia "sem framework, sem build step" do projeto. Não é
+  bloqueante.
+
+Validado com Playwright real contra o portal rodando: screenshots desktop
+1400×900 e mobile 390×844 da tela de login (viewport meta confirmado
+funcionando — card de login reduz corretamente em mobile), sessão
+autenticada via token de dev conferindo os atributos ARIA acima em runtime
+(landmark, `color-scheme`, `aria-live`, `aria-current`, `aria-pressed`,
+`aria-sort`, `role="img"` com `aria-label`, wrappers de tabela). 0 erros de
+console novos — os 401 de "Unauthorized" que aparecem no console já
+existiam de forma idêntica na v1.60.0 sem nenhuma mudança (confirmado
+comparando com `git stash`), vêm do mesmo escopo de sessão do token de dev
+já anotado no changelog anterior, não desta mudança.
 
 ### v1.60.0 — 2026-07-17 — Auditoria de acessibilidade/responsividade (plugin impeccable) + PRODUCT.md/DESIGN.md
 

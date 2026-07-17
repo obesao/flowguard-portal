@@ -173,6 +173,16 @@
     @media (max-width: 699px) {
       .fg-tabs-divider { width: 1px; height: auto; margin: 0.2rem 0.4rem; }
     }
+    /* alvo de toque mínimo (44x44px, WCAG 2.5.5) só abaixo de 700px — em
+       desktop os botões continuam pequenos de propósito (densidade é a
+       escolha confirmada do DESIGN.md); só em touch/mobile o dedo precisa do
+       espaço extra que o mouse não precisa. */
+    @media (max-width: 699px) {
+      .fg-btn, .fg-toggle-btn, .fg-incident-nav-btn, .fg-menu-list button, .fg-pagination .fg-btn {
+        min-height: 44px; min-width: 44px; padding-top: 0.55rem; padding-bottom: 0.55rem;
+      }
+      input[type="checkbox"], input[type="radio"] { min-width: 20px; min-height: 20px; }
+    }
 
     .fg-tab-panel { display: none; }
     .fg-tab-panel.active { display: block; animation: fg-fade-in 0.15s ease; }
@@ -214,7 +224,15 @@
     .fg-statusbar { display: flex; gap: 1.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
     .fg-statusbar span { background: var(--fg-bg-elevated); padding: 0.4rem 0.8rem; border-radius: 6px; }
 
-    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    /* display:block + overflow-x:auto no próprio elemento table (não precisa
+       de wrapper) — os 33+ pontos de renderização em flowguard.js geram
+       <table> direto via innerHTML, então essa é a única forma de cobrir
+       todos sem tocar em cada render*(); thead/tbody/tr/td mantêm os display
+       internos de tabela (table-header-group etc.) via UA stylesheet, então
+       border-collapse e alinhamento de coluna continuam intactos — o browser
+       só passa a clipar/rolar o conteúdo que exceder a largura do container
+       em vez de estourar a página inteira (WCAG 1.4.10 Reflow). */
+    table { display: block; width: 100%; max-width: 100%; overflow-x: auto; border-collapse: collapse; font-size: 0.85rem; }
     table th, table td { text-align: left; padding: 0.32rem 0.55rem; border-bottom: 1px solid var(--fg-border); white-space: nowrap; }
     table td.fg-wrap-cell { white-space: normal; }
     table th[data-sort-key] { cursor: pointer; user-select: none; }
@@ -515,8 +533,8 @@
     <div class="fg-card">
       <h2 style="font-size: 1.1rem;">FlowGuard — POX Network</h2>
       <form id="fg-login-form">
-        <input type="text" id="fg-login-user" placeholder="usuário" autocomplete="username" required>
-        <input type="password" id="fg-login-pass" placeholder="senha" autocomplete="current-password" required>
+        <input type="text" id="fg-login-user" placeholder="usuário" autocomplete="username" required aria-label="Usuário">
+        <input type="password" id="fg-login-pass" placeholder="senha" autocomplete="current-password" required aria-label="Senha">
         <button type="submit" class="fg-btn">Entrar</button>
         <span id="fg-login-status" class="fg-error"></span>
       </form>
@@ -547,9 +565,9 @@
       </div>
     </div>
 
-    <div id="fg-warmode-overlay" class="fg-modal-overlay" hidden>
+    <div id="fg-warmode-overlay" class="fg-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="fg-warmode-title" tabindex="-1" hidden>
       <div class="fg-modal">
-        <h2 id="fg-warmode-title" style="color:#f85149;"><span class="fg-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3Z"/><path d="M12 9v5"/><path d="M12 17h.01"/></svg></span><span id="fg-warmode-title-text">Modo Guerra</span></h2>
+        <h2 id="fg-warmode-title" style="color:var(--fg-danger);"><span class="fg-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3Z"/><path d="M12 9v5"/><path d="M12 17h.01"/></svg></span><span id="fg-warmode-title-text">Modo Guerra</span></h2>
         <p class="fg-kpi-sub">Protegido pela mesma senha da configuração do Modo Guerra.</p>
 
         <div id="fg-warmode-exec-needs-setup" hidden>
@@ -558,7 +576,7 @@
 
         <div id="fg-warmode-exec-lock" hidden>
           <div class="fg-form">
-            <input type="password" id="fg-warmode-exec-unlock-pass" placeholder="senha do Modo Guerra">
+            <input type="password" id="fg-warmode-exec-unlock-pass" placeholder="senha do Modo Guerra" aria-label="Senha do Modo Guerra">
             <button id="fg-warmode-exec-unlock-btn" class="fg-btn">Desbloquear</button>
           </div>
           <p id="fg-warmode-exec-unlock-status" class="fg-error"></p>
@@ -589,16 +607,16 @@
       <option value="linux">
     </datalist>
 
-    <div id="fg-warmode-cfg-overlay" class="fg-modal-overlay" hidden>
+    <div id="fg-warmode-cfg-overlay" class="fg-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="fg-warmode-cfg-title" tabindex="-1" hidden>
       <div class="fg-modal">
-        <h2><span class="fg-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg></span>Configuração do Modo Guerra</h2>
+        <h2 id="fg-warmode-cfg-title"><span class="fg-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg></span>Configuração do Modo Guerra</h2>
         <p class="fg-kpi-sub">Protegida por uma senha própria, separada do login do portal.</p>
 
         <div id="fg-warmode-cfg-setup" hidden>
           <p>Nenhuma senha configurada ainda para esta tela. Defina uma agora:</p>
           <div class="fg-form">
-            <input type="password" id="fg-warmode-setup-pass" placeholder="nova senha (mín. 6 caracteres)">
-            <input type="password" id="fg-warmode-setup-pass2" placeholder="confirme a senha">
+            <input type="password" id="fg-warmode-setup-pass" placeholder="nova senha (mín. 6 caracteres)" aria-label="Nova senha do Modo Guerra">
+            <input type="password" id="fg-warmode-setup-pass2" placeholder="confirme a senha" aria-label="Confirmar nova senha do Modo Guerra">
             <button id="fg-warmode-setup-btn" class="fg-btn">Definir senha e continuar</button>
           </div>
           <p id="fg-warmode-setup-status" class="fg-error"></p>
@@ -606,7 +624,7 @@
 
         <div id="fg-warmode-cfg-lock" hidden>
           <div class="fg-form">
-            <input type="password" id="fg-warmode-unlock-pass" placeholder="senha do Modo Guerra">
+            <input type="password" id="fg-warmode-unlock-pass" placeholder="senha do Modo Guerra" aria-label="Senha do Modo Guerra">
             <button id="fg-warmode-unlock-btn" class="fg-btn">Desbloquear</button>
           </div>
           <p id="fg-warmode-unlock-status" class="fg-error"></p>
@@ -622,11 +640,11 @@
             <span id="fg-warmode-save-status"></span>
           </div>
 
-          <div id="fg-warmode-changepass-box" hidden style="margin-top:1rem; border-top:1px solid #30363d; padding-top:1rem;">
+          <div id="fg-warmode-changepass-box" hidden style="margin-top:1rem; border-top:1px solid var(--fg-border); padding-top:1rem;">
             <div class="fg-form">
-              <input type="password" id="fg-warmode-old-pass" placeholder="senha atual">
-              <input type="password" id="fg-warmode-new-pass" placeholder="nova senha">
-              <input type="password" id="fg-warmode-new-pass2" placeholder="confirme a nova senha">
+              <input type="password" id="fg-warmode-old-pass" placeholder="senha atual" aria-label="Senha atual do Modo Guerra">
+              <input type="password" id="fg-warmode-new-pass" placeholder="nova senha" aria-label="Nova senha do Modo Guerra">
+              <input type="password" id="fg-warmode-new-pass2" placeholder="confirme a nova senha" aria-label="Confirmar nova senha do Modo Guerra">
               <button id="fg-warmode-changepass-btn" class="fg-btn">Trocar senha</button>
             </div>
             <p id="fg-warmode-changepass-status" class="fg-error"></p>
@@ -639,9 +657,9 @@
       </div>
     </div>
 
-    <div id="fg-routercfg-overlay" class="fg-modal-overlay" hidden>
+    <div id="fg-routercfg-overlay" class="fg-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="fg-routercfg-title" tabindex="-1" hidden>
       <div class="fg-modal">
-        <h2><span class="fg-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>Configuração do Roteador de Borda</h2>
+        <h2 id="fg-routercfg-title"><span class="fg-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>Configuração do Roteador de Borda</h2>
         <p class="fg-kpi-sub">Protegido pela mesma senha do Modo Guerra. Edição só por templates validados — sem CLI livre.</p>
 
         <div id="fg-rc-needs-setup" hidden>
@@ -650,7 +668,7 @@
 
         <div id="fg-rc-lock" hidden>
           <div class="fg-form">
-            <input type="password" id="fg-rc-unlock-pass" placeholder="senha do Modo Guerra">
+            <input type="password" id="fg-rc-unlock-pass" placeholder="senha do Modo Guerra" aria-label="Senha do Modo Guerra">
             <button id="fg-rc-unlock-btn" class="fg-btn">Desbloquear</button>
           </div>
           <p id="fg-rc-unlock-status" class="fg-error"></p>
@@ -668,7 +686,7 @@
 
           <h3 style="margin-top:1rem;">Aplicar novo template</h3>
           <div class="fg-form">
-            <select id="fg-rc-template-select"><option value="">selecione um template...</option></select>
+            <select id="fg-rc-template-select" aria-label="Selecionar template de configuração"><option value="">selecione um template...</option></select>
           </div>
           <p id="fg-rc-device-status" class="fg-kpi-sub"></p>
           <div id="fg-rc-fields" class="fg-rc-fields"></div>
@@ -739,7 +757,7 @@
               <button class="fg-toggle-btn" data-sev="medium">medium</button>
               <button class="fg-toggle-btn" data-sev="info">info</button>
             </div>
-            <input type="text" id="fg-attacks-prefix-filter" placeholder="filtrar por prefixo/cliente...">
+            <input type="text" id="fg-attacks-prefix-filter" placeholder="filtrar por prefixo/cliente..." aria-label="Filtrar ataques por prefixo ou cliente">
             <button class="fg-btn" id="fg-attacks-group-btn">Agrupar por prefixo</button>
             <button class="fg-btn" id="fg-attacks-select-btn">Selecionar</button>
             <button class="fg-btn fg-btn-danger" id="fg-clear-suspicious-btn">Dispensar todos os ataques ativos</button>
@@ -788,7 +806,7 @@
               <button class="fg-toggle-btn" data-sev="medium">medium</button>
               <button class="fg-toggle-btn" data-sev="watch">watch</button>
             </div>
-            <input type="text" id="cg-suspicious-search" placeholder="filtrar por IP, cliente ou tipo de sinal...">
+            <input type="text" id="cg-suspicious-search" placeholder="filtrar por IP, cliente ou tipo de sinal..." aria-label="Filtrar sinais suspeitos por IP, cliente ou tipo">
             <button class="fg-btn" id="cg-suspicious-group-btn">Agrupar por cliente</button>
             <button class="fg-btn" id="cg-suspicious-select-btn">Selecionar</button>
             <button class="fg-btn fg-btn-danger" id="cg-clear-suspicious-btn">Limpar hosts suspeitos</button>
@@ -807,7 +825,7 @@
       <section class="fg-panel-section">
         <h2>Top Flows</h2>
         <div class="fg-toolbar">
-          <input type="text" id="fg-flows-search" placeholder="filtrar por prefixo ou porta...">
+          <input type="text" id="fg-flows-search" placeholder="filtrar por prefixo ou porta..." aria-label="Filtrar flows por prefixo ou porta">
         </div>
         <div id="flowguard-flows"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
       </section>
@@ -834,8 +852,8 @@
             <button class="fg-toggle-btn active" data-source="flowguard">FlowGuard</button>
             <button class="fg-toggle-btn" data-source="clientguard">ClientGuard</button>
           </div>
-          <input type="text" id="fg-block-ip" placeholder="IP ou CIDR a bloquear, ex: 203.0.113.7">
-          <select id="fg-block-ttl">
+          <input type="text" id="fg-block-ip" placeholder="IP ou CIDR a bloquear, ex: 203.0.113.7" aria-label="IP ou CIDR a bloquear">
+          <select id="fg-block-ttl" aria-label="TTL do bloqueio">
             <option value="3600">1 hora</option>
             <option value="21600">6 horas</option>
             <option value="86400">24 horas</option>
@@ -861,8 +879,8 @@
           <button class="fg-btn fg-btn-danger" id="rules-cg-edge-revert-all-btn" title="Reverte TODAS as mitigações do ClientGuard, tanto FlowSpec (tabela de cima) quanto SSH/ACL (tabela de baixo)">Reverter todas as mitigações do ClientGuard</button>
         </div>
         <div class="fg-toolbar">
-          <input type="text" id="rules-host-filter" placeholder="filtrar por host/IP...">
-          <select id="rules-type-filter">
+          <input type="text" id="rules-host-filter" placeholder="filtrar por host/IP..." aria-label="Filtrar regras por host ou IP">
+          <select id="rules-type-filter" aria-label="Filtrar regras por tipo">
             <option value="">todos os tipos</option>
             <option value="rtbh">RTBH (blackhole)</option>
             <option value="discard">FlowSpec: descarte</option>
@@ -897,7 +915,7 @@
         <p class="fg-kpi-sub">Conexão compartilhada por FlowGuard e ClientGuard (Evolution API self-hosted) — só existe UM número conectado, usado pelos dois.</p>
         <div id="fg-wa-status" class="fg-kpi-sub"><span class="fg-skeleton-lines fg-skeleton-sm"><span class="fg-skeleton-line"></span></span></div>
         <div id="fg-wa-qr-wrap" style="display:none; margin: 0.6rem 0;">
-          <img id="fg-wa-qr-img" alt="QR code do WhatsApp" style="width:220px;height:220px;border:1px solid #30363d;border-radius:6px;background:#fff;padding:6px;">
+          <img id="fg-wa-qr-img" alt="QR code do WhatsApp" style="width:220px;height:220px;border:1px solid var(--fg-border);border-radius:6px;background:#fff;padding:6px;">
           <p class="fg-kpi-sub">Escaneie em WhatsApp → Aparelhos conectados → Conectar um aparelho. Expira em ~30-60s.</p>
           <button class="fg-btn" id="fg-wa-qr-refresh-btn">Gerar novo QR</button>
         </div>
@@ -905,17 +923,17 @@
           <button class="fg-btn" id="fg-wa-connect-btn" style="display:none;">Conectar número</button>
           <button class="fg-btn fg-btn-danger" id="fg-wa-logout-btn" style="display:none;">Desconectar</button>
         </div>
-        <hr style="border-color:#30363d; margin: 0.8rem 0;">
+        <hr style="border-color:var(--fg-border); margin: 0.8rem 0;">
         <h3 style="margin:0 0 0.4rem;">Destino dos alertas</h3>
         <div class="fg-form">
           <label><input type="radio" name="fg-wa-dest-type" value="group" checked> Grupo do WhatsApp</label>
           <label><input type="radio" name="fg-wa-dest-type" value="number"> Número direto</label>
         </div>
         <div class="fg-form" id="fg-wa-dest-group-wrap">
-          <select id="fg-wa-dest-group-select"><option value="">conecte o WhatsApp primeiro</option></select>
+          <select id="fg-wa-dest-group-select" aria-label="Grupo de WhatsApp de destino"><option value="">conecte o WhatsApp primeiro</option></select>
         </div>
         <div class="fg-form" id="fg-wa-dest-number-wrap" style="display:none;">
-          <input type="text" id="fg-wa-dest-number-input" placeholder="DDI+DDD+número, só dígitos (ex: 5599999999999)">
+          <input type="text" id="fg-wa-dest-number-input" placeholder="DDI+DDD+número, só dígitos (ex: 5599999999999)" aria-label="Número de WhatsApp de destino">
         </div>
         <div class="fg-toolbar">
           <button class="fg-btn" id="fg-wa-save-dest-btn">Salvar destino</button>
@@ -986,11 +1004,11 @@
           <h3 style="margin-top:0.6rem;">Novo template / editar existente</h3>
           <p class="fg-kpi-sub">Salvar com um nome já existente substitui o template inteiro (não é mescla de campos).</p>
           <form id="fg-detection-template-form" class="fg-form">
-            <input type="text" name="name" placeholder="nome (ex: cliente_100g)" pattern="[a-z0-9_\-]+" title="minúsculo, só letras/números/_/-" required>
-            <input type="number" name="ddos_bps_threshold_mbps" placeholder="limiar DDoS (Mbps)" min="1" required>
-            <input type="number" name="ddos_pps_threshold" placeholder="limiar pps (opcional)" min="1">
-            <input type="number" name="amp_bps_threshold_mbps" placeholder="limiar amplificação (Mbps, opcional)" min="1">
-            <input type="text" name="description" placeholder="descrição (opcional)">
+            <input type="text" name="name" placeholder="nome (ex: cliente_100g)" pattern="[a-z0-9_\-]+" title="minúsculo, só letras/números/_/-" required aria-label="Nome do tipo de ataque">
+            <input type="number" name="ddos_bps_threshold_mbps" placeholder="limiar DDoS (Mbps)" min="1" required aria-label="Limiar DDoS em Mbps">
+            <input type="number" name="ddos_pps_threshold" placeholder="limiar pps (opcional)" min="1" aria-label="Limiar em pacotes por segundo">
+            <input type="number" name="amp_bps_threshold_mbps" placeholder="limiar amplificação (Mbps, opcional)" min="1" aria-label="Limiar de amplificação em Mbps">
+            <input type="text" name="description" placeholder="descrição (opcional)" aria-label="Descrição do tipo de ataque">
             <button type="submit" class="fg-btn">Salvar template</button>
           </form>
         </section>
@@ -1015,7 +1033,7 @@
           <h3 style="margin-top:0.6rem;">Ação automática por detector</h3>
           <div class="fg-toggle-list" id="cg-edge-auto"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
           <div class="fg-toolbar">
-            <select id="cg-edge-default-ttl">
+            <select id="cg-edge-default-ttl" aria-label="TTL padrão de mitigação na borda">
               <option value="3600">TTL padrão: 1 hora</option>
               <option value="21600">TTL padrão: 6 horas</option>
               <option value="86400">TTL padrão: 24 horas</option>
@@ -1047,21 +1065,21 @@
           <h3 style="margin-top:0.6rem;">Novo template / editar existente</h3>
           <p class="fg-kpi-sub">Salvar com um nome já existente substitui o template inteiro (não é mescla de campos).</p>
           <form id="cg-detection-template-form" class="fg-form">
-            <input type="text" name="name" placeholder="nome (ex: cgnat)" pattern="[a-z0-9_\-]+" title="minúsculo, só letras/números/_/-" required>
-            <input type="number" name="scan_horizontal_hosts" placeholder="scan_horizontal_hosts" min="1" required>
-            <input type="number" name="scan_vertical_ports" placeholder="scan_vertical_ports" min="1" required>
-            <input type="text" name="description" placeholder="descrição (opcional)">
+            <input type="text" name="name" placeholder="nome (ex: cgnat)" pattern="[a-z0-9_\-]+" title="minúsculo, só letras/números/_/-" required aria-label="Nome do detector de cliente">
+            <input type="number" name="scan_horizontal_hosts" placeholder="scan_horizontal_hosts" min="1" required aria-label="Limiar de hosts para scan horizontal">
+            <input type="number" name="scan_vertical_ports" placeholder="scan_vertical_ports" min="1" required aria-label="Limiar de portas para scan vertical">
+            <input type="text" name="description" placeholder="descrição (opcional)" aria-label="Descrição do detector de cliente">
             <button type="submit" class="fg-btn">Salvar template</button>
           </form>
         </section>
         <section class="fg-panel-section">
           <h2>Redes de Clientes</h2>
           <form id="cg-customers-form" class="fg-form">
-            <input type="text" name="network" placeholder="CIDR ou IP, ex: 177.86.16.0/24" required>
-            <input type="text" name="prefix" placeholder="rótulo (customer_prefix)" required>
-            <input type="text" name="name" placeholder="nome (opcional)">
-            <select name="template" id="cg-customers-form-template"><option value="">sem template</option></select>
-            <input type="number" name="client_multiplier" placeholder="multiplicador (opcional)" min="1">
+            <input type="text" name="network" placeholder="CIDR ou IP, ex: 177.86.16.0/24" required aria-label="Rede do cliente (CIDR ou IP)">
+            <input type="text" name="prefix" placeholder="rótulo (customer_prefix)" required aria-label="Rótulo do prefixo do cliente">
+            <input type="text" name="name" placeholder="nome (opcional)" aria-label="Nome do cliente">
+            <select name="template" id="cg-customers-form-template" aria-label="Template de configuração do cliente"><option value="">sem template</option></select>
+            <input type="number" name="client_multiplier" placeholder="multiplicador (opcional)" min="1" aria-label="Multiplicador de cliente">
             <button type="submit" class="fg-btn">Adicionar</button>
           </form>
           <div id="cg-customers"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
@@ -1069,7 +1087,7 @@
         <section class="fg-panel-section">
           <h2>Whitelist</h2>
           <form id="cg-whitelist-form" class="fg-form">
-            <input type="text" name="ip" placeholder="IP" required>
+            <input type="text" name="ip" placeholder="IP" required aria-label="IP para whitelist">
             <button type="submit" class="fg-btn">Adicionar</button>
           </form>
           <div id="cg-whitelist"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
@@ -1091,7 +1109,7 @@
             <button class="fg-toggle-btn" data-window-s="86400">24h</button>
             <button class="fg-toggle-btn" data-window-s="604800">7d</button>
           </div>
-          <input type="text" id="cg-top-search" placeholder="filtrar por IP ou cliente...">
+          <input type="text" id="cg-top-search" placeholder="filtrar por IP ou cliente..." aria-label="Filtrar top clientes por IP ou nome">
         </div>
         <div id="cg-top"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
         <div id="cg-client-detail"></div>
@@ -1100,7 +1118,7 @@
 
     <div class="fg-tab-panel" data-tab="charts">
       <div class="fg-toolbar">
-        <select id="fg-chart-prefix"></select>
+        <select id="fg-chart-prefix" aria-label="Selecionar prefixo do gráfico"></select>
         <div class="fg-toggle-group" id="fg-chart-window">
           <button class="fg-toggle-btn" data-window="1h">1h</button>
           <button class="fg-toggle-btn active" data-window="6h">6h</button>
@@ -1132,10 +1150,10 @@
         <div class="fg-chart-box">
           <canvas id="fg-chart-protocol" class="fg-chart-lg" width="900" height="220"></canvas>
           <div class="fg-legend">
-            <span><i style="background:#58a6ff"></i> TCP</span>
-            <span><i style="background:#3fb950"></i> UDP</span>
-            <span><i style="background:#d29922"></i> ICMP</span>
-            <span><i style="background:#8b949e"></i> Outro</span>
+            <span><i style="background:var(--fg-accent)"></i> TCP</span>
+            <span><i style="background:var(--fg-success)"></i> UDP</span>
+            <span><i style="background:var(--fg-warning)"></i> ICMP</span>
+            <span><i style="background:var(--fg-text-muted)"></i> Outro</span>
           </div>
         </div>
       </section>

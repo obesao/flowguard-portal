@@ -1,6 +1,6 @@
 # Portal do Provedor
 
-**Versão atual: v1.59.0**
+**Versão atual: v1.60.0**
 
 Dashboard web para operação de rede do provedor — login único, servido via
 `busybox httpd` com backend em CGI scripts (shell POSIX), sem framework.
@@ -100,6 +100,55 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 | `scripts/` | Utilitários de administração (não expostos via HTTP) |
 
 ## Changelog
+
+### v1.60.0 — 2026-07-17 — Auditoria de acessibilidade/responsividade (plugin impeccable) + PRODUCT.md/DESIGN.md
+
+Primeira rodada usando o skill `impeccable` (`/impeccable init` → `/impeccable
+audit` → `/impeccable polish`) pra documentar e corrigir o sistema visual do
+portal. `PRODUCT.md` e `DESIGN.md` novos na raiz do repo capturam o registro
+("product"/NOC), a paleta real (derivada do GitHub Primer Dark) e as regras
+implícitas do sistema (ex: Signal Blue nunca preenche botão, flat-by-doctrine
+sem sombra decorativa) — servem de referência pra qualquer mudança visual
+futura, própria ou via impeccable.
+
+Auditoria (14/20, "Good") encontrou gaps reais de acessibilidade/responsivo,
+todos corrigidos nesta versão:
+
+- **Formulários sem nome acessível**: 33 inputs + 7 selects dependiam só de
+  `placeholder` (que some ao digitar e nem sempre é lido por leitor de tela) —
+  todos ganharam `aria-label` (WCAG 1.3.1/4.1.2).
+- **Modais sem semântica**: os 3 modais (Modo Guerra execução/configuração,
+  Config. Roteador) eram `<div>` simples sem `role="dialog"`/`aria-modal`,
+  sem fechar no Esc e sem prender o foco — teclado vazava pro conteúdo atrás
+  do modal. Adicionado `role="dialog"`/`aria-modal="true"`/`aria-labelledby`
+  estático no HTML + um par `openModalA11y`/`closeModalA11y` genérico em
+  `flowguard.js` (foco preso via Tab, Esc aciona o botão "Fechar" existente,
+  foco volta pro elemento que abriu o modal ao fechar). Validado com
+  Playwright real: 15 Tabs seguidos sem o foco escapar do modal, Esc fecha.
+- **Tabelas sem scroll em mobile**: as 33+ tabelas (todas geradas via
+  `innerHTML` em `flowguard.js`, nenhuma estática no HTML) usam
+  `white-space: nowrap` e várias colunas — sem wrapper, estouravam a
+  viewport no celular (WCAG 1.4.10). Fix de uma linha cobrindo todas de
+  uma vez: `table { display: block; overflow-x: auto; }` — o browser
+  mantém o modelo de tabela internamente (thead/tbody/tr/td preservam os
+  `display` de tabela via UA stylesheet), só passa a rolar o excesso em vez
+  de estourar a página. Validado: `document.documentElement.scrollWidth`
+  igual à viewport em 375px, sem overflow de página.
+- **Alvos de toque pequenos**: `.fg-btn`/`.fg-toggle-btn`/paginação ficavam
+  abaixo de 44px — ajustado só dentro do breakpoint mobile (`max-width:
+  699px`) pra não afetar a densidade de desktop, que é escolha deliberada
+  (ver `DESIGN.md`).
+- **Hex hardcoded**: 8 pontos em `index.html` duplicavam valores de token
+  em vez de usar `var(--fg-*)` — trocados. Paleta categórica dos gráficos
+  (`CHART_PREFIX_COLORS`, 8 cores) e o acento roxo do card ClientGuard,
+  que não estavam documentados, agora estão no `DESIGN.md`.
+
+Nada de mudança visual/estrutural fora desses pontos — sistema de cores,
+densidade de tabela e layout da sidebar continuam exatamente como estavam.
+Validado ponta a ponta com Playwright real contra o portal rodando (login
+via token de sessão de dev, screenshots desktop 1400px + mobile 375px,
+0 erros de console novos — os 401 pré-existentes vêm de escopo de sessão
+do token de dev, não desta mudança).
 
 ### v1.59.0 — 2026-07-13 — Menu principal vira sidebar vertical fixa na lateral esquerda
 

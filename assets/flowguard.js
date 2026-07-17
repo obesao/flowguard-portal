@@ -395,6 +395,58 @@
 
   // --- menus de ação (dropdown compacto) -------------------------------------
 
+  // --- acessibilidade de modal (foco preso + Esc + devolução de foco) -------
+  // Os 3 modais (.fg-modal-overlay) são <div> simples, sem <dialog> nativo —
+  // abrir/fechar é só alternar .hidden. openModalA11y/closeModalA11y cobrem o
+  // que faltava pra teclado/leitor de tela: Tab preso dentro do modal, Esc
+  // fecha (via o mesmo botão "Fechar" que o clique usa), e foco volta pro
+  // elemento que abriu o modal (o overlay já ganhou role=dialog/aria-modal/
+  // aria-labelledby estático no HTML).
+  var modalA11yState = new WeakMap();
+
+  function focusableElements(container) {
+    return Array.prototype.slice
+      .call(container.querySelectorAll(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      ))
+      .filter(function (el) { return el.offsetParent !== null; });
+  }
+
+  function openModalA11y(overlayEl, closeBtnId) {
+    if (!overlayEl) return;
+    var trigger = document.activeElement;
+    var onKeydown = function (ev) {
+      if (ev.key === "Escape") {
+        ev.preventDefault();
+        var closeBtn = document.getElementById(closeBtnId);
+        if (closeBtn) closeBtn.click();
+        return;
+      }
+      if (ev.key !== "Tab") return;
+      var focusables = focusableElements(overlayEl);
+      if (!focusables.length) return;
+      var first = focusables[0], last = focusables[focusables.length - 1];
+      if (ev.shiftKey && document.activeElement === first) {
+        ev.preventDefault(); last.focus();
+      } else if (!ev.shiftKey && document.activeElement === last) {
+        ev.preventDefault(); first.focus();
+      }
+    };
+    overlayEl.addEventListener("keydown", onKeydown);
+    modalA11yState.set(overlayEl, { trigger: trigger, onKeydown: onKeydown });
+    var focusables = focusableElements(overlayEl);
+    (focusables[0] || overlayEl).focus();
+  }
+
+  function closeModalA11y(overlayEl) {
+    if (!overlayEl) return;
+    var state = modalA11yState.get(overlayEl);
+    if (!state) return;
+    overlayEl.removeEventListener("keydown", state.onKeydown);
+    modalA11yState.delete(overlayEl);
+    if (state.trigger && typeof state.trigger.focus === "function") state.trigger.focus();
+  }
+
   function initActionMenus() {
     document.addEventListener("click", function (ev) {
       // clicar no campo de duração do RTBH não deve fechar o menu (senão não dá
@@ -2490,6 +2542,7 @@
     confirmBtn.textContent = isRevert ? "Confirmar e reverter agora" : "Confirmar e executar agora";
     confirmBtn.className = isRevert ? "fg-btn" : "fg-btn fg-btn-danger";
     document.getElementById("fg-warmode-overlay").hidden = false;
+    openModalA11y(document.getElementById("fg-warmode-overlay"), "fg-warmode-close-btn");
     document.getElementById("fg-warmode-exec-unlock-status").textContent = "";
     if (warmodeToken) {
       warmodeExecShowStep("content");
@@ -2519,6 +2572,7 @@
   }
 
   function closeWarmodeModal() {
+    closeModalA11y(document.getElementById("fg-warmode-overlay"));
     document.getElementById("fg-warmode-overlay").hidden = true;
   }
 
@@ -2642,6 +2696,7 @@
 
   function openWarmodeCfgModal() {
     document.getElementById("fg-warmode-cfg-overlay").hidden = false;
+    openModalA11y(document.getElementById("fg-warmode-cfg-overlay"), "fg-warmode-cfg-close-btn");
     document.getElementById("fg-warmode-setup-status").textContent = "";
     document.getElementById("fg-warmode-unlock-status").textContent = "";
     document.getElementById("fg-warmode-save-status").textContent = "";
@@ -2659,6 +2714,7 @@
   }
 
   function closeWarmodeCfgModal() {
+    closeModalA11y(document.getElementById("fg-warmode-cfg-overlay"));
     document.getElementById("fg-warmode-cfg-overlay").hidden = true;
   }
 
@@ -3429,6 +3485,7 @@
 
   function openRouterCfgModal() {
     document.getElementById("fg-routercfg-overlay").hidden = false;
+    openModalA11y(document.getElementById("fg-routercfg-overlay"), "fg-rc-close-btn");
     document.getElementById("fg-rc-unlock-status").textContent = "";
     if (warmodeToken) {
       rcShowStep("content");
@@ -3458,6 +3515,7 @@
   }
 
   function closeRouterCfgModal() {
+    closeModalA11y(document.getElementById("fg-routercfg-overlay"));
     document.getElementById("fg-routercfg-overlay").hidden = true;
     rcStopCountdown();
   }

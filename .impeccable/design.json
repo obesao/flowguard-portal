@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-17T14:00:00Z",
+  "title": "Design System: Portal do Provedor",
+  "extensions": {
+    "colorMeta": {
+      "void-ink": { "role": "neutral", "displayName": "Void Ink", "canonical": "oklch(21% 0.01 255)", "tonalRamp": ["oklch(12% 0.01 255)", "oklch(18% 0.01 255)", "oklch(21% 0.01 255)", "oklch(26% 0.012 255)", "oklch(35% 0.012 255)", "oklch(50% 0.012 255)", "oklch(70% 0.01 255)", "oklch(90% 0.005 255)"] },
+      "panel-charcoal": { "role": "neutral", "displayName": "Panel Charcoal", "canonical": "oklch(26% 0.012 255)", "tonalRamp": ["oklch(15% 0.01 255)", "oklch(21% 0.01 255)", "oklch(26% 0.012 255)", "oklch(31% 0.012 255)", "oklch(40% 0.012 255)", "oklch(55% 0.012 255)", "oklch(75% 0.01 255)", "oklch(92% 0.005 255)"] },
+      "elevated-slate": { "role": "neutral", "displayName": "Elevated Slate", "canonical": "oklch(31% 0.012 255)", "tonalRamp": ["oklch(18% 0.01 255)", "oklch(24% 0.012 255)", "oklch(31% 0.012 255)", "oklch(37% 0.012 255)", "oklch(46% 0.012 255)", "oklch(60% 0.012 255)", "oklch(78% 0.01 255)", "oklch(93% 0.005 255)"] },
+      "steel-border": { "role": "neutral", "displayName": "Steel Border", "canonical": "oklch(37% 0.012 255)", "tonalRamp": ["oklch(20% 0.01 255)", "oklch(28% 0.012 255)", "oklch(37% 0.012 255)", "oklch(44% 0.012 255)", "oklch(53% 0.012 255)", "oklch(65% 0.012 255)", "oklch(80% 0.01 255)", "oklch(94% 0.005 255)"] },
+      "fog-white": { "role": "neutral", "displayName": "Fog White", "canonical": "oklch(84% 0.012 255)", "tonalRamp": ["oklch(30% 0.012 255)", "oklch(45% 0.012 255)", "oklch(60% 0.012 255)", "oklch(70% 0.012 255)", "oklch(78% 0.012 255)", "oklch(84% 0.012 255)", "oklch(90% 0.008 255)", "oklch(96% 0.004 255)"] },
+      "muted-steel": { "role": "neutral", "displayName": "Muted Steel", "canonical": "oklch(65% 0.01 255)", "tonalRamp": ["oklch(30% 0.01 255)", "oklch(42% 0.01 255)", "oklch(53% 0.01 255)", "oklch(59% 0.01 255)", "oklch(65% 0.01 255)", "oklch(72% 0.01 255)", "oklch(82% 0.008 255)", "oklch(92% 0.004 255)"] },
+      "signal-blue": { "role": "primary", "displayName": "Signal Blue", "canonical": "oklch(68% 0.14 250)", "tonalRamp": ["oklch(25% 0.08 250)", "oklch(38% 0.11 250)", "oklch(50% 0.13 250)", "oklch(59% 0.14 250)", "oklch(68% 0.14 250)", "oklch(76% 0.11 250)", "oklch(85% 0.07 250)", "oklch(93% 0.03 250)"] },
+      "alert-red": { "role": "danger", "displayName": "Alert Red", "canonical": "oklch(63% 0.19 25)", "tonalRamp": ["oklch(28% 0.12 25)", "oklch(40% 0.16 25)", "oklch(52% 0.18 25)", "oklch(58% 0.19 25)", "oklch(63% 0.19 25)", "oklch(70% 0.16 25)", "oklch(80% 0.11 25)", "oklch(90% 0.05 25)"] },
+      "status-green": { "role": "success", "displayName": "Status Green", "canonical": "oklch(70% 0.16 145)", "tonalRamp": ["oklch(30% 0.1 145)", "oklch(42% 0.13 145)", "oklch(55% 0.15 145)", "oklch(63% 0.16 145)", "oklch(70% 0.16 145)", "oklch(78% 0.13 145)", "oklch(86% 0.09 145)", "oklch(94% 0.04 145)"] },
+      "amber-flag": { "role": "warning-high", "displayName": "Amber Flag", "canonical": "oklch(78% 0.14 60)", "tonalRamp": ["oklch(35% 0.1 60)", "oklch(48% 0.12 60)", "oklch(60% 0.13 60)", "oklch(70% 0.14 60)", "oklch(78% 0.14 60)", "oklch(84% 0.11 60)", "oklch(90% 0.07 60)", "oklch(96% 0.03 60)"] },
+      "warning-ochre": { "role": "warning-medium", "displayName": "Warning Ochre", "canonical": "oklch(72% 0.13 75)", "tonalRamp": ["oklch(32% 0.09 75)", "oklch(45% 0.11 75)", "oklch(58% 0.12 75)", "oklch(66% 0.13 75)", "oklch(72% 0.13 75)", "oklch(80% 0.1 75)", "oklch(88% 0.06 75)", "oklch(95% 0.03 75)"] }
+    },
+    "typographyMeta": {
+      "headline": { "displayName": "Headline", "purpose": "Título de seção (h2), incluindo cabeçalho colapsável de painel." },
+      "title": { "displayName": "Title", "purpose": "Subtítulo de bloco (h4), nome de item em listas de configuração." },
+      "body": { "displayName": "Body", "purpose": "Conteúdo de tabela — a unidade de informação mais repetida na tela." },
+      "label": { "displayName": "Label", "purpose": "Rótulo de KPI, navegação 'Ir para', contagem secundária." },
+      "mono": { "displayName": "Mono", "purpose": "Countdown do Modo Guerra e saída técnica bruta (comandos, resultado de execução)." }
+    },
+    "shadows": [
+      { "name": "overlay-pop", "value": "0 4px 12px rgba(0,0,0,0.5)", "purpose": "Dropdown de menu de ações sobreposto ao conteúdo." },
+      { "name": "toast-pop", "value": "0 2px 8px rgba(0,0,0,0.4)", "purpose": "Notificação flutuante no canto da tela." },
+      { "name": "alert-glow", "value": "0 0 16px 1px rgba(248,81,73,0.35)", "purpose": "Reservado ao estado 'Modo Guerra ativo' — pulsante, único brilho intencional do sistema." }
+    ],
+    "motion": [
+      { "name": "ease-standard", "value": "ease", "purpose": "Transições padrão de hover/estado (0.15s-0.3s)." },
+      { "name": "warmode-pulse", "value": "2.2s ease-in-out infinite alternate box-shadow", "purpose": "Pulso do topbar/botão/badge quando Modo Guerra está ativo." }
+    ],
+    "breakpoints": [
+      { "name": "mobile", "value": "699px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Neutral Button",
+      "kind": "button",
+      "refersTo": "button-neutral",
+      "description": "Ação padrão não-destrutiva — inclusive o que seria 'primário' em outros sistemas.",
+      "html": "<button class=\"ds-btn-neutral\">Aplicar</button>",
+      "css": ".ds-btn-neutral { background: var(--fg-bg-elevated); color: var(--fg-text); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.2rem 0.6rem; cursor: pointer; transition: background 0.15s ease; } .ds-btn-neutral:hover { background: var(--fg-border); } .ds-btn-neutral:focus-visible { outline: 2px solid var(--fg-accent); outline-offset: 2px; } .ds-btn-neutral:disabled { opacity: 0.5; cursor: default; }"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Ação destrutiva real: mitigar, banir, executar Modo Guerra.",
+      "html": "<button class=\"ds-btn-danger\">Mitigar</button>",
+      "css": ".ds-btn-danger { background: var(--fg-danger); color: var(--fg-bg); border: 1px solid var(--fg-danger); border-radius: 6px; padding: 0.2rem 0.6rem; font-weight: bold; cursor: pointer; transition: background 0.15s ease; } .ds-btn-danger:hover { background: var(--fg-danger-hover); }"
+    },
+    {
+      "name": "Neutral Count Badge",
+      "kind": "chip",
+      "refersTo": "badge-pill",
+      "description": "Contagem informativa (ex: regras ativas) — não é um alerta.",
+      "html": "<span class=\"ds-badge-neutral\">12</span>",
+      "css": ".ds-badge-neutral { background: var(--fg-bg-elevated); color: var(--fg-text-muted); border: 1px solid var(--fg-border); border-radius: 999px; padding: 0.05rem 0.45rem; font-size: 0.7rem; }"
+    },
+    {
+      "name": "Mitigation State Badge",
+      "kind": "chip",
+      "refersTo": "badge-pill",
+      "description": "Estado de mitigação (none/active/inactive/failed) — cor de borda + texto é o sinal primário.",
+      "html": "<span class=\"ds-badge-mitigation ds-badge-active\">Ativa</span>",
+      "css": ".ds-badge-mitigation { display: inline-block; font-size: 0.78rem; padding: 0.15rem 0.5rem; border-radius: 999px; border: 1px solid var(--fg-border); white-space: nowrap; } .ds-badge-active { color: var(--fg-success); border-color: var(--fg-success); } .ds-badge-inactive { color: var(--fg-warning); border-color: var(--fg-warning); } .ds-badge-failed { color: var(--fg-danger); border-color: var(--fg-danger); }"
+    },
+    {
+      "name": "KPI Card",
+      "kind": "card",
+      "refersTo": "kpi-card",
+      "description": "Card de indicador no cockpit — topo de 2px em Signal Blue é a única aplicação decorativa do acento.",
+      "html": "<div class=\"ds-kpi-card\"><div class=\"ds-kpi-label\">Tráfego</div><div class=\"ds-kpi-value\">4.2 Gbps</div></div>",
+      "css": ".ds-kpi-card { background: var(--fg-bg-panel); border: 1px solid var(--fg-border); border-top: 2px solid var(--fg-accent); border-radius: 8px; padding: 0.9rem 1rem; } .ds-kpi-label { font-size: 0.78rem; color: var(--fg-text-muted); text-transform: uppercase; letter-spacing: 0.03em; } .ds-kpi-value { font-size: 1.5rem; font-weight: bold; margin-top: 0.2rem; }"
+    },
+    {
+      "name": "Sidebar Tab",
+      "kind": "nav",
+      "refersTo": null,
+      "description": "Item de navegação da sidebar vertical — borda-esquerda de 3px vira Signal Blue quando ativo.",
+      "html": "<button class=\"ds-tab-btn ds-tab-active\">Visão Geral</button>",
+      "css": ".ds-tab-btn { background: transparent; border: none; border-left: 3px solid transparent; color: var(--fg-text-muted); padding: 0.6rem 0.8rem; cursor: pointer; font-size: 0.95rem; display: flex; align-items: center; gap: 0.4rem; text-align: left; width: 100%; transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease; } .ds-tab-btn:hover { color: var(--fg-text); } .ds-tab-active { color: var(--fg-text); border-left-color: var(--fg-accent); background: var(--fg-bg-panel); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Ops Console",
+    "overview": "Este portal é a sala de controle de um NOC, não um produto que precisa convencer alguém a assinar um plano. Toda decisão visual serve a uma pergunta única, feita sob pressão: \"o que está acontecendo agora, e o que eu faço a respeito?\". O sistema é escuro por padrão, denso, e recusa qualquer elemento cuja única função seja decorativa — nenhuma sombra difusa, nenhum gradiente, nenhum card fofo. A cor tem função de sinal (severidade, estado, ação disponível), não de humor de marca. O portal rejeita explicitamente a estética de marketing SaaS: sem hero, sem CTA persuasivo, sem tom de \"produto vendendo plano\". Também rejeita a extremidade oposta — planilha crua sem hierarquia — através de badges, cores de severidade e agrupamento visual consistentes.",
+    "keyCharacteristics": [
+      "Escuro, denso, sem sombra decorativa (flat-by-doctrine)",
+      "Azul como único acento de marca — reservado a foco, estado ativo e sinal neutro, nunca decoração",
+      "Vermelho/verde/âmbar carregam significado operacional real, nunca são escolha estética",
+      "Tabelas e cards compactos: cabe mais dado por tela do que respiro visual"
+    ],
+    "rules": [
+      { "name": "The One Accent Rule", "body": "Signal Blue é o único acento de identidade e aparece em ≤10% de qualquer tela. Nunca preenche a área de um botão — não existe botão primário azul neste sistema, só neutro e destrutivo.", "section": "colors" },
+      { "name": "The Severity-Never-Alone Rule", "body": "Vermelho/verde/âmbar nunca são o único sinal de estado. Todo estado de severidade tem um segundo canal (texto, posição, ícone) para sobreviver a print/WhatsApp e a daltonismo.", "section": "colors" },
+      { "name": "The No-Display-Type Rule", "body": "Este sistema não tem tipografia de destaque/hero — o maior texto é 1.5rem. Urgência é comunicada por cor de severidade e animação de estado, não por tamanho de fonte.", "section": "typography" },
+      { "name": "The Flat-By-Doctrine Rule", "body": "Superfícies em repouso nunca têm sombra. Sombra só aparece como resposta funcional (dropdown, toast) ou como alarme deliberado de um único estado (Modo Guerra).", "section": "elevation" }
+    ],
+    "dos": [
+      "Do usar Signal Blue só como sinal — foco, aba ativa, topo de KPI card, link. Nunca como preenchimento de botão.",
+      "Do dar a todo estado de severidade um segundo canal além da cor, conforme WCAG AA do PRODUCT.md.",
+      "Do manter tabelas densas: fonte 0.85rem, padding compacto, sem respiro extra.",
+      "Do reservar sombra/glow só para overlays funcionais ou o alarme deliberado do Modo Guerra."
+    ],
+    "donts": [
+      "Don't introduzir gradiente, glassmorphism ou qualquer decoração — anti-referência explícita é 'SaaS marketing genérico'.",
+      "Don't criar um botão primário azul preenchido. Todo botão não-destrutivo é neutro.",
+      "Don't adicionar box-shadow decorativo a cards ou seções em repouso.",
+      "Don't aumentar padding/fonte de tabela 'pra respirar' — density-first é a escolha confirmada.",
+      "Don't usar border-left/border-right colorido maior que 1px como faixa decorativa solta — as únicas bordas de destaque têm função de estado (topo de KPI, aba ativa)."
+    ]
+  }
+}

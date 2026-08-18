@@ -101,6 +101,18 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 
 ## Changelog
 
+### v1.69.0 — 2026-08-18 — Incidentes: Scanners/Destino Coordenado em card separado
+
+Ajuste sobre a v1.68.0 (FlowGuard/ClientGuard lado a lado): "Scanners
+Detectados" e "Destino Coordenado" saíram de dentro da coluna FlowGuard e
+foram pra um card próprio ("Outras Detecções (FlowGuard)"), logo abaixo do
+card onde Ataques DDoS/Sinais Suspeitos ficam lado a lado — são sinais menos
+urgentes que ataque DDoS confirmado, então ganham menos destaque visual sem
+sumir da aba. Mesmo `id` nos dois blocos (`fg-sub-scanners`,
+`fg-sub-coordinated`), então a barra "Ir para" continua rolando pro lugar
+certo sem mudança de JS. Ganhou colapso de painel automático de graça (mesmo
+mecanismo de todo `section.fg-panel-section`).
+
 ### v1.68.0 — 2026-08-18 — Incidentes: FlowGuard/ClientGuard lado a lado + barra de intensidade em ataques
 
 Mudança de layout pedida separadamente do redesign de 8 fases anterior

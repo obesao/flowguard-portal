@@ -849,30 +849,6 @@
           </div>
           <div id="flowguard-attacks"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
           <div id="flowguard-attack-detail"></div>
-
-          <div class="fg-incident-subsection" id="fg-sub-scanners">
-            <h3>Scanners Detectados (port scan de fora pra dentro) <span class="fg-badge fg-badge-neutral" id="fg-sub-scanners-badge">0</span></h3>
-            <p class="fg-kpi-sub">Horizontal: 1 IP externo tocando N hosts distintos do prefixo na mesma porta. Vertical: 1 IP tocando N portas distintas do mesmo host. Sem severidade própria no backend (estimada aqui pela contagem). Bloqueio automático não está configurado — o botão "Bloquear" cria uma regra manual (mesma ação da aba Regras); não atualiza o status "detectando" sozinho, confira a regra criada na aba Regras.</p>
-            <div class="fg-toolbar">
-              <div class="fg-toggle-group" id="fg-scan-view-toggle">
-                <button class="fg-toggle-btn active" aria-pressed="true" data-view="active">Ativos</button>
-                <button class="fg-toggle-btn" aria-pressed="false" data-view="history">Histórico</button>
-              </div>
-            </div>
-            <div id="fg-scan-offenders"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
-          </div>
-
-          <div class="fg-incident-subsection" id="fg-sub-coordinated">
-            <h3>Destino Coordenado (N src externos → 1 host/porta protegido) <span class="fg-badge fg-badge-neutral" id="fg-sub-coordinated-badge">0</span></h3>
-            <p class="fg-kpi-sub">Muitos IPs externos distintos convergindo pro MESMO host/porta protegido — pega ataques distribuídos de baixo volume por fonte, que não batem o limiar de DDoS volumétrico. Severidade estimada pela contagem de fontes. Sem mitigação automática nesta versão — sem botão de ação aqui, use a aba Regras se precisar bloquear algo manualmente.</p>
-            <div class="fg-toolbar">
-              <div class="fg-toggle-group" id="fg-coordinated-view-toggle">
-                <button class="fg-toggle-btn active" aria-pressed="true" data-view="active">Ativos</button>
-                <button class="fg-toggle-btn" aria-pressed="false" data-view="history">Histórico</button>
-              </div>
-            </div>
-            <div id="fg-coordinated-offenders"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
-          </div>
         </div>
 
         <div class="fg-incidents-column" data-incidents-app="clientguard">
@@ -901,6 +877,38 @@
           <div id="cg-suspicious-detail"></div>
         </div>
       </div>
+      </section>
+
+      <!-- card separado, abaixo do card FlowGuard/ClientGuard lado a lado —
+           scanners e destino coordenado são sinais de FlowGuard, mas menos
+           urgentes que ataque DDoS confirmado, por isso ficam num card à
+           parte em vez de dentro da coluna FlowGuard -->
+      <section class="fg-panel-section">
+        <h2>Outras Detecções (FlowGuard)</h2>
+
+        <div id="fg-sub-scanners">
+          <h3>Scanners Detectados (port scan de fora pra dentro) <span class="fg-badge fg-badge-neutral" id="fg-sub-scanners-badge">0</span></h3>
+          <p class="fg-kpi-sub">Horizontal: 1 IP externo tocando N hosts distintos do prefixo na mesma porta. Vertical: 1 IP tocando N portas distintas do mesmo host. Sem severidade própria no backend (estimada aqui pela contagem). Bloqueio automático não está configurado — o botão "Bloquear" cria uma regra manual (mesma ação da aba Regras); não atualiza o status "detectando" sozinho, confira a regra criada na aba Regras.</p>
+          <div class="fg-toolbar">
+            <div class="fg-toggle-group" id="fg-scan-view-toggle">
+              <button class="fg-toggle-btn active" aria-pressed="true" data-view="active">Ativos</button>
+              <button class="fg-toggle-btn" aria-pressed="false" data-view="history">Histórico</button>
+            </div>
+          </div>
+          <div id="fg-scan-offenders"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
+        </div>
+
+        <div class="fg-incident-subsection" id="fg-sub-coordinated">
+          <h3>Destino Coordenado (N src externos → 1 host/porta protegido) <span class="fg-badge fg-badge-neutral" id="fg-sub-coordinated-badge">0</span></h3>
+          <p class="fg-kpi-sub">Muitos IPs externos distintos convergindo pro MESMO host/porta protegido — pega ataques distribuídos de baixo volume por fonte, que não batem o limiar de DDoS volumétrico. Severidade estimada pela contagem de fontes. Sem mitigação automática nesta versão — sem botão de ação aqui, use a aba Regras se precisar bloquear algo manualmente.</p>
+          <div class="fg-toolbar">
+            <div class="fg-toggle-group" id="fg-coordinated-view-toggle">
+              <button class="fg-toggle-btn active" aria-pressed="true" data-view="active">Ativos</button>
+              <button class="fg-toggle-btn" aria-pressed="false" data-view="history">Histórico</button>
+            </div>
+          </div>
+          <div id="fg-coordinated-offenders"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
+        </div>
       </section>
     </div>
 

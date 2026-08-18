@@ -101,6 +101,18 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 
 ## Changelog
 
+### v1.71.0 — 2026-08-18 — KPI cards do topo reduzidos (tela pequena)
+
+Os 7 cards de KPI no topo de cada aba (Tráfego, Pacotes/s, Ataques Ativos,
+Regras FlowSpec, Mitigações de Borda, BGP, Daemon) ficavam grandes demais
+num MacBook 11" (viewport ~1366px) — quebravam em 2 linhas altas.
+Reduzidos: padding (`--space-4/5` → `--space-3/4`), valor
+(`--text-xl` → `--text-lg`), largura mínima da grade (160px → 140px) e gap
+(`--space-4` → `--space-3`). Resultado: os 7 cabem numa linha só em 1366px
+de largura. `.fg-bgp-peer` (texto interno do card BGP) acompanhou a redução
+proporcional (`--text-base` → `--text-sm`) pra continuar menor que o valor
+padrão de KPI, mesma relação documentada no comentário original.
+
 ### v1.70.0 — 2026-08-18 — Incidentes: FlowGuard e ClientGuard viram cards separados
 
 Reverte o layout lado a lado da v1.68.0: com ataque ativo a tabela de

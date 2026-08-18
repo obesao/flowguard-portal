@@ -145,17 +145,20 @@
 
     .fg-wrap { max-width: 100%; }
 
-    .fg-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-4); margin-bottom: var(--space-6); }
-    .fg-card { padding: var(--space-4) var(--space-5); border-top: 2px solid var(--fg-accent); transition: border-color 0.15s ease; }
+    /* cards de KPI (topo de cada aba) — reduzidos (padding/fonte/gap) pra
+       caber melhor em tela pequena (ex: MacBook 11", viewport ~1024px de
+       largura), onde 7 cards em minmax(160px) quebravam em 2+ linhas altas */
+    .fg-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--space-3); margin-bottom: var(--space-5); }
+    .fg-card { padding: var(--space-3) var(--space-4); border-top: 2px solid var(--fg-accent); transition: border-color 0.15s ease; }
     .fg-card .fg-kpi-label { font-size: var(--text-sm); color: var(--fg-text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
-    .fg-card .fg-kpi-value { font-size: var(--text-xl); font-weight: bold; margin-top: var(--space-1); }
+    .fg-card .fg-kpi-value { font-size: var(--text-lg); font-weight: bold; margin-top: var(--space-1); }
     .fg-dot { display: inline-block; width: var(--space-3); height: var(--space-3); border-radius: 50%; margin-right: var(--space-2); }
     .fg-dot-up { background: var(--fg-success); }
     .fg-dot-down { background: var(--fg-danger); }
     .fg-kpi-sub { font-size: var(--text-xs); color: var(--fg-text-muted); margin-top: var(--space-1); }
     /* card BGP mostra 1 linha por sessão (main + pppoe) — fonte menor que o
-       valor normal de KPI (1.5rem) pra caber "NE8000-PPPOE Down/Idle" no card */
-    .fg-bgp-peer { font-size: var(--text-base); font-weight: 600; line-height: 1.6; white-space: nowrap; }
+       valor normal de KPI (--text-lg) pra caber "NE8000-PPPOE Down/Idle" no card */
+    .fg-bgp-peer { font-size: var(--text-sm); font-weight: 600; line-height: 1.5; white-space: nowrap; }
 
     /* menu principal (#fg-tabs) virou sidebar vertical fixa à esquerda — ver
        #fg-app abaixo pro layout flex pai. Baixo de 700px volta a virar uma

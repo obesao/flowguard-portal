@@ -26,42 +26,59 @@
       --fg-danger-rgb: 248,81,73;
       --fg-black-rgb: 0,0,0;
       --fg-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+      --space-1: 0.2rem;
+      --space-2: 0.4rem;
+      --space-3: 0.6rem;
+      --space-4: 0.8rem;
+      --space-5: 1rem;
+      --space-6: 1.5rem;
+      --space-7: 2rem;
+      --space-8: 4rem;
+
+      --text-xs: 0.72rem;
+      --text-sm: 0.8rem;
+      --text-base: 0.85rem;
+      --text-md: 0.95rem;
+      --text-lg: 1.1rem;
+      --text-xl: 1.5rem;
+      --text-2xl: 1.8rem;
     }
 
     * { box-sizing: border-box; }
-    body { font-family: var(--fg-font); background: var(--fg-bg); color: var(--fg-text); margin: 2rem; }
+    body { font-family: var(--fg-font); background: var(--fg-bg); color: var(--fg-text); margin: var(--space-7); }
     section, .fg-card { background: var(--fg-bg-panel); border: 1px solid var(--fg-border); border-radius: 8px; }
     h2 { margin-top: 0; }
-    h4 { margin: 1rem 0 0.5rem; }
+    h4 { margin: var(--space-5) 0 var(--space-3); }
 
     /* painéis colapsáveis (qualquer .fg-panel-section, ver initCollapsiblePanels
        em flowguard.js) — clicar no título recolhe/expande; estado persistido
        em localStorage por aba+título, sobrevive a reload */
-    h2.fg-panel-h2-collapsible { display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; gap: 0.6rem; }
+    h2.fg-panel-h2-collapsible { display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; gap: var(--space-3); }
     .fg-panel-collapse-btn {
-      background: transparent; border: none; color: var(--fg-text-muted); font-size: 1rem; line-height: 1;
-      padding: 0.2rem 0.45rem; cursor: pointer; border-radius: 4px; flex-shrink: 0;
+      background: transparent; border: none; color: var(--fg-text-muted); font-size: var(--text-lg); line-height: 1;
+      padding: var(--space-1) var(--space-2); cursor: pointer; border-radius: 4px; flex-shrink: 0;
     }
     .fg-panel-collapse-btn:hover { color: var(--fg-text); background: var(--fg-bg-elevated); }
     .fg-panel-section.fg-panel-collapsed { border-color: var(--fg-border); }
     .fg-panel-section.fg-panel-collapsed > h2 { color: var(--fg-text-muted); }
     .fg-panel-section.fg-panel-collapsed > h2:hover { color: var(--fg-text); }
-    .fg-collapse-all-btn { display: block; margin: 0 0 0.8rem auto; font-size: 0.8rem; color: var(--fg-text-muted); }
+    .fg-collapse-all-btn { display: block; margin: 0 0 var(--space-4) auto; font-size: var(--text-sm); color: var(--fg-text-muted); }
 
     a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible,
     textarea:focus-visible, [tabindex]:focus-visible {
       outline: 2px solid var(--fg-accent); outline-offset: 2px;
     }
 
-    #fg-login-screen { max-width: 340px; margin: 4rem auto 0; }
-    #fg-login-screen .fg-card { padding: 1.5rem; }
-    #fg-login-form { display: flex; flex-direction: column; gap: 0.7rem; margin-top: 1rem; }
-    #fg-login-form input { background: var(--fg-bg); color: var(--fg-text); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.5rem 0.6rem; }
-    #fg-login-status { font-size: 0.85rem; min-height: 1.1em; }
+    #fg-login-screen { max-width: 340px; margin: var(--space-8) auto 0; }
+    #fg-login-screen .fg-card { padding: var(--space-6); }
+    #fg-login-form { display: flex; flex-direction: column; gap: var(--space-3); margin-top: var(--space-5); }
+    #fg-login-form input { background: var(--fg-bg); color: var(--fg-text); border: 1px solid var(--fg-border); border-radius: 6px; padding: var(--space-3) var(--space-3); }
+    #fg-login-status { font-size: var(--text-base); min-height: 1.1em; }
 
     .fg-topbar {
-      display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.6rem;
-      border-radius: 8px; padding: 0.5rem 0.7rem; margin-left: -0.7rem; margin-right: -0.7rem;
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-3);
+      border-radius: 8px; padding: var(--space-3) var(--space-3); margin-left: calc(var(--space-3) * -1); margin-right: calc(var(--space-3) * -1);
       transition: background 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease; border: 1px solid transparent;
     }
     /* Modo Guerra ativo — topo inteiro da página fica com aviso visual persistente
@@ -83,8 +100,8 @@
     /* selo de status do Modo Guerra — "link saudável" (verde, parado) vs alerta
        (vermelho, pulsante) — sempre visível, ao contrário do timer (só quando ativo) */
     .fg-warmode-badge {
-      display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; font-weight: bold;
-      letter-spacing: 0.04em; padding: 0.25rem 0.6rem; border-radius: 999px; border: 1px solid var(--fg-border);
+      display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-xs); font-weight: bold;
+      letter-spacing: 0.04em; padding: var(--space-2) var(--space-3); border-radius: 999px; border: 1px solid var(--fg-border);
       background: var(--fg-bg-elevated); color: var(--fg-text-muted);
     }
     .fg-warmode-badge.off { color: var(--fg-success); border-color: var(--fg-success); }
@@ -108,7 +125,7 @@
        atenção, sobretudo com o sinal/ataque ainda aberto), failed=tentativa de
        mitigação falhou (vermelho, só o ClientGuard grava esse estado hoje) */
     .fg-mitigation-badge {
-      display: inline-block; font-size: 0.78rem; padding: 0.15rem 0.5rem; border-radius: 999px;
+      display: inline-block; font-size: var(--text-sm); padding: var(--space-1) var(--space-3); border-radius: 999px;
       border: 1px solid var(--fg-border); white-space: nowrap;
     }
     .fg-mitigation-badge.none { color: var(--fg-text-muted); }
@@ -118,17 +135,17 @@
 
     .fg-wrap { max-width: 100%; }
 
-    .fg-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.8rem; margin-bottom: 1.2rem; }
-    .fg-card { padding: 0.9rem 1rem; border-top: 2px solid var(--fg-accent); transition: border-color 0.15s ease; }
-    .fg-card .fg-kpi-label { font-size: 0.78rem; color: var(--fg-text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
-    .fg-card .fg-kpi-value { font-size: 1.5rem; font-weight: bold; margin-top: 0.2rem; }
-    .fg-dot { display: inline-block; width: 0.55rem; height: 0.55rem; border-radius: 50%; margin-right: 0.4rem; }
+    .fg-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-4); margin-bottom: var(--space-6); }
+    .fg-card { padding: var(--space-4) var(--space-5); border-top: 2px solid var(--fg-accent); transition: border-color 0.15s ease; }
+    .fg-card .fg-kpi-label { font-size: var(--text-sm); color: var(--fg-text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
+    .fg-card .fg-kpi-value { font-size: var(--text-xl); font-weight: bold; margin-top: var(--space-1); }
+    .fg-dot { display: inline-block; width: 0.55rem; height: 0.55rem; border-radius: 50%; margin-right: var(--space-2); }
     .fg-dot-up { background: var(--fg-success); }
     .fg-dot-down { background: var(--fg-danger); }
-    .fg-kpi-sub { font-size: 0.75rem; color: var(--fg-text-muted); margin-top: 0.1rem; }
+    .fg-kpi-sub { font-size: var(--text-xs); color: var(--fg-text-muted); margin-top: var(--space-1); }
     /* card BGP mostra 1 linha por sessão (main + pppoe) — fonte menor que o
        valor normal de KPI (1.5rem) pra caber "NE8000-PPPOE Down/Idle" no card */
-    .fg-bgp-peer { font-size: 0.92rem; font-weight: 600; line-height: 1.6; white-space: nowrap; }
+    .fg-bgp-peer { font-size: var(--text-base); font-weight: 600; line-height: 1.6; white-space: nowrap; }
 
     /* menu principal (#fg-tabs) virou sidebar vertical fixa à esquerda — ver
        #fg-app abaixo pro layout flex pai. Baixo de 700px volta a virar uma
@@ -136,11 +153,11 @@
        cockpit), pra não sobrar barra fininha demais em tela de celular. */
     #fg-app { display: flex; align-items: flex-start; }
     .fg-sidebar {
-      flex: 0 0 200px; display: flex; flex-direction: column; gap: 0.1rem;
+      flex: 0 0 200px; display: flex; flex-direction: column; gap: var(--space-1);
       position: sticky; top: 0; align-self: flex-start; height: 100vh; overflow-y: auto;
-      border-right: 1px solid var(--fg-border); padding: 0.8rem 0.5rem; box-sizing: border-box;
+      border-right: 1px solid var(--fg-border); padding: var(--space-4) var(--space-3); box-sizing: border-box;
     }
-    .fg-main { flex: 1 1 auto; min-width: 0; padding: 1rem; box-sizing: border-box; }
+    .fg-main { flex: 1 1 auto; min-width: 0; padding: var(--space-5); box-sizing: border-box; }
     /* breakpoint mobile único do sistema: 700px. Antes havia dois valores
        próximos (699px / 760px) espalhados pelo CSS conforme cada trecho foi
        escrito — consolidado aqui num só, reaplicado em todo media query
@@ -152,44 +169,44 @@
     }
     .fg-tab-btn {
       background: transparent; border: none; border-left: 3px solid transparent; color: var(--fg-text-muted);
-      padding: 0.6rem 0.8rem; cursor: pointer; font-size: 0.95rem; display: flex; align-items: center; gap: 0.4rem;
+      padding: var(--space-3) var(--space-4); cursor: pointer; font-size: var(--text-md); display: flex; align-items: center; gap: var(--space-2);
       text-align: left; width: 100%; transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
     }
     .fg-tab-btn.active { color: var(--fg-text); border-left-color: var(--fg-accent); background: var(--fg-bg-panel); }
     .fg-tab-btn:hover { color: var(--fg-text); }
-    .fg-badge { background: var(--fg-danger); color: var(--fg-bg); font-size: 0.7rem; border-radius: 999px; padding: 0.05rem 0.45rem; }
+    .fg-badge { background: var(--fg-danger); color: var(--fg-bg); font-size: var(--text-xs); border-radius: 999px; padding: var(--space-1) var(--space-2); }
     /* contagem informativa (ex: regras ativas), não um alerta — mais discreta que o fg-badge vermelho padrão */
     .fg-badge-neutral { background: var(--fg-bg-elevated); color: var(--fg-text-muted); border: 1px solid var(--fg-border); }
     /* subseções empilhadas da aba Incidentes (Ataques, Scanners, Destino
        Coordenado, Sinais) — moldura única no lugar do inline style que era
        repetido em cada div; reaproveitável se surgir mais uma subseção */
-    .fg-incident-subsection { margin-top: 1.5rem; border-top: 1px solid var(--fg-border); padding-top: 1rem; }
+    .fg-incident-subsection { margin-top: var(--space-6); border-top: 1px solid var(--fg-border); padding-top: var(--space-5); }
     /* [data-rules-app] h3: títulos das listas da aba Regras — mesmos badges de
        contagem das subseções de Incidentes, sem a moldura border-top (as listas
        de Regras nunca tiveram moldura própria, só o espaçamento) */
-    .fg-incident-subsection h3 .fg-badge, .fg-incident-heading .fg-badge, [data-rules-app] h3 .fg-badge { vertical-align: middle; margin-left: 0.3rem; }
+    .fg-incident-subsection h3 .fg-badge, .fg-incident-heading .fg-badge, [data-rules-app] h3 .fg-badge { vertical-align: middle; margin-left: var(--space-2); }
     /* subtítulo empilhado da 2ª lista do ClientGuard na aba Regras — substitui
        o antigo style="margin-top:1rem;" inline */
-    .fg-rules-subheading { margin-top: 1rem; }
+    .fg-rules-subheading { margin-top: var(--space-5); }
     /* título das subseções que não têm a moldura .fg-incident-subsection
        (Ataques DDoS e Sinais Suspeitos abrem o bloco, sem border-top) */
-    .fg-incident-heading { margin: 0.2rem 0 0.8rem; }
+    .fg-incident-heading { margin: var(--space-1) 0 var(--space-4); }
     /* barra "Ir para" no topo das abas Incidentes (#fg-incidents-nav) e Regras
        (#fg-rules-nav) — atalhos de scroll pra cada subseção/lista, com as
        MESMAS contagens que o poll já traz pros badges (nenhum fetch extra) */
-    .fg-incident-nav { display: flex; gap: 0.4rem; align-items: center; margin-bottom: 0.8rem; flex-wrap: wrap; }
-    .fg-incident-nav-label { font-size: 0.75rem; color: var(--fg-text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
+    .fg-incident-nav { display: flex; gap: var(--space-2); align-items: center; margin-bottom: var(--space-4); flex-wrap: wrap; }
+    .fg-incident-nav-label { font-size: var(--text-xs); color: var(--fg-text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
     .fg-incident-nav-btn {
       background: var(--fg-bg-elevated); color: var(--fg-text-muted); border: 1px solid var(--fg-border); border-radius: 999px;
-      padding: 0.25rem 0.7rem; cursor: pointer; font-size: 0.82rem; display: inline-flex; align-items: center; gap: 0.35rem;
+      padding: var(--space-2) var(--space-3); cursor: pointer; font-size: var(--text-sm); display: inline-flex; align-items: center; gap: var(--space-2);
       transition: background 0.15s ease, color 0.15s ease;
     }
     .fg-incident-nav-btn:hover { color: var(--fg-text); background: var(--fg-border); }
     /* separa visualmente as abas do FlowGuard das do ClientGuard — são dois
        sistemas distintos compartilhando o mesmo menu de navegação */
-    .fg-tabs-divider { height: 1px; align-self: stretch; background: var(--fg-border); margin: 0.4rem 0.2rem; }
+    .fg-tabs-divider { height: 1px; align-self: stretch; background: var(--fg-border); margin: var(--space-2) var(--space-1); }
     @media (max-width: 700px) {
-      .fg-tabs-divider { width: 1px; height: auto; margin: 0.2rem 0.4rem; }
+      .fg-tabs-divider { width: 1px; height: auto; margin: var(--space-1) var(--space-2); }
     }
     /* alvo de toque mínimo (44x44px, WCAG 2.5.5) só abaixo de 700px — em
        desktop os botões continuam pequenos de propósito (densidade é a
@@ -197,7 +214,7 @@
        espaço extra que o mouse não precisa. */
     @media (max-width: 700px) {
       .fg-btn, .fg-toggle-btn, .fg-incident-nav-btn, .fg-menu-list button, .fg-pagination .fg-btn {
-        min-height: 44px; min-width: 44px; padding-top: 0.55rem; padding-bottom: 0.55rem;
+        min-height: 44px; min-width: 44px; padding-top: var(--space-3); padding-bottom: var(--space-3);
       }
       input[type="checkbox"], input[type="radio"] { min-width: 20px; min-height: 20px; }
     }
@@ -209,13 +226,13 @@
       .fg-tab-panel.active, .fg-toast, .fg-skeleton-line, .fg-skeleton-card { animation: none !important; }
     }
 
-    section.fg-panel-section { padding: 1rem; margin-bottom: 1.2rem; }
+    section.fg-panel-section { padding: var(--space-5); margin-bottom: var(--space-6); }
 
-    .fg-toolbar { display: flex; gap: 0.6rem; align-items: center; margin-bottom: 0.8rem; flex-wrap: wrap; }
+    .fg-toolbar { display: flex; gap: var(--space-3); align-items: center; margin-bottom: var(--space-4); flex-wrap: wrap; }
     .fg-toolbar input[type="text"], .fg-toolbar select {
-      background: var(--fg-bg); color: var(--fg-text); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.35rem 0.6rem;
+      background: var(--fg-bg); color: var(--fg-text); border: 1px solid var(--fg-border); border-radius: 6px; padding: var(--space-2) var(--space-3);
     }
-    .fg-toggle-group { display: flex; gap: 0.3rem; }
+    .fg-toggle-group { display: flex; gap: var(--space-2); }
     /* [hidden] explícito pra vencer o display:flex acima — mesmo problema de
        especificidade já documentado em .fg-cockpit-visibility[hidden]: regra
        do autor com a mesma especificidade do UA stylesheet, definida depois,
@@ -223,7 +240,7 @@
        (achado real: seletor de janela da aba Ataques e as barras de ação em
        lote de Incidentes apareciam mesmo escondidas via JS). */
     .fg-toggle-group[hidden], .fg-toolbar[hidden] { display: none; }
-    .fg-toggle-btn { background: var(--fg-bg-elevated); color: var(--fg-text-muted); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.3rem 0.7rem; cursor: pointer; transition: background 0.15s ease, color 0.15s ease; }
+    .fg-toggle-btn { background: var(--fg-bg-elevated); color: var(--fg-text-muted); border: 1px solid var(--fg-border); border-radius: 6px; padding: var(--space-2) var(--space-3); cursor: pointer; transition: background 0.15s ease, color 0.15s ease; }
     .fg-toggle-btn.active { background: var(--fg-border); color: var(--fg-text); }
     .fg-toggle-btn:disabled { opacity: 0.4; cursor: default; }
     /* botões avulsos (Agrupar/Selecionar) reaproveitam o mesmo estado "ligado"
@@ -232,15 +249,15 @@
 
     /* linha do tempo vertical de um incidente (painel de detalhe) — ver
        buildAttackTimelineItems/timelineItemsToHtml em flowguard.js */
-    .fg-timeline { list-style: none; margin: 0.3rem 0 0.8rem; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
-    .fg-timeline li { font-size: 0.85rem; padding: 0.3rem 0.5rem; background: var(--fg-bg); border-radius: 6px; border: 1px solid var(--fg-border); }
+    .fg-timeline { list-style: none; margin: var(--space-2) 0 var(--space-4); padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+    .fg-timeline li { font-size: var(--text-base); padding: var(--space-2) var(--space-3); background: var(--fg-bg); border-radius: 6px; border: 1px solid var(--fg-border); }
 
     /* cabeçalho de grupo (agrupar por prefixo/cliente na aba Incidentes) */
     tr.fg-group-head td { background: var(--fg-bg-elevated); font-weight: 600; }
     tr.fg-group-head:hover td { background: var(--fg-border); }
 
-    .fg-statusbar { display: flex; gap: 1.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
-    .fg-statusbar span { background: var(--fg-bg-elevated); padding: 0.4rem 0.8rem; border-radius: 6px; }
+    .fg-statusbar { display: flex; gap: var(--space-6); margin-bottom: var(--space-5); flex-wrap: wrap; }
+    .fg-statusbar span { background: var(--fg-bg-elevated); padding: var(--space-2) var(--space-4); border-radius: 6px; }
 
     /* display:block + overflow-x:auto no próprio elemento table (não precisa
        de wrapper) — os 33+ pontos de renderização em flowguard.js geram
@@ -250,20 +267,20 @@
        border-collapse e alinhamento de coluna continuam intactos — o browser
        só passa a clipar/rolar o conteúdo que exceder a largura do container
        em vez de estourar a página inteira (WCAG 1.4.10 Reflow). */
-    table { display: block; width: 100%; max-width: 100%; overflow-x: auto; border-collapse: collapse; font-size: 0.85rem; }
+    table { display: block; width: 100%; max-width: 100%; overflow-x: auto; border-collapse: collapse; font-size: var(--text-base); }
     /* wrapper injetado via JS (ver wrapScrollableTables em flowguard.js) em
        toda <table> — o scroll horizontal continua na própria table (regra
        acima), este wrapper só existe pra dar tabindex/role/aria-label de
        região navegável por teclado sem tocar na semântica de tabela */
     .fg-table-scroll-wrap:focus-visible { outline: 2px solid var(--fg-accent); outline-offset: -2px; }
-    table th, table td { text-align: left; padding: 0.32rem 0.55rem; border-bottom: 1px solid var(--fg-border); white-space: nowrap; }
+    table th, table td { text-align: left; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--fg-border); white-space: nowrap; }
     table td.fg-wrap-cell { white-space: normal; }
     table th[data-sort-key] { padding: 0; }
     /* botão interno ocupa a célula inteira — dá foco/teclado nativo (Enter/
        Espaço) ao cabeçalho ordenável sem mudar a aparência do th original */
     table th[data-sort-key] .fg-th-sort-btn {
       all: unset; box-sizing: border-box; display: block; width: 100%;
-      padding: 0.32rem 0.55rem; font: inherit; color: inherit; text-align: left;
+      padding: var(--space-2) var(--space-3); font: inherit; color: inherit; text-align: left;
       cursor: pointer; user-select: none;
     }
     table th[data-sort-key] .fg-th-sort-btn:hover { color: var(--fg-accent); }
@@ -271,24 +288,24 @@
     table th.fg-sorted .fg-th-sort-btn::after { content: " ▾"; }
     table th.fg-sorted.fg-sorted-asc .fg-th-sort-btn::after { content: " ▴"; }
 
-    .fg-pagination { display: flex; align-items: center; gap: 0.8rem; margin-top: 0.6rem; font-size: 0.82rem; color: var(--fg-text-muted); }
+    .fg-pagination { display: flex; align-items: center; gap: var(--space-4); margin-top: var(--space-3); font-size: var(--text-sm); color: var(--fg-text-muted); }
     .fg-pagination .fg-btn:disabled { opacity: 0.4; cursor: default; }
 
     .fg-menu { position: relative; display: inline-block; }
     .fg-menu-list {
-      position: absolute; right: 0; top: 100%; margin-top: 0.2rem; background: var(--fg-bg-elevated); border: 1px solid var(--fg-border);
-      border-radius: 6px; box-shadow: 0 4px 12px rgba(var(--fg-black-rgb),0.5); z-index: 20; min-width: 170px; padding: 0.3rem;
+      position: absolute; right: 0; top: 100%; margin-top: var(--space-1); background: var(--fg-bg-elevated); border: 1px solid var(--fg-border);
+      border-radius: 6px; box-shadow: 0 4px 12px rgba(var(--fg-black-rgb),0.5); z-index: 20; min-width: 170px; padding: var(--space-2);
     }
     .fg-menu-list[hidden] { display: none; }
     .fg-menu-list button {
       display: block; width: 100%; text-align: left; background: transparent; border: none; color: var(--fg-text);
-      padding: 0.35rem 0.5rem; border-radius: 4px; cursor: pointer; font-size: 0.82rem; white-space: nowrap;
+      padding: var(--space-2) var(--space-3); border-radius: 4px; cursor: pointer; font-size: var(--text-sm); white-space: nowrap;
     }
     .fg-menu-list button:hover { background: var(--fg-border); }
-    .fg-menu-hint { display: block; padding: 0.3rem 0.5rem; font-size: 0.72rem; color: var(--fg-text-muted); white-space: normal; max-width: 220px; }
+    .fg-menu-hint { display: block; padding: var(--space-2) var(--space-3); font-size: var(--text-xs); color: var(--fg-text-muted); white-space: normal; max-width: 220px; }
     .fg-menu-list input[type="number"] {
       display: block; width: 100%; background: var(--fg-bg); color: var(--fg-text); border: 1px solid var(--fg-border);
-      border-radius: 4px; padding: 0.3rem 0.5rem; font-size: 0.82rem; margin: 0.15rem 0;
+      border-radius: 4px; padding: var(--space-2) var(--space-3); font-size: var(--text-sm); margin: var(--space-1) 0;
     }
 
     .fg-error { color: var(--fg-danger); }
@@ -298,7 +315,7 @@
     .fg-sev-medium { color: var(--fg-warning); }
     .fg-sev-info { color: var(--fg-text-muted); }
 
-    .fg-btn { background: var(--fg-bg-elevated); color: var(--fg-text); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.2rem 0.6rem; cursor: pointer; transition: background 0.15s ease; }
+    .fg-btn { background: var(--fg-bg-elevated); color: var(--fg-text); border: 1px solid var(--fg-border); border-radius: 6px; padding: var(--space-1) var(--space-3); cursor: pointer; transition: background 0.15s ease; }
     .fg-btn:disabled { opacity: 0.5; cursor: default; }
     .fg-btn:hover { background: var(--fg-border); }
     .fg-btn-danger { background: var(--fg-danger); color: var(--fg-bg); border-color: var(--fg-danger); font-weight: bold; }
@@ -321,15 +338,15 @@
 
     /* contador do Modo Guerra — visual de display digital (LCD), só aparece ativo */
     .fg-warmode-timer {
-      font-family: "Courier New", ui-monospace, monospace; font-size: 1.05rem; font-weight: bold;
+      font-family: "Courier New", ui-monospace, monospace; font-size: var(--text-lg); font-weight: bold;
       color: var(--fg-danger); letter-spacing: 0.08em; background: var(--fg-bg);
-      border: 1px solid var(--fg-danger); border-radius: 6px; padding: 0.25rem 0.6rem;
+      border: 1px solid var(--fg-danger); border-radius: 6px; padding: var(--space-2) var(--space-3);
       text-shadow: 0 0 6px rgba(var(--fg-danger-rgb),0.75);
     }
 
-    .fg-icon { display: inline-flex; vertical-align: -2px; margin-right: 0.35rem; }
+    .fg-icon { display: inline-flex; vertical-align: -2px; margin-right: var(--space-2); }
     .fg-icon svg { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-    h2 .fg-icon, h3 .fg-icon { vertical-align: -3px; margin-right: 0.4rem; }
+    h2 .fg-icon, h3 .fg-icon { vertical-align: -3px; margin-right: var(--space-2); }
 
     /* mitigação/regra FlowSpec ativa nas caixas de resumo do topo — chama atenção
        mesmo sem entrar na aba Regras; precisa vencer o acento neutro de .fg-card
@@ -339,38 +356,38 @@
 
     .fg-modal-overlay {
       position: fixed; inset: 0; background: rgba(var(--fg-black-rgb),0.75); z-index: 500;
-      display: flex; align-items: center; justify-content: center; padding: 1rem;
+      display: flex; align-items: center; justify-content: center; padding: var(--space-5);
     }
     .fg-modal-overlay[hidden] { display: none; }
     .fg-modal {
-      background: var(--fg-bg-panel); border: 1px solid var(--fg-danger); border-radius: 8px; padding: 1.2rem 1.5rem;
+      background: var(--fg-bg-panel); border: 1px solid var(--fg-danger); border-radius: 8px; padding: var(--space-6) var(--space-6);
       max-width: 640px; width: 100%; max-height: 85vh; overflow-y: auto;
     }
-    .fg-warmode-device-row { display: flex; justify-content: space-between; padding: 0.4rem 0; border-bottom: 1px solid var(--fg-border); }
-    .fg-warmode-result { margin-top: 0.6rem; padding: 0.6rem 0.8rem; border-radius: 6px; background: var(--fg-bg); border: 1px solid var(--fg-border); }
+    .fg-warmode-device-row { display: flex; justify-content: space-between; padding: var(--space-2) 0; border-bottom: 1px solid var(--fg-border); }
+    .fg-warmode-result { margin-top: var(--space-3); padding: var(--space-3) var(--space-4); border-radius: 6px; background: var(--fg-bg); border: 1px solid var(--fg-border); }
     .fg-warmode-result.ok { border-color: var(--fg-success); }
     .fg-warmode-result.fail { border-color: var(--fg-danger); }
-    .fg-warmode-result pre { white-space: pre-wrap; font-size: 0.78rem; margin: 0.4rem 0 0; max-height: 200px; overflow-y: auto; }
+    .fg-warmode-result pre { white-space: pre-wrap; font-size: var(--text-sm); margin: var(--space-2) 0 0; max-height: 200px; overflow-y: auto; }
 
-    .fg-rc-job { margin-top: 0.6rem; padding: 0.6rem 0.8rem; border-radius: 6px; background: var(--fg-bg); border: 1px solid var(--fg-warning); }
+    .fg-rc-job { margin-top: var(--space-3); padding: var(--space-3) var(--space-4); border-radius: 6px; background: var(--fg-bg); border: 1px solid var(--fg-warning); }
     .fg-rc-job.status-confirmed, .fg-rc-job.status-reverted, .fg-rc-job.status-auto_reverted { border-color: var(--fg-success); }
-    .fg-rc-job pre { white-space: pre-wrap; font-size: 0.78rem; margin: 0.4rem 0; max-height: 160px; overflow-y: auto; }
+    .fg-rc-job pre { white-space: pre-wrap; font-size: var(--text-sm); margin: var(--space-2) 0; max-height: 160px; overflow-y: auto; }
     .fg-rc-countdown { font-weight: bold; color: var(--fg-warning); }
-    .fg-rc-fields { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.6rem 0; }
-    .fg-rc-fields label { font-size: 0.82rem; color: var(--fg-text-muted); display: flex; flex-direction: column; gap: 0.2rem; }
-    .fg-rc-fields input, .fg-rc-fields select { background: var(--fg-bg); color: var(--fg-text); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.35rem 0.5rem; }
+    .fg-rc-fields { display: flex; flex-direction: column; gap: var(--space-3); margin: var(--space-3) 0; }
+    .fg-rc-fields label { font-size: var(--text-sm); color: var(--fg-text-muted); display: flex; flex-direction: column; gap: var(--space-1); }
+    .fg-rc-fields input, .fg-rc-fields select { background: var(--fg-bg); color: var(--fg-text); border: 1px solid var(--fg-border); border-radius: 6px; padding: var(--space-2) var(--space-3); }
 
-    .fg-wm-device { background: var(--fg-bg); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.8rem; margin-bottom: 0.8rem; }
-    .fg-wm-device-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
-    .fg-wm-device-grid input { background: var(--fg-bg-panel); color: var(--fg-text); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.3rem 0.5rem; width: 100%; }
+    .fg-wm-device { background: var(--fg-bg); border: 1px solid var(--fg-border); border-radius: 6px; padding: var(--space-4); margin-bottom: var(--space-4); }
+    .fg-wm-device-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+    .fg-wm-device-grid input { background: var(--fg-bg-panel); color: var(--fg-text); border: 1px solid var(--fg-border); border-radius: 6px; padding: var(--space-2) var(--space-3); width: 100%; }
     /* label agora envolve o input/textarea (associação programática sem
        precisar de id/for único por campo) — display:block mantém o mesmo
        empilhamento visual "texto em cima, campo embaixo" de antes */
     .fg-wm-device-grid label, .fg-wm-device > .fg-wm-body > label { display: block; }
-    .fg-wm-device textarea { width: 100%; background: var(--fg-bg-panel); color: var(--fg-text); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.4rem 0.5rem; margin-top: 0.5rem; font-family: monospace; font-size: 0.82rem; min-height: 70px; }
-    .fg-wm-device label { font-size: 0.72rem; color: var(--fg-text-muted); display: block; margin-bottom: 0.15rem; }
-    .fg-wm-device .fg-wm-row-top { display: flex; align-items: center; gap: 0.6rem; }
-    .fg-wm-device .fg-wm-body { margin-top: 0.7rem; padding-top: 0.7rem; border-top: 1px solid var(--fg-border); }
+    .fg-wm-device textarea { width: 100%; background: var(--fg-bg-panel); color: var(--fg-text); border: 1px solid var(--fg-border); border-radius: 6px; padding: var(--space-2) var(--space-3); margin-top: var(--space-3); font-family: monospace; font-size: var(--text-sm); min-height: 70px; }
+    .fg-wm-device label { font-size: var(--text-xs); color: var(--fg-text-muted); display: block; margin-bottom: var(--space-1); }
+    .fg-wm-device .fg-wm-row-top { display: flex; align-items: center; gap: var(--space-3); }
+    .fg-wm-device .fg-wm-body { margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--fg-border); }
 
     /* equipamento desativado (não participa do próximo lote) — some a ênfase
        visual sem esconder os dados, pra ficar óbvio que ele existe mas não vai rodar */
@@ -380,70 +397,70 @@
     .fg-wm-enabled-toggle { flex-shrink: 0; margin: 0; cursor: pointer; }
     .fg-wm-enabled-toggle input { width: 1.1rem; height: 1.1rem; cursor: pointer; }
 
-    .fg-wm-summary { flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; cursor: pointer; }
+    .fg-wm-summary { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; cursor: pointer; }
     .fg-wm-summary strong { white-space: nowrap; }
-    .fg-wm-summary-meta { font-size: 0.78rem; color: var(--fg-text-muted); }
+    .fg-wm-summary-meta { font-size: var(--text-sm); color: var(--fg-text-muted); }
     .fg-wm-warn { color: var(--fg-warning); }
 
-    .fg-wm-row-actions { display: flex; align-items: center; gap: 0.4rem; flex-shrink: 0; }
+    .fg-wm-row-actions { display: flex; align-items: center; gap: var(--space-2); flex-shrink: 0; }
     .fg-wm-chevron-btn { font-family: inherit; min-width: 2.2rem; }
 
-    .fg-wm-lastrun { font-size: 0.72rem; padding: 0.1rem 0.5rem; border-radius: 999px; white-space: nowrap; border: 1px solid var(--fg-border); }
+    .fg-wm-lastrun { font-size: var(--text-xs); padding: var(--space-1) var(--space-3); border-radius: 999px; white-space: nowrap; border: 1px solid var(--fg-border); }
     .fg-wm-lastrun-ok { color: var(--fg-success); border-color: var(--fg-success); }
     .fg-wm-lastrun-fail { color: var(--fg-danger); border-color: var(--fg-danger); }
     .fg-wm-lastrun-none { color: var(--fg-text-muted); }
 
-    .fg-wm-test-row { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.6rem; flex-wrap: wrap; }
-    .fg-wm-test-result { font-size: 0.82rem; }
+    .fg-wm-test-row { display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-3); flex-wrap: wrap; }
+    .fg-wm-test-result { font-size: var(--text-sm); }
     .fg-wm-test-result.ok { color: var(--fg-success); }
     .fg-wm-test-result.fail { color: var(--fg-danger); }
 
     .fg-warmode-device-disabled { opacity: 0.55; }
 
-    .fg-spark { display: inline-flex; align-items: center; gap: 0.5rem; background: var(--fg-bg-elevated); padding: 0.4rem 0.8rem; border-radius: 6px; margin: 0 0.5rem 0.5rem 0; }
-    .fg-spark-label { font-weight: bold; font-size: 0.8rem; }
-    .fg-spark-value { font-size: 0.8rem; color: var(--fg-text-muted); }
+    .fg-spark { display: inline-flex; align-items: center; gap: var(--space-3); background: var(--fg-bg-elevated); padding: var(--space-2) var(--space-4); border-radius: 6px; margin: 0 var(--space-3) var(--space-3) 0; }
+    .fg-spark-label { font-weight: bold; font-size: var(--text-sm); }
+    .fg-spark-value { font-size: var(--text-sm); color: var(--fg-text-muted); }
 
-    .fg-ai-panel { background: var(--fg-bg-elevated); border-radius: 6px; padding: 0.8rem; margin-top: 0.8rem; }
+    .fg-ai-panel { background: var(--fg-bg-elevated); border-radius: 6px; padding: var(--space-4); margin-top: var(--space-4); }
     .fg-ai-panel pre { white-space: pre-wrap; font-family: inherit; }
-    #rules-detail pre { white-space: pre-wrap; font-size: 0.78rem; background: var(--fg-bg); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.6rem 0.8rem; max-height: 240px; overflow-y: auto; }
-    #rules-detail table { margin-bottom: 0.8rem; }
+    #rules-detail pre { white-space: pre-wrap; font-size: var(--text-sm); background: var(--fg-bg); border: 1px solid var(--fg-border); border-radius: 6px; padding: var(--space-3) var(--space-4); max-height: 240px; overflow-y: auto; }
+    #rules-detail table { margin-bottom: var(--space-4); }
     #rules-detail table td:first-child { color: var(--fg-text-muted); width: 180px; }
     .fg-panel-header { display: flex; justify-content: space-between; align-items: center; }
     .fg-panel-header h4 { margin: 0; }
 
-    .fg-form { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; margin: 0.8rem 0 1.5rem; }
+    .fg-form { display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: center; margin: var(--space-4) 0 var(--space-6); }
     .fg-form input[type="text"], .fg-form input:not([type]), .fg-form input[type="number"] {
-      background: var(--fg-bg); color: var(--fg-text); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.3rem 0.5rem;
+      background: var(--fg-bg); color: var(--fg-text); border: 1px solid var(--fg-border); border-radius: 6px; padding: var(--space-2) var(--space-3);
     }
-    .fg-form label { font-size: 0.85rem; }
+    .fg-form label { font-size: var(--text-base); }
 
-    .fg-toggle-list { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.8rem 0; }
+    .fg-toggle-list { display: flex; flex-direction: column; gap: var(--space-3); margin: var(--space-4) 0; }
     .fg-toggle-item {
-      display: flex; align-items: center; gap: 0.6rem; background: var(--fg-bg-panel); border: 1px solid var(--fg-border);
-      border-radius: 6px; padding: 0.5rem 0.7rem;
+      display: flex; align-items: center; gap: var(--space-3); background: var(--fg-bg-panel); border: 1px solid var(--fg-border);
+      border-radius: 6px; padding: var(--space-3) var(--space-3);
     }
     .fg-toggle-item input[type="checkbox"] { width: 1.05rem; height: 1.05rem; flex-shrink: 0; cursor: pointer; }
     .fg-toggle-item.disabled { opacity: 0.55; }
     .fg-toggle-item label { cursor: pointer; }
     .fg-toggle-item .fg-toggle-name { font-weight: 600; }
-    .fg-toggle-item .fg-toggle-desc { font-size: 0.75rem; color: var(--fg-text-muted); }
+    .fg-toggle-item .fg-toggle-desc { font-size: var(--text-xs); color: var(--fg-text-muted); }
     .fg-toggle-item label { flex: 1; }
     .fg-toggle-item .fg-toggle-select {
       background: var(--fg-bg); color: var(--fg-text); border: 1px solid var(--fg-border); border-radius: 6px;
-      padding: 0.3rem 0.5rem; flex-shrink: 0;
+      padding: var(--space-2) var(--space-3); flex-shrink: 0;
     }
 
     #fg-mitigation-cfg table select, #fg-mitigation-cfg table input[type="number"] {
-      background: var(--fg-bg); color: var(--fg-text); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.25rem 0.4rem;
+      background: var(--fg-bg); color: var(--fg-text); border: 1px solid var(--fg-border); border-radius: 6px; padding: var(--space-2) var(--space-2);
     }
     #fg-mitigation-cfg table input[type="number"] { width: 6rem; }
     #fg-mitigation-cfg table td.fg-muted { color: var(--fg-text-muted); }
 
-    #fg-toast-container { position: fixed; bottom: 1.2rem; right: 1.2rem; display: flex; flex-direction: column; gap: 0.5rem; z-index: 999; }
+    #fg-toast-container { position: fixed; bottom: 1.2rem; right: 1.2rem; display: flex; flex-direction: column; gap: var(--space-3); z-index: 999; }
     .fg-toast {
-      background: var(--fg-bg-elevated); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.6rem 1rem;
-      font-size: 0.85rem; max-width: 320px; box-shadow: 0 2px 8px rgba(var(--fg-black-rgb),0.4); opacity: 1; transition: opacity 0.3s;
+      background: var(--fg-bg-elevated); border: 1px solid var(--fg-border); border-radius: 6px; padding: var(--space-3) var(--space-5);
+      font-size: var(--text-base); max-width: 320px; box-shadow: 0 2px 8px rgba(var(--fg-black-rgb),0.4); opacity: 1; transition: opacity 0.3s;
       animation: fg-toast-in 0.2s ease;
     }
     @keyframes fg-toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
@@ -451,37 +468,37 @@
     .fg-toast-error { border-color: var(--fg-danger); }
     .fg-toast-out { opacity: 0; }
 
-    .fg-chart-box { margin-bottom: 1.5rem; position: relative; }
+    .fg-chart-box { margin-bottom: var(--space-6); position: relative; }
     .fg-chart-box canvas { display: block; width: 100%; background: var(--fg-bg); border-radius: 6px; cursor: crosshair; }
     .fg-chart-box canvas.fg-chart-lg { height: 260px; }
     .fg-chart-box canvas.fg-chart-sm { height: 160px; }
-    .fg-legend { display: flex; gap: 1rem; margin-top: 0.5rem; flex-wrap: wrap; font-size: 0.8rem; }
-    .fg-legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
+    .fg-legend { display: flex; gap: var(--space-5); margin-top: var(--space-3); flex-wrap: wrap; font-size: var(--text-sm); }
+    .fg-legend span { display: inline-flex; align-items: center; gap: var(--space-2); }
     .fg-legend i { display: inline-block; width: 0.8rem; height: 0.4rem; border-radius: 2px; }
 
     .fg-chart-tooltip {
       position: fixed; pointer-events: none; background: var(--fg-bg-elevated); border: 1px solid var(--fg-border);
-      border-radius: 6px; padding: 0.5rem 0.7rem; font-size: 0.78rem; z-index: 1000;
+      border-radius: 6px; padding: var(--space-3) var(--space-3); font-size: var(--text-sm); z-index: 1000;
       box-shadow: 0 2px 8px rgba(var(--fg-black-rgb),0.5); max-width: 280px; line-height: 1.5;
     }
     .fg-chart-tooltip[hidden] { display: none; }
-    .fg-chart-tooltip .fg-tt-title { font-weight: bold; margin-bottom: 0.2rem; color: var(--fg-text); }
-    .fg-chart-tooltip .fg-tt-row { display: flex; justify-content: space-between; gap: 0.8rem; white-space: nowrap; }
-    .fg-chart-tooltip .fg-tt-swatch { display: inline-block; width: 0.6rem; height: 0.6rem; border-radius: 2px; margin-right: 0.35rem; }
+    .fg-chart-tooltip .fg-tt-title { font-weight: bold; margin-bottom: var(--space-1); color: var(--fg-text); }
+    .fg-chart-tooltip .fg-tt-row { display: flex; justify-content: space-between; gap: var(--space-4); white-space: nowrap; }
+    .fg-chart-tooltip .fg-tt-swatch { display: inline-block; width: 0.6rem; height: 0.6rem; border-radius: 2px; margin-right: var(--space-2); }
 
-    .fg-trend { font-size: 0.72rem; color: var(--fg-text-muted); margin-left: 0.4rem; }
+    .fg-trend { font-size: var(--text-xs); color: var(--fg-text-muted); margin-left: var(--space-2); }
 
     .fg-hbar-wrap { position: relative; background: var(--fg-bg-elevated); border-radius: 4px; height: 1.4rem; min-width: 160px; max-width: 320px; overflow: hidden; }
     .fg-hbar { position: absolute; left: 0; top: 0; bottom: 0; background: var(--fg-accent); opacity: 0.35; border-radius: 4px 0 0 4px; }
-    .fg-hbar-label { position: relative; z-index: 1; font-size: 0.78rem; padding: 0 0.5rem; line-height: 1.4rem; }
+    .fg-hbar-label { position: relative; z-index: 1; font-size: var(--text-sm); padding: 0 var(--space-3); line-height: 1.4rem; }
 
     /* cockpit (Visão Geral) — grade de widgets customizável (ver initCockpit
        em flowguard.js). Cada card tem uma cor de acento fixa por widget
        (--cockpit-accent, setado inline por card), não a paleta de severidade. */
-    .fg-cockpit-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem; margin-bottom: 1.2rem; align-items: start; }
+    .fg-cockpit-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--space-5); margin-bottom: var(--space-6); align-items: start; }
     .fg-cockpit-card {
       background: var(--fg-bg-panel); border: 1px solid var(--fg-border); border-radius: 8px;
-      padding: 1rem; border-top: 3px solid var(--cockpit-accent, var(--fg-accent));
+      padding: var(--space-5); border-top: 3px solid var(--cockpit-accent, var(--fg-accent));
       position: relative; /* ancora o .fg-cockpit-popover (position:absolute) */
     }
     /* "span 2" força uma coluna implícita extra (achado real: overflow
@@ -500,15 +517,15 @@
     .fg-cockpit-grid.fg-cockpit-editing-mode .fg-cockpit-card.fg-cockpit-hidden {
       display: block; opacity: 0.45; filter: grayscale(0.6);
     }
-    .fg-cockpit-card-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; }
-    .fg-cockpit-card-head h3 { margin: 0; font-size: 0.95rem; flex: 1; }
+    .fg-cockpit-card-head { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); }
+    .fg-cockpit-card-head h3 { margin: 0; font-size: var(--text-md); flex: 1; }
     /* [hidden] explícito pra vencer o display:flex logo abaixo — regra do
        autor sempre bate o UA stylesheet mesmo com especificidade igual
        (achado real: checkboxes apareciam fora do modo edição sem isso) */
     .fg-cockpit-visibility[hidden] { display: none; }
     .fg-cockpit-visibility { display: flex; align-items: center; margin: 0; cursor: pointer; }
     .fg-cockpit-visibility input { width: 1rem; height: 1rem; cursor: pointer; }
-    .fg-cockpit-drag-handle { cursor: grab; color: var(--fg-text-muted); font-size: 1.1rem; line-height: 1; user-select: none; }
+    .fg-cockpit-drag-handle { cursor: grab; color: var(--fg-text-muted); font-size: var(--text-lg); line-height: 1; user-select: none; }
     .fg-cockpit-grid.fg-cockpit-editing-mode .fg-cockpit-card { border-style: dashed; }
     .fg-cockpit-card.fg-cockpit-dragging { opacity: 0.4; }
     .fg-cockpit-card.fg-cockpit-dragover { outline: 2px dashed var(--fg-accent); outline-offset: 2px; }
@@ -522,22 +539,22 @@
        position:absolute não empurra o grid; z-index alto pra ficar por cima
        dos cards vizinhos (que podem ter altura menor) */
     .fg-cockpit-popover {
-      position: absolute; top: 100%; left: 0; right: 0; margin-top: 0.4rem; z-index: 20;
+      position: absolute; top: 100%; left: 0; right: 0; margin-top: var(--space-2); z-index: 20;
       background: var(--fg-bg-panel); border: 1px solid var(--cockpit-accent, var(--fg-accent));
-      border-radius: 8px; padding: 0.7rem; box-shadow: 0 4px 16px rgba(var(--fg-black-rgb),0.35);
+      border-radius: 8px; padding: var(--space-3); box-shadow: 0 4px 16px rgba(var(--fg-black-rgb),0.35);
       max-height: 260px; overflow-y: auto; cursor: default;
     }
-    .fg-cockpit-popover-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.85rem; }
-    .fg-cockpit-popover-list code { background: var(--fg-bg-inset, rgba(255,255,255,0.06)); padding: 0.1rem 0.3rem; border-radius: 4px; }
+    .fg-cockpit-popover-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); font-size: var(--text-base); }
+    .fg-cockpit-popover-list code { background: var(--fg-bg-inset, rgba(255,255,255,0.06)); padding: var(--space-1) var(--space-2); border-radius: 4px; }
 
-    .fg-cockpit-big-number { font-size: 1.8rem; font-weight: bold; line-height: 1.2; }
-    .fg-cockpit-sev-row { display: flex; gap: 0.6rem; flex-wrap: wrap; font-size: 0.78rem; margin-top: 0.3rem; }
-    .fg-cockpit-mini-kpis { display: flex; gap: 1.5rem; }
+    .fg-cockpit-big-number { font-size: var(--text-2xl); font-weight: bold; line-height: 1.2; }
+    .fg-cockpit-sev-row { display: flex; gap: var(--space-3); flex-wrap: wrap; font-size: var(--text-sm); margin-top: var(--space-2); }
+    .fg-cockpit-mini-kpis { display: flex; gap: var(--space-6); }
 
     /* skeletons — estado inicial de "Carregando..." antes do 1º fetch responder */
     @keyframes fg-shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
-    .fg-skeleton-lines { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.2rem 0; }
-    .fg-skeleton-lines.fg-skeleton-sm { gap: 0.3rem; }
+    .fg-skeleton-lines { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-1) 0; }
+    .fg-skeleton-lines.fg-skeleton-sm { gap: var(--space-2); }
     .fg-skeleton-line {
       display: block; height: 0.9rem; border-radius: 4px;
       background: linear-gradient(90deg, var(--fg-bg-elevated) 25%, var(--fg-border) 37%, var(--fg-bg-elevated) 63%);
@@ -557,9 +574,9 @@
        (quebra de linha) em vez de recortar; densidade compacta de Ataques/Top
        Prefixos/Flows continua intacta em telas normais */
     @media (max-width: 700px) {
-      body { margin: 1rem; }
+      body { margin: var(--space-5); }
       table th, table td { white-space: normal; }
-      .fg-form, .fg-toolbar { gap: 0.4rem; }
+      .fg-form, .fg-toolbar { gap: var(--space-2); }
     }
   </style>
 </head>

@@ -101,6 +101,20 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 
 ## Changelog
 
+### v1.62.0 — 2026-08-18 — Fase 2/8 do redesign: tokens de espaçamento e tipografia
+
+Segunda fase do redesign visual (ver fase 1/8 na v1.61.0 abaixo — consolidação
+de cores). Substitui valores `rem` literais espalhados em `index.html` por
+variáveis CSS centralizadas em `:root`:
+
+- **Escala de espaçamento**: `--space-1` a `--space-8` (0.2rem a 4rem)
+  substituindo `margin`/`padding`/`gap` hardcoded em todo o CSS.
+- **Escala tipográfica**: `--text-xs` a `--text-2xl` (0.72rem a 1.8rem)
+  substituindo `font-size` hardcoded.
+- Zero mudança visual, zero mudança de lógica/API — só consolidação de fonte
+  única de valor, mesmo princípio da fase 1. Validado com screenshots
+  Playwright (dashboard completo + componentes) antes/depois da mudança.
+
 ### v1.61.0 — 2026-07-17 — Segunda rodada de acessibilidade: viewport mobile, contraste, teclado, performance de poll
 
 Auditoria técnica de acompanhamento (16 issues, P0→P3) sobre o que a rodada

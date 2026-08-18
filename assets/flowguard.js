@@ -6320,7 +6320,8 @@
       var sel = document.getElementById("fg-wa-dest-group-select");
       if (!sel) return;
       if (!data.ok) {
-        sel.innerHTML = '<option value="">' + escapeHtml(data.error || "erro ao listar grupos") + "</option>";
+        console.error("flowguard.js: loadWaGroups falhou:", data.error);
+        sel.innerHTML = '<option value="">erro ao carregar grupos — tente novamente</option>';
         return;
       }
       var current = waCurrentDest && waCurrentDest.dest_type === "group" ? waCurrentDest.dest : null;

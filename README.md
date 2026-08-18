@@ -101,6 +101,22 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 
 ## Changelog
 
+### v1.66.0 — 2026-08-18 — Fase 7/8 do redesign: polimento de estados de erro
+
+Sétima fase do redesign (ver fases anteriores abaixo):
+
+- **Vazamento de erro cru (WhatsApp groups)**: `loadWaGroups` mostrava
+  `data.error` verbatim dentro do `<option>` quando a chamada falhava — se o
+  backend devolvesse algo tipo "HTTP Error 500", isso aparecia cru pro
+  operador. Agora sempre mostra mensagem amigável fixa; o erro real vai só
+  pro `console.error`, mesmo padrão já usado pelos `.catch` vizinhos do
+  arquivo.
+- **Label desalinhado do rótulo real**: botão "Limpar hosts suspeitos"
+  renomeado pra "Marcar hosts suspeitos como resolvidos" — a ação real
+  (`onCgClearSuspiciousClick`) marca sinais como resolvidos, não apaga nada
+  (histórico preservado, já descrito corretamente no `confirm()` existente).
+  Mesmo `id`/handler, só o texto visível muda.
+
 ### v1.65.0 — 2026-08-18 — Fase 6/8 do redesign: acessibilidade dos cockpit cards + skip link
 
 Sexta fase do redesign (ver fases anteriores abaixo):

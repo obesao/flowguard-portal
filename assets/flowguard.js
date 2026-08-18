@@ -984,7 +984,10 @@
       '<span class="fg-cockpit-drag-handle" hidden>⠿</span>' +
       "<h3" + (w.hint ? ' title="' + escapeHtml(w.hint) + '"' : "") + ">" + escapeHtml(w.title) + "</h3>" +
       "</div>" +
-      '<div class="fg-cockpit-card-body">' + cockpitWidgetBodyHtml(w.id) + "</div>" +
+      (jumpable
+        ? '<button type="button" class="fg-cockpit-card-trigger" aria-label="Ver detalhe de ' + escapeHtml(w.title) + '">' +
+          '<div class="fg-cockpit-card-body">' + cockpitWidgetBodyHtml(w.id) + "</div></button>"
+        : '<div class="fg-cockpit-card-body">' + cockpitWidgetBodyHtml(w.id) + "</div>") +
       "</div>"
     );
   }

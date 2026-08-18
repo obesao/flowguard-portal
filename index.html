@@ -70,6 +70,16 @@
       outline: 2px solid var(--fg-accent); outline-offset: 2px;
     }
 
+    /* invisível fora de foco (fora da tela, não display:none — senão nunca
+       receberia foco pra ser revelado); primeiro elemento tabável da página */
+    .fg-skip-link {
+      position: absolute; left: -9999px; top: 0;
+      background: var(--fg-bg-elevated); color: var(--fg-text);
+      padding: var(--space-3) var(--space-4); z-index: 1000;
+      border: 1px solid var(--fg-accent); border-radius: 6px;
+    }
+    .fg-skip-link:focus { left: var(--space-3); top: var(--space-3); }
+
     #fg-login-screen { max-width: 340px; margin: var(--space-8) auto 0; }
     #fg-login-screen .fg-card { padding: var(--space-6); }
     #fg-login-form { display: flex; flex-direction: column; gap: var(--space-3); margin-top: var(--space-5); }
@@ -517,6 +527,14 @@
     }
     .fg-cockpit-card-head { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); }
     .fg-cockpit-card-head h3 { margin: 0; font-size: var(--text-md); flex: 1; }
+    /* só existe nos 3 cards jumpable (rules, clientguard, mitigations) — dá
+       foco/teclado nativo ao corpo do card sem reescrever o listener
+       delegado (que já escuta "click", disparado nativamente por Enter/Espaço
+       num <button>). Reset visual completo pra não parecer um botão. */
+    .fg-cockpit-card-trigger {
+      display: block; width: 100%; background: none; border: none; padding: 0; margin: 0;
+      color: inherit; font: inherit; text-align: left; cursor: pointer;
+    }
     /* [hidden] explícito pra vencer o display:flex logo abaixo — regra do
        autor sempre bate o UA stylesheet mesmo com especificidade igual
        (achado real: checkboxes apareciam fora do modo edição sem isso) */
@@ -578,6 +596,8 @@
   </style>
 </head>
 <body>
+  <a class="fg-skip-link" href="#fg-main-content">Pular para o conteúdo</a>
+
   <div id="fg-login-screen">
     <div class="fg-card">
       <h2 style="font-size: 1.1rem;">FlowGuard — POX Network</h2>
@@ -601,7 +621,7 @@
       <span class="fg-tabs-divider" title="ClientGuard é um sistema à parte (detecção por cliente, não por prefixo)"></span>
       <button class="fg-tab-btn" data-tab="clientguard">Clientes</button>
     </nav>
-    <main class="fg-main">
+    <main class="fg-main" id="fg-main-content" tabindex="-1">
     <div class="fg-topbar">
       <h1 style="font-size: 1.3rem; margin: 0;">FlowGuard — POX Network</h1>
       <div style="display:flex; gap:0.6rem; align-items:center; flex-wrap:wrap;">

@@ -101,6 +101,32 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 
 ## Changelog
 
+### v1.65.0 — 2026-08-18 — Fase 6/8 do redesign: acessibilidade dos cockpit cards + skip link
+
+Sexta fase do redesign (ver fases anteriores abaixo):
+
+- **Cockpit cards clicáveis (rules, clientguard, mitigations)**: o corpo do
+  card agora fica dentro de um `<button type="button" class="fg-cockpit-card-trigger">`
+  nativo (reset visual completo, sem mudar aparência), em vez de depender só
+  de `cursor:pointer` num `<div>`. Ganha foco/teclado de graça — Tab alcança
+  o card, Enter/Espaço abre o popover — sem reescrever o listener delegado
+  (que já escuta `"click"`, disparado nativamente pelo botão). Desvio do
+  plano original (que previa envolver `<h3>` + corpo): o `<h3>` ficou de fora
+  do botão pra não quebrar o layout flex existente de `.fg-cockpit-card-head`
+  (checkbox de visibilidade + drag handle + título na mesma linha); o popover
+  é anexado como irmão do botão, então não há conteúdo interativo aninhado
+  dentro dele. Os 6 cards não-clicáveis continuam sem tabstop.
+- **Skip link**: `<a class="fg-skip-link" href="#fg-main-content">Pular para
+  o conteúdo</a>` como primeiro elemento tabável da página (invisível até
+  foco). `<main>` ganhou `id="fg-main-content"` e `tabindex="-1"` — sem o
+  `tabindex`, o `<a href="#...">` só rolava a página até o alvo mas não
+  movia o foco de teclado pra lá (achado durante a verificação com
+  Playwright); com `tabindex="-1"` o foco chega de fato no conteúdo.
+- Validado com Playwright: 1º Tab da página cai no skip link, Enter move o
+  foco pro `<main>`; os 3 triggers recebem foco e abrem popover com
+  Enter/Espaço; card não-clicável (`traffic`) confirmado sem trigger. Zero
+  erro de console, zero mudança visual fora do estado de foco.
+
 ### v1.64.0 — 2026-08-18 — Fases 4-5/8 do redesign: consentimento e jargão explicado
 
 Quarta e quinta fases do redesign (ver fases anteriores abaixo) — camada de

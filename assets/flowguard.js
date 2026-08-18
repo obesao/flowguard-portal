@@ -660,9 +660,9 @@
 
   function initIncidentsControls() {
     // barra "Ir para" — pula pra subseção (mesmo padrão de scroll suave do
-    // jumpToAttack). FlowGuard e ClientGuard ficam lado a lado sempre
-    // visíveis (ver .fg-incidents-columns) — não existe mais toggle A/B pra
-    // trocar antes de rolar.
+    // jumpToAttack). FlowGuard, ClientGuard e Outras Detecções são 3 cards
+    // empilhados, sempre visíveis — não existe mais toggle A/B pra trocar
+    // antes de rolar.
     var nav = document.getElementById("fg-incidents-nav");
     if (nav) {
       nav.addEventListener("click", function (ev) {

@@ -201,21 +201,6 @@
     /* título das subseções que não têm a moldura .fg-incident-subsection
        (Ataques DDoS e Sinais Suspeitos abrem o bloco, sem border-top) */
     .fg-incident-heading { margin: var(--space-1) 0 var(--space-4); }
-    /* FlowGuard e ClientGuard lado a lado, sempre visíveis (antes era um
-       toggle A/B com [hidden] — ver histórico do CHANGELOG); empilha numa
-       coluna só abaixo de 700px, mesmo breakpoint do resto do sistema */
-    .fg-incidents-columns { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-7); align-items: start; }
-    @media (max-width: 700px) {
-      .fg-incidents-columns { grid-template-columns: 1fr; gap: var(--space-6); }
-    }
-    .fg-incidents-column-title {
-      font-size: var(--text-lg); margin: 0 0 var(--space-4); padding-bottom: var(--space-3);
-      border-bottom: 2px solid var(--fg-accent);
-    }
-    /* roxo = ClientGuard em todo o sistema (widget do cockpit, gráficos) —
-       mesma convenção de cor, não uma escolha nova */
-    .fg-incidents-column[data-incidents-app="clientguard"] .fg-incidents-column-title { border-bottom-color: var(--fg-chart-purple); }
-    .fg-incidents-column-title .fg-kpi-sub { font-weight: normal; margin-left: var(--space-2); }
     /* barra "Ir para" no topo das abas Incidentes (#fg-incidents-nav) e Regras
        (#fg-rules-nav) — atalhos de scroll pra cada subseção/lista, com as
        MESMAS contagens que o poll já traz pros badges (nenhum fetch extra) */
@@ -802,87 +787,81 @@
     </div>
 
     <div class="fg-tab-panel" data-tab="attacks">
-      <section class="fg-panel-section">
-        <h2>Incidentes</h2>
-
-        <!-- atalhos de navegação: a aba ficou longa (4 subseções em 2 colunas) —
-             clique pula direto pra subseção; contagens vêm do mesmo
-             state.incidents do badge da aba. FlowGuard e ClientGuard ficam
-             lado a lado sempre visíveis (não é mais A/B) — o jump só rola. -->
-        <div class="fg-incident-nav" id="fg-incidents-nav">
-          <span class="fg-incident-nav-label">Ir para:</span>
-          <button class="fg-incident-nav-btn" data-jump-target="fg-sub-attacks">Ataques DDoS <span class="fg-badge fg-badge-neutral" data-nav-count="openAttacks">0</span></button>
-          <button class="fg-incident-nav-btn" data-jump-target="fg-sub-scanners">Scanners <span class="fg-badge fg-badge-neutral" data-nav-count="openScans">0</span></button>
-          <button class="fg-incident-nav-btn" data-jump-target="fg-sub-coordinated">Destino Coordenado <span class="fg-badge fg-badge-neutral" data-nav-count="openCoordinated">0</span></button>
-          <button class="fg-incident-nav-btn" data-jump-target="cg-sub-suspicious">Sinais Suspeitos <span class="fg-badge fg-badge-neutral" data-nav-count="openSignals">0</span></button>
-        </div>
-
-      <div class="fg-incidents-columns">
-        <div class="fg-incidents-column" data-incidents-app="flowguard">
-          <h3 class="fg-incidents-column-title">FlowGuard <span class="fg-kpi-sub">— ataques por prefixo</span></h3>
-          <h3 class="fg-incident-heading" id="fg-sub-attacks">Ataques DDoS <span class="fg-badge fg-badge-neutral" id="fg-sub-attacks-badge">0</span></h3>
-          <div class="fg-toolbar">
-            <div class="fg-toggle-group" id="fg-attacks-view-toggle">
-              <button class="fg-toggle-btn active" aria-pressed="true" data-view="active">Ativos</button>
-              <button class="fg-toggle-btn" aria-pressed="false" data-view="history">Histórico</button>
-            </div>
-            <div class="fg-toggle-group" id="fg-attacks-window" hidden>
-              <button class="fg-toggle-btn" aria-pressed="false" data-window="1h">1h</button>
-              <button class="fg-toggle-btn" aria-pressed="false" data-window="6h">6h</button>
-              <button class="fg-toggle-btn active" aria-pressed="true" data-window="24h">24h</button>
-              <button class="fg-toggle-btn" aria-pressed="false" data-window="7d">7d</button>
-            </div>
-            <div class="fg-toggle-group" id="fg-attacks-severity-chips">
-              <button class="fg-toggle-btn" aria-pressed="false" data-sev="critical">critical</button>
-              <button class="fg-toggle-btn" aria-pressed="false" data-sev="high">high</button>
-              <button class="fg-toggle-btn" aria-pressed="false" data-sev="medium">medium</button>
-              <button class="fg-toggle-btn" aria-pressed="false" data-sev="info">info</button>
-            </div>
-            <input type="text" id="fg-attacks-prefix-filter" placeholder="filtrar por prefixo/cliente..." aria-label="Filtrar ataques por prefixo ou cliente">
-            <button class="fg-btn" id="fg-attacks-group-btn" aria-pressed="false">Agrupar por prefixo</button>
-            <button class="fg-btn" id="fg-attacks-select-btn" aria-pressed="false">Selecionar</button>
-            <button class="fg-btn fg-btn-danger" id="fg-clear-suspicious-btn">Dispensar todos os ataques ativos</button>
-          </div>
-          <div class="fg-toolbar" id="fg-attacks-bulkbar" hidden>
-            <span id="fg-attacks-bulk-count" class="fg-kpi-sub"></span>
-            <button class="fg-btn fg-btn-danger" id="fg-attacks-bulk-release-btn">Liberar selecionados</button>
-          </div>
-          <div id="flowguard-attacks"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
-          <div id="flowguard-attack-detail"></div>
-        </div>
-
-        <div class="fg-incidents-column" data-incidents-app="clientguard">
-          <h3 class="fg-incidents-column-title">ClientGuard <span class="fg-kpi-sub">— sinais por cliente</span></h3>
-          <h3 class="fg-incident-heading" id="cg-sub-suspicious">Sinais Suspeitos <span class="fg-badge fg-badge-neutral" id="cg-sub-suspicious-badge">0</span></h3>
-          <div class="fg-toolbar">
-            <div class="fg-toggle-group" id="cg-suspicious-view-toggle">
-              <button class="fg-toggle-btn active" aria-pressed="true" data-view="open">Abertos</button>
-              <button class="fg-toggle-btn" aria-pressed="false" data-view="history">Resolvidos</button>
-            </div>
-            <div class="fg-toggle-group" id="cg-suspicious-severity-chips">
-              <button class="fg-toggle-btn" aria-pressed="false" data-sev="high">high</button>
-              <button class="fg-toggle-btn" aria-pressed="false" data-sev="medium">medium</button>
-              <button class="fg-toggle-btn" aria-pressed="false" data-sev="watch" title="Observação — sinal de baixa severidade, não é crítico nem urgente">watch</button>
-            </div>
-            <input type="text" id="cg-suspicious-search" placeholder="filtrar por IP, cliente ou tipo de sinal..." aria-label="Filtrar sinais suspeitos por IP, cliente ou tipo">
-            <button class="fg-btn" id="cg-suspicious-group-btn" aria-pressed="false">Agrupar por cliente</button>
-            <button class="fg-btn" id="cg-suspicious-select-btn" aria-pressed="false">Selecionar</button>
-            <button class="fg-btn fg-btn-danger" id="cg-clear-suspicious-btn">Marcar hosts suspeitos como resolvidos</button>
-          </div>
-          <div class="fg-toolbar" id="cg-suspicious-bulkbar" hidden>
-            <span id="cg-suspicious-bulk-count" class="fg-kpi-sub"></span>
-            <button class="fg-btn fg-btn-danger" id="cg-suspicious-bulk-resolve-btn">Resolver selecionados</button>
-          </div>
-          <div id="cg-suspicious"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
-          <div id="cg-suspicious-detail"></div>
-        </div>
+      <!-- atalhos de navegação: 3 cards empilhados agora (FlowGuard,
+           ClientGuard, Outras Detecções) — lado a lado (v1.68) ficava
+           espremido quando a tabela de ataques tinha muita coluna com
+           ataque ativo; fora de qualquer seção colapsável, por isso o
+           handler só rola (mesmo padrão de #fg-rules-nav) -->
+      <div class="fg-incident-nav" id="fg-incidents-nav">
+        <span class="fg-incident-nav-label">Ir para:</span>
+        <button class="fg-incident-nav-btn" data-jump-target="fg-sub-attacks">Ataques DDoS <span class="fg-badge fg-badge-neutral" data-nav-count="openAttacks">0</span></button>
+        <button class="fg-incident-nav-btn" data-jump-target="fg-sub-scanners">Scanners <span class="fg-badge fg-badge-neutral" data-nav-count="openScans">0</span></button>
+        <button class="fg-incident-nav-btn" data-jump-target="fg-sub-coordinated">Destino Coordenado <span class="fg-badge fg-badge-neutral" data-nav-count="openCoordinated">0</span></button>
+        <button class="fg-incident-nav-btn" data-jump-target="cg-sub-suspicious">Sinais Suspeitos <span class="fg-badge fg-badge-neutral" data-nav-count="openSignals">0</span></button>
       </div>
+
+      <section class="fg-panel-section">
+        <h2>FlowGuard</h2>
+        <h3 class="fg-incident-heading" id="fg-sub-attacks">Ataques DDoS <span class="fg-badge fg-badge-neutral" id="fg-sub-attacks-badge">0</span></h3>
+        <div class="fg-toolbar">
+          <div class="fg-toggle-group" id="fg-attacks-view-toggle">
+            <button class="fg-toggle-btn active" aria-pressed="true" data-view="active">Ativos</button>
+            <button class="fg-toggle-btn" aria-pressed="false" data-view="history">Histórico</button>
+          </div>
+          <div class="fg-toggle-group" id="fg-attacks-window" hidden>
+            <button class="fg-toggle-btn" aria-pressed="false" data-window="1h">1h</button>
+            <button class="fg-toggle-btn" aria-pressed="false" data-window="6h">6h</button>
+            <button class="fg-toggle-btn active" aria-pressed="true" data-window="24h">24h</button>
+            <button class="fg-toggle-btn" aria-pressed="false" data-window="7d">7d</button>
+          </div>
+          <div class="fg-toggle-group" id="fg-attacks-severity-chips">
+            <button class="fg-toggle-btn" aria-pressed="false" data-sev="critical">critical</button>
+            <button class="fg-toggle-btn" aria-pressed="false" data-sev="high">high</button>
+            <button class="fg-toggle-btn" aria-pressed="false" data-sev="medium">medium</button>
+            <button class="fg-toggle-btn" aria-pressed="false" data-sev="info">info</button>
+          </div>
+          <input type="text" id="fg-attacks-prefix-filter" placeholder="filtrar por prefixo/cliente..." aria-label="Filtrar ataques por prefixo ou cliente">
+          <button class="fg-btn" id="fg-attacks-group-btn" aria-pressed="false">Agrupar por prefixo</button>
+          <button class="fg-btn" id="fg-attacks-select-btn" aria-pressed="false">Selecionar</button>
+          <button class="fg-btn fg-btn-danger" id="fg-clear-suspicious-btn">Dispensar todos os ataques ativos</button>
+        </div>
+        <div class="fg-toolbar" id="fg-attacks-bulkbar" hidden>
+          <span id="fg-attacks-bulk-count" class="fg-kpi-sub"></span>
+          <button class="fg-btn fg-btn-danger" id="fg-attacks-bulk-release-btn">Liberar selecionados</button>
+        </div>
+        <div id="flowguard-attacks"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
+        <div id="flowguard-attack-detail"></div>
       </section>
 
-      <!-- card separado, abaixo do card FlowGuard/ClientGuard lado a lado —
-           scanners e destino coordenado são sinais de FlowGuard, mas menos
-           urgentes que ataque DDoS confirmado, por isso ficam num card à
-           parte em vez de dentro da coluna FlowGuard -->
+      <section class="fg-panel-section">
+        <h2>ClientGuard</h2>
+        <h3 class="fg-incident-heading" id="cg-sub-suspicious">Sinais Suspeitos <span class="fg-badge fg-badge-neutral" id="cg-sub-suspicious-badge">0</span></h3>
+        <div class="fg-toolbar">
+          <div class="fg-toggle-group" id="cg-suspicious-view-toggle">
+            <button class="fg-toggle-btn active" aria-pressed="true" data-view="open">Abertos</button>
+            <button class="fg-toggle-btn" aria-pressed="false" data-view="history">Resolvidos</button>
+          </div>
+          <div class="fg-toggle-group" id="cg-suspicious-severity-chips">
+            <button class="fg-toggle-btn" aria-pressed="false" data-sev="high">high</button>
+            <button class="fg-toggle-btn" aria-pressed="false" data-sev="medium">medium</button>
+            <button class="fg-toggle-btn" aria-pressed="false" data-sev="watch" title="Observação — sinal de baixa severidade, não é crítico nem urgente">watch</button>
+          </div>
+          <input type="text" id="cg-suspicious-search" placeholder="filtrar por IP, cliente ou tipo de sinal..." aria-label="Filtrar sinais suspeitos por IP, cliente ou tipo">
+          <button class="fg-btn" id="cg-suspicious-group-btn" aria-pressed="false">Agrupar por cliente</button>
+          <button class="fg-btn" id="cg-suspicious-select-btn" aria-pressed="false">Selecionar</button>
+          <button class="fg-btn fg-btn-danger" id="cg-clear-suspicious-btn">Marcar hosts suspeitos como resolvidos</button>
+        </div>
+        <div class="fg-toolbar" id="cg-suspicious-bulkbar" hidden>
+          <span id="cg-suspicious-bulk-count" class="fg-kpi-sub"></span>
+          <button class="fg-btn fg-btn-danger" id="cg-suspicious-bulk-resolve-btn">Resolver selecionados</button>
+        </div>
+        <div id="cg-suspicious"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
+        <div id="cg-suspicious-detail"></div>
+      </section>
+
+      <!-- card separado, abaixo dos cards FlowGuard/ClientGuard — scanners e
+           destino coordenado são sinais de FlowGuard, mas menos urgentes
+           que ataque DDoS confirmado, por isso ficam num card à parte -->
       <section class="fg-panel-section">
         <h2>Outras Detecções (FlowGuard)</h2>
 

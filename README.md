@@ -101,6 +101,23 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 
 ## Changelog
 
+### v1.70.0 — 2026-08-18 — Incidentes: FlowGuard e ClientGuard viram cards separados
+
+Reverte o layout lado a lado da v1.68.0: com ataque ativo a tabela de
+ataques (10 colunas) ficava espremida em meia largura. Agora são 3 cards
+full-width empilhados — FlowGuard (Ataques DDoS), ClientGuard (Sinais
+Suspeitos), Outras Detecções (Scanners/Destino Coordenado) — mesmo padrão
+já usado na aba Regras (`#fg-rules-nav` fora das seções, seções empilhadas
+abaixo). Barra "Ir para" fica fora de qualquer card, só rola até o alvo.
+
+Removido `.fg-incidents-columns`/`.fg-incidents-column-title` (CSS morto da
+v1.68.0). Achado durante a implementação: o `<h2>` de cada card ganha um
+botão de colapso injetado por `initCollapsiblePanels()` que usa
+`display:flex; justify-content:space-between` — um `<span>` de subtítulo
+dentro do `<h2>` virava um 3º item flex e ficava espremido entre o título e
+o botão. Corrigido deixando o `<h2>` só com texto puro (`FlowGuard`/
+`ClientGuard`), igual todo outro título de card do sistema.
+
 ### v1.69.0 — 2026-08-18 — Incidentes: Scanners/Destino Coordenado em card separado
 
 Ajuste sobre a v1.68.0 (FlowGuard/ClientGuard lado a lado): "Scanners

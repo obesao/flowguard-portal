@@ -48,6 +48,31 @@
 
   var PROTO_NAMES = { 6: "TCP", 17: "UDP", 1: "ICMP" };
 
+  // Espelha os tokens de cor de :root (index.html) para contextos onde var(--fg-*)
+  // não é resolvido pelo browser (canvas 2D fillStyle/strokeStyle, atributos SVG
+  // gerados via concatenação de string). Único ponto de referência: se um token
+  // mudar em index.html, atualizar aqui também.
+  var FG_COLORS = {
+    bg: "#0d1117",
+    bgElevated: "#21262d",
+    border: "#30363d",
+    text: "#c9d1d9",
+    textMuted: "#8b949e",
+    accent: "#58a6ff",
+    danger: "#f85149",
+    success: "#3fb950",
+    orange: "#ffa657",
+    warning: "#d29922",
+    chartPurple: "#a371f7",
+    chartPink: "#db61a2",
+    chartCyan: "#39c5cf",
+    chartBlue2: "#79c0ff",
+    accentTint18: "rgba(88,166,255,0.18)",
+    accentTint25: "rgba(88,166,255,0.25)",
+    accentTint55: "rgba(88,166,255,0.55)",
+    textTint40: "rgba(201,209,217,0.4)",
+  };
+
   // ordem fixa de exibição na aba Configuração > Funções de Detecção — mesmas chaves
   // de configio.DEFAULT_FEATURE_TOGGLES no backend do FlowGuard
   var FG_TOGGLE_META = [
@@ -801,7 +826,7 @@
     { id: "bgp", title: "BGP (ExaBGP)", size: "sm", accent: "var(--fg-success)" },
     { id: "mitigations", title: "Mitigações de Borda", size: "sm", accent: "var(--fg-orange)" },
     { id: "warmode", title: "Modo Guerra", size: "sm", accent: "var(--fg-danger)" },
-    { id: "clientguard", title: "ClientGuard", size: "md", accent: "#a371f7" },
+    { id: "clientguard", title: "ClientGuard", size: "md", accent: "var(--fg-chart-purple)" },
     { id: "topPrefixes", title: "Meus Prefixos", size: "lg", accent: "var(--fg-accent)" },
     { id: "rules", title: "Regras Ativas (FlowSpec/RTBH)", size: "sm", accent: "var(--fg-warning)" },
     { id: "daemon", title: "Daemon", size: "sm", accent: "var(--fg-success)" },
@@ -1347,10 +1372,10 @@
     if (!el || !series || !series.length) return;
 
     var protos = [
-      { key: "tcp", label: "TCP", color: "#58a6ff" },
-      { key: "udp", label: "UDP", color: "#3fb950" },
-      { key: "icmp", label: "ICMP", color: "#d29922" },
-      { key: "other", label: "OTHER", color: "#8b949e" },
+      { key: "tcp", label: "TCP", color: FG_COLORS.accent },
+      { key: "udp", label: "UDP", color: FG_COLORS.success },
+      { key: "icmp", label: "ICMP", color: FG_COLORS.warning },
+      { key: "other", label: "OTHER", color: FG_COLORS.textMuted },
     ];
 
     var max = 1;
@@ -1376,7 +1401,7 @@
         return (
           '<div class="fg-spark"><span class="fg-spark-label" style="color:' + p.color + '">' + p.label + "</span>" +
           '<svg width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + " " + height + '">' +
-          '<line x1="0" y1="' + height / 2 + '" x2="' + width + '" y2="' + height / 2 + '" stroke="#30363d" stroke-width="1" stroke-dasharray="2,2" />' +
+          '<line x1="0" y1="' + height / 2 + '" x2="' + width + '" y2="' + height / 2 + '" stroke="' + FG_COLORS.border + '" stroke-width="1" stroke-dasharray="2,2" />' +
           '<polygon points="' + areaPoints + '" fill="' + p.color + '" fill-opacity="0.15" />' +
           '<polyline points="' + points + '" fill="none" stroke="' + p.color + '" stroke-width="1.5" /></svg>' +
           '<span class="fg-spark-value">' + fmtBps(last) + "</span></div>"
@@ -1667,7 +1692,7 @@
       "</div>";
     var canvas = document.getElementById("fg-attack-detail-chart");
     if (canvas) {
-      drawLineChart(canvas, series, [{ key: "bps", color: "#58a6ff", label: "tráfego (bps)" }]);
+      drawLineChart(canvas, series, [{ key: "bps", color: FG_COLORS.accent, label: "tráfego (bps)" }]);
       setCanvasAriaLabel("fg-attack-detail-chart", summarizePeakSeries(series, "bps", "Tráfego recebido em " + prefix));
     }
     if (noteKey) {
@@ -2582,7 +2607,7 @@
     // só o texto troca — o ícone (span.fg-icon) fica intacto; setar textContent
     // no <h2> inteiro apagaria o SVG (bug real, corrigido aqui)
     document.getElementById("fg-warmode-title-text").textContent = isRevert ? "Sair do Modo Guerra" : "Modo Guerra";
-    document.getElementById("fg-warmode-title").style.color = isRevert ? "" : "#f85149";
+    document.getElementById("fg-warmode-title").style.color = isRevert ? "" : "var(--fg-danger)";
     document.getElementById("fg-warmode-exec-desc").textContent = isRevert
       ? "Roda os comandos de reversão configurados via SSH, em paralelo, em todos os equipamentos abaixo — desfaz o que o Modo Guerra aplicou. Reais, agora, sem confirmação adicional depois do próximo clique."
       : "Executa os comandos configurados via SSH, em paralelo, em todos os equipamentos abaixo — reais, agora, sem confirmação adicional depois do próximo clique.";
@@ -4148,7 +4173,7 @@
       "</div>";
     var canvas = document.getElementById("cg-client-detail-chart");
     if (canvas) {
-      drawLineChart(canvas, data.timeseries || [], [{ key: "bps", color: "#58a6ff", label: "Tráfego" }]);
+      drawLineChart(canvas, data.timeseries || [], [{ key: "bps", color: FG_COLORS.accent, label: "Tráfego" }]);
       setCanvasAriaLabel("cg-client-detail-chart", summarizePeakSeries(data.timeseries || [], "bps", "Tráfego de " + srcIp));
     }
     el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -5144,9 +5169,9 @@
 
   // --- gráficos (canvas, sem dependência externa) -------------------------
 
-  var SEV_COLORS = { critical: "#f85149", high: "#ffa657", medium: "#d29922", info: "#8b949e" };
+  var SEV_COLORS = { critical: FG_COLORS.danger, high: FG_COLORS.orange, medium: FG_COLORS.warning, info: FG_COLORS.textMuted };
   var SEV_ROWS = ["critical", "high", "medium", "info"];
-  var CHART_BG = "#0d1117";
+  var CHART_BG = FG_COLORS.bg;
 
   // paleta categórica das linhas de barramento no modo "Todos" — ordem fixa
   // (não cosmética: é o que garante a distinção adjacente para daltonismo),
@@ -5154,8 +5179,8 @@
   // surface real do app (#0d1117, modo dark): contraste >=3:1 em todas e
   // pior ΔE adjacente de CVD 16.1 (acima do alvo de 12). Um 9º barramento
   // nunca gera uma nova cor — cai em CHART_OTHER_COLOR ("Outros").
-  var CHART_PREFIX_COLORS = ["#58a6ff", "#ffa657", "#a371f7", "#3fb950", "#db61a2", "#39c5cf", "#d29922", "#79c0ff"];
-  var CHART_OTHER_COLOR = "#8b949e";
+  var CHART_PREFIX_COLORS = [FG_COLORS.accent, FG_COLORS.orange, FG_COLORS.chartPurple, FG_COLORS.success, FG_COLORS.chartPink, FG_COLORS.chartCyan, FG_COLORS.warning, FG_COLORS.chartBlue2];
+  var CHART_OTHER_COLOR = FG_COLORS.textMuted;
 
   // chartScale() desenha no espaço de pixels CSS (não nos atributos width/height
   // fixos do <canvas>) e redimensiona o backing store pelo devicePixelRatio —
@@ -5240,7 +5265,7 @@
   function drawEmpty(canvas, message) {
     delete chartRegistry[canvas.id];
     var s = chartScale(canvas);
-    s.ctx.fillStyle = "#8b949e";
+    s.ctx.fillStyle = FG_COLORS.textMuted;
     s.ctx.font = "12px sans-serif";
     s.ctx.textAlign = "center";
     s.ctx.fillText(message, s.w / 2, s.h / 2);
@@ -5267,7 +5292,7 @@
     var span = nowTs - sinceTs || 1;
     var ticks = 6;
     var ctx = s.ctx;
-    ctx.fillStyle = "#8b949e";
+    ctx.fillStyle = FG_COLORS.textMuted;
     ctx.font = "10px sans-serif";
     ctx.textAlign = "center";
     for (var t = 0; t <= ticks; t++) {
@@ -5300,8 +5325,8 @@
     function x(i) { return s.padding.left + (i / (series.length - 1)) * plotW; }
     function y(v) { return s.padding.top + plotH - (v / maxV) * plotH; }
 
-    ctx.strokeStyle = "#21262d";
-    ctx.fillStyle = "#8b949e";
+    ctx.strokeStyle = FG_COLORS.bgElevated;
+    ctx.fillStyle = FG_COLORS.textMuted;
     ctx.font = "10px sans-serif";
     for (var g = 0; g <= 4; g++) {
       var v = (maxV * g) / 4;
@@ -5324,7 +5349,7 @@
         var x1 = tsToX(startTs);
         var x2 = tsToX(endTs);
         ctx.globalAlpha = 0.14;
-        ctx.fillStyle = SEV_COLORS[a.severity] || "#8b949e";
+        ctx.fillStyle = SEV_COLORS[a.severity] || FG_COLORS.textMuted;
         ctx.fillRect(x1, s.padding.top, Math.max(x2 - x1, 2), plotH);
         ctx.globalAlpha = 1;
       });
@@ -5333,7 +5358,7 @@
     // faixa esperada do baseline — preenchimento + contorno tracejado, senão
     // some visualmente quando é bem menor que o pico do tráfego real
     if (band) {
-      ctx.fillStyle = "rgba(88,166,255,0.18)";
+      ctx.fillStyle = FG_COLORS.accentTint18;
       ctx.beginPath();
       series.forEach(function (pt, i) {
         var yy = y(pt[band.upperKey] || 0);
@@ -5343,7 +5368,7 @@
       for (var i = series.length - 1; i >= 0; i--) ctx.lineTo(x(i), y(0));
       ctx.closePath();
       ctx.fill();
-      ctx.strokeStyle = "rgba(88,166,255,0.55)";
+      ctx.strokeStyle = FG_COLORS.accentTint55;
       ctx.lineWidth = 1;
       ctx.setLineDash([3, 3]);
       ctx.beginPath();
@@ -5398,7 +5423,7 @@
       attacksOverlay.forEach(function (a) {
         if (a.ts_start < sinceTs || a.ts_start > nowTs) return;
         var ex = tsToX(a.ts_start);
-        var color = SEV_COLORS[a.severity] || "#8b949e";
+        var color = SEV_COLORS[a.severity] || FG_COLORS.textMuted;
         ctx.strokeStyle = color;
         ctx.lineWidth = 1;
         ctx.setLineDash([2, 3]);
@@ -5417,7 +5442,7 @@
 
     if (hoverIndex != null && series[hoverIndex]) {
       var hx = x(hoverIndex);
-      ctx.strokeStyle = "rgba(201,209,217,0.4)";
+      ctx.strokeStyle = FG_COLORS.textTint40;
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(hx, s.padding.top);
@@ -5474,7 +5499,7 @@
               '<div class="fg-tt-row"><span>severidade</span><span>' + escapeHtml(a.severity || "-") + "</span></div>" +
               '<div class="fg-tt-row"><span>início</span><span>' + fmtDateTime(a.ts_start) + "</span></div>" +
               '<div class="fg-tt-row"><span>duração</span><span>' + dur + "</span></div>" +
-              '<div class="fg-tt-row"><span style="color:#8b949e">clique para ver detalhes →</span></div>';
+              '<div class="fg-tt-row"><span style="color:var(--fg-text-muted)">clique para ver detalhes →</span></div>';
             return { index: null, pointer: true, tooltip: html, onClick: function () { jumpToAttack(a); } };
           }
         }
@@ -5502,8 +5527,8 @@
     function x(i) { return s.padding.left + (i / (series.length - 1)) * plotW; }
     function y(v) { return s.padding.top + plotH - (v / maxV) * plotH; }
 
-    ctx.strokeStyle = "#21262d";
-    ctx.fillStyle = "#8b949e";
+    ctx.strokeStyle = FG_COLORS.bgElevated;
+    ctx.fillStyle = FG_COLORS.textMuted;
     ctx.font = "10px sans-serif";
     for (var g = 0; g <= 4; g++) {
       var v = (maxV * g) / 4;
@@ -5549,7 +5574,7 @@
 
     if (hoverIndex != null && series[hoverIndex]) {
       var hx = x(hoverIndex);
-      ctx.strokeStyle = "rgba(201,209,217,0.4)";
+      ctx.strokeStyle = FG_COLORS.textTint40;
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(hx, s.padding.top);
@@ -5592,12 +5617,12 @@
     var since = now - windowS;
     var hitboxes = [];
 
-    ctx.fillStyle = "#8b949e";
+    ctx.fillStyle = FG_COLORS.textMuted;
     ctx.font = "10px sans-serif";
     SEV_ROWS.forEach(function (sev, i) {
       var yy = s.padding.top + i * rowH;
       ctx.fillText(sev, 2, yy + rowH / 2 + 3);
-      ctx.strokeStyle = "#21262d";
+      ctx.strokeStyle = FG_COLORS.bgElevated;
       ctx.beginPath();
       ctx.moveTo(s.padding.left, yy + rowH);
       ctx.lineTo(s.w - s.padding.right, yy + rowH);
@@ -5616,11 +5641,11 @@
       var w = Math.max(x2 - x1, 4);
       var isHover = hoverId != null && a.id === hoverId;
       ctx.globalAlpha = isHover ? 1 : 0.85;
-      ctx.fillStyle = SEV_COLORS[a.severity] || "#8b949e";
+      ctx.fillStyle = SEV_COLORS[a.severity] || FG_COLORS.textMuted;
       ctx.fillRect(x1, yy, w, barH);
       ctx.globalAlpha = 1;
       if (isHover) {
-        ctx.strokeStyle = "#c9d1d9";
+        ctx.strokeStyle = FG_COLORS.text;
         ctx.lineWidth = 1.5;
         ctx.strokeRect(x1, yy, w, barH);
       }
@@ -5654,7 +5679,7 @@
               '<div class="fg-tt-row"><span>severidade</span><span>' + escapeHtml(a.severity || "-") + "</span></div>" +
               '<div class="fg-tt-row"><span>início</span><span>' + fmtDateTime(a.ts_start) + "</span></div>" +
               '<div class="fg-tt-row"><span>duração</span><span>' + dur + "</span></div>" +
-              '<div class="fg-tt-row"><span style="color:#8b949e">clique para ver detalhes →</span></div>';
+              '<div class="fg-tt-row"><span style="color:var(--fg-text-muted)">clique para ver detalhes →</span></div>';
             return { index: a.id, pointer: true, tooltip: html, onClick: function () { jumpToAttack(a); } };
           }
         }
@@ -5894,8 +5919,8 @@
           return;
         }
         var series = data.timeseries || [];
-        drawLineChart(canvas, series, [{ key: "bps", color: "#58a6ff", label: "tráfego agregado" }]);
-        if (legendEl) renderChartLegend(legendEl, [{ color: "#58a6ff", label: "tráfego agregado (sem separação in/out)" }]);
+        drawLineChart(canvas, series, [{ key: "bps", color: FG_COLORS.accent, label: "tráfego agregado" }]);
+        if (legendEl) renderChartLegend(legendEl, [{ color: FG_COLORS.accent, label: "tráfego agregado (sem separação in/out)" }]);
         if (summaryEl) {
           var stats = computePeakAvg(series, "bps");
           renderChartSummary(summaryEl, [{ prefix: customerPrefix, customer: "", peakBps: stats.peak, avgBps: stats.avg, capacityMbps: 0 }]);
@@ -6027,24 +6052,24 @@
             return withExtra;
           });
           var chartLines = [
-            { key: "bps_in", color: "#58a6ff", label: "entrada (in)" },
-            { key: "bps_out", color: "#ffa657", label: "saída (out)" },
+            { key: "bps_in", color: FG_COLORS.accent, label: "entrada (in)" },
+            { key: "bps_out", color: FG_COLORS.orange, label: "saída (out)" },
           ];
           var legendItems = [
-            { color: "#58a6ff", label: "entrada (in)" },
-            { color: "#ffa657", label: "saída (out)" },
+            { color: FG_COLORS.accent, label: "entrada (in)" },
+            { color: FG_COLORS.orange, label: "saída (out)" },
           ];
           var band = null;
           if (data.baseline) {
-            chartLines.push({ key: "baseline_mean", color: "#8b949e", dashed: true, label: "baseline (média, in)" });
-            legendItems.push({ color: "#8b949e", label: "baseline (média, in)" });
+            chartLines.push({ key: "baseline_mean", color: FG_COLORS.textMuted, dashed: true, label: "baseline (média, in)" });
+            legendItems.push({ color: FG_COLORS.textMuted, label: "baseline (média, in)" });
             band = { upperKey: "baseline_upper" };
-            legendItems.push({ color: "rgba(88,166,255,0.25)", label: "faixa esperada (in)" });
+            legendItems.push({ color: FG_COLORS.accentTint25, label: "faixa esperada (in)" });
           }
           if (data.capacity_mbps) {
             var capLabel = "capacidade contratada (" + data.capacity_mbps + " Mbps)";
-            chartLines.push({ key: "capacity_line", color: "#f85149", dashed: true, label: capLabel });
-            legendItems.push({ color: "#f85149", label: capLabel });
+            chartLines.push({ key: "capacity_line", color: FG_COLORS.danger, dashed: true, label: capLabel });
+            legendItems.push({ color: FG_COLORS.danger, label: capLabel });
           }
           var attacksOverlay = attacksData && attacksData.ok ? attacksData.attacks : [];
           if (attacksOverlay.length) {
@@ -6071,7 +6096,7 @@
       if (!data.ok) { drawEmpty(canvas, data.error || "erro ao carregar"); return; }
       var protoKeys = ["tcp", "udp", "icmp", "other"];
       var protoLabels = ["TCP", "UDP", "ICMP", "Outro"];
-      drawStackedArea(canvas, data.series, protoKeys, ["#58a6ff", "#3fb950", "#d29922", "#8b949e"], protoLabels);
+      drawStackedArea(canvas, data.series, protoKeys, [FG_COLORS.accent, FG_COLORS.success, FG_COLORS.warning, FG_COLORS.textMuted], protoLabels);
       setCanvasAriaLabel("fg-chart-protocol", summarizeStackedPeak(data.series, protoKeys, protoLabels));
     });
 

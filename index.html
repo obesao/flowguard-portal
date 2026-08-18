@@ -19,6 +19,12 @@
       --fg-success: #3fb950;
       --fg-orange: #ffa657;
       --fg-warning: #d29922;
+      --fg-chart-purple: #a371f7;
+      --fg-chart-pink: #db61a2;
+      --fg-chart-cyan: #39c5cf;
+      --fg-chart-blue2: #79c0ff;
+      --fg-danger-rgb: 248,81,73;
+      --fg-black-rgb: 0,0,0;
       --fg-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
 
@@ -62,13 +68,13 @@
        (não só o botão), pra ficar óbvio de qualquer aba que há um incidente em
        andamento mesmo sem olhar pro botão especificamente */
     .fg-topbar.is-warmode-active {
-      background: rgba(248,81,73,0.12); border-color: var(--fg-danger);
-      box-shadow: 0 0 16px 1px rgba(248,81,73,0.35);
+      background: rgba(var(--fg-danger-rgb),0.12); border-color: var(--fg-danger);
+      box-shadow: 0 0 16px 1px rgba(var(--fg-danger-rgb),0.35);
       animation: fg-warmode-topbar-pulse 2.2s ease-in-out infinite;
     }
     @keyframes fg-warmode-topbar-pulse {
-      0%, 100% { box-shadow: 0 0 10px 0 rgba(248,81,73,0.25); }
-      50% { box-shadow: 0 0 20px 2px rgba(248,81,73,0.5); }
+      0%, 100% { box-shadow: 0 0 10px 0 rgba(var(--fg-danger-rgb),0.25); }
+      50% { box-shadow: 0 0 20px 2px rgba(var(--fg-danger-rgb),0.5); }
     }
     @media (prefers-reduced-motion: reduce) {
       .fg-topbar.is-warmode-active { animation: none; }
@@ -88,7 +94,7 @@
          também pulsa em Modo Guerra ativo) o tom mais escuro media 3.84–4.12:1,
          abaixo do mínimo AA de 4.5:1 pra texto pequeno; o hover mais claro
          garante >=5.4:1 nos dois cenários mantendo a identidade "alerta vermelho" */
-      color: var(--fg-danger-hover); border-color: var(--fg-danger); background: rgba(248,81,73,0.15);
+      color: var(--fg-danger-hover); border-color: var(--fg-danger); background: rgba(var(--fg-danger-rgb),0.15);
       animation: fg-warmode-pulse 1.6s ease-in-out infinite;
     }
     @media (prefers-reduced-motion: reduce) {
@@ -271,7 +277,7 @@
     .fg-menu { position: relative; display: inline-block; }
     .fg-menu-list {
       position: absolute; right: 0; top: 100%; margin-top: 0.2rem; background: var(--fg-bg-elevated); border: 1px solid var(--fg-border);
-      border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 20; min-width: 170px; padding: 0.3rem;
+      border-radius: 6px; box-shadow: 0 4px 12px rgba(var(--fg-black-rgb),0.5); z-index: 20; min-width: 170px; padding: 0.3rem;
     }
     .fg-menu-list[hidden] { display: none; }
     .fg-menu-list button {
@@ -302,12 +308,12 @@
     /* Modo Guerra ativo — botão "pressionado" (sombra interna + brilho pulsante),
        pra diferenciar de qualquer outro fg-btn-danger (ex: "Confirmar e executar") */
     #fg-warmode-open-btn.is-warmode-active {
-      box-shadow: inset 0 2px 4px rgba(0,0,0,0.5), 0 0 10px 1px rgba(248,81,73,0.7);
+      box-shadow: inset 0 2px 4px rgba(var(--fg-black-rgb),0.5), 0 0 10px 1px rgba(var(--fg-danger-rgb),0.7);
       animation: fg-warmode-pulse 1.6s ease-in-out infinite;
     }
     @keyframes fg-warmode-pulse {
-      0%, 100% { box-shadow: inset 0 2px 4px rgba(0,0,0,0.5), 0 0 6px 0 rgba(248,81,73,0.55); }
-      50% { box-shadow: inset 0 2px 4px rgba(0,0,0,0.5), 0 0 14px 3px rgba(248,81,73,0.9); }
+      0%, 100% { box-shadow: inset 0 2px 4px rgba(var(--fg-black-rgb),0.5), 0 0 6px 0 rgba(var(--fg-danger-rgb),0.55); }
+      50% { box-shadow: inset 0 2px 4px rgba(var(--fg-black-rgb),0.5), 0 0 14px 3px rgba(var(--fg-danger-rgb),0.9); }
     }
     @media (prefers-reduced-motion: reduce) {
       #fg-warmode-open-btn.is-warmode-active { animation: none; }
@@ -318,7 +324,7 @@
       font-family: "Courier New", ui-monospace, monospace; font-size: 1.05rem; font-weight: bold;
       color: var(--fg-danger); letter-spacing: 0.08em; background: var(--fg-bg);
       border: 1px solid var(--fg-danger); border-radius: 6px; padding: 0.25rem 0.6rem;
-      text-shadow: 0 0 6px rgba(248,81,73,0.75);
+      text-shadow: 0 0 6px rgba(var(--fg-danger-rgb),0.75);
     }
 
     .fg-icon { display: inline-flex; vertical-align: -2px; margin-right: 0.35rem; }
@@ -332,7 +338,7 @@
     .fg-card-danger .fg-kpi-value { color: var(--fg-danger); }
 
     .fg-modal-overlay {
-      position: fixed; inset: 0; background: rgba(1,4,9,0.75); z-index: 500;
+      position: fixed; inset: 0; background: rgba(var(--fg-black-rgb),0.75); z-index: 500;
       display: flex; align-items: center; justify-content: center; padding: 1rem;
     }
     .fg-modal-overlay[hidden] { display: none; }
@@ -437,7 +443,7 @@
     #fg-toast-container { position: fixed; bottom: 1.2rem; right: 1.2rem; display: flex; flex-direction: column; gap: 0.5rem; z-index: 999; }
     .fg-toast {
       background: var(--fg-bg-elevated); border: 1px solid var(--fg-border); border-radius: 6px; padding: 0.6rem 1rem;
-      font-size: 0.85rem; max-width: 320px; box-shadow: 0 2px 8px rgba(0,0,0,0.4); opacity: 1; transition: opacity 0.3s;
+      font-size: 0.85rem; max-width: 320px; box-shadow: 0 2px 8px rgba(var(--fg-black-rgb),0.4); opacity: 1; transition: opacity 0.3s;
       animation: fg-toast-in 0.2s ease;
     }
     @keyframes fg-toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
@@ -456,7 +462,7 @@
     .fg-chart-tooltip {
       position: fixed; pointer-events: none; background: var(--fg-bg-elevated); border: 1px solid var(--fg-border);
       border-radius: 6px; padding: 0.5rem 0.7rem; font-size: 0.78rem; z-index: 1000;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.5); max-width: 280px; line-height: 1.5;
+      box-shadow: 0 2px 8px rgba(var(--fg-black-rgb),0.5); max-width: 280px; line-height: 1.5;
     }
     .fg-chart-tooltip[hidden] { display: none; }
     .fg-chart-tooltip .fg-tt-title { font-weight: bold; margin-bottom: 0.2rem; color: var(--fg-text); }
@@ -518,7 +524,7 @@
     .fg-cockpit-popover {
       position: absolute; top: 100%; left: 0; right: 0; margin-top: 0.4rem; z-index: 20;
       background: var(--fg-bg-panel); border: 1px solid var(--cockpit-accent, var(--fg-accent));
-      border-radius: 8px; padding: 0.7rem; box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+      border-radius: 8px; padding: 0.7rem; box-shadow: 0 4px 16px rgba(var(--fg-black-rgb),0.35);
       max-height: 260px; overflow-y: auto; cursor: default;
     }
     .fg-cockpit-popover-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.85rem; }

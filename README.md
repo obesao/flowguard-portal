@@ -101,6 +101,18 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 
 ## Changelog
 
+### v1.72.0 — 2026-08-18 — Listas de IP no detalhe do ataque preenchem o card
+
+"Host(s) atacado(s)" e "IPs de origem observados" (detalhe do ataque, botão
+"Detalhes") eram `<ul>` de 1 coluna só — com até 20 itens curtos (IP + ciclo),
+a lista ficava espremida à esquerda, sobrando boa parte do card vazia à
+direita (visualmente ~75%), destoando da tabela "Tráfego por protocolo/porta"
+logo abaixo, que já usa a largura toda. Adicionada classe `.fg-ip-list`
+(`column-width: 260px`) — o navegador decide quantas colunas cabem e
+preenche a largura do card sozinho, sem JS extra pra calcular grid. Efeito
+colateral bom: 20 itens que antes ocupavam 20 linhas agora cabem em ~7,
+menos scroll no card.
+
 ### v1.71.0 — 2026-08-18 — KPI cards do topo reduzidos (tela pequena)
 
 Os 7 cards de KPI no topo de cada aba (Tráfego, Pacotes/s, Ataques Ativos,

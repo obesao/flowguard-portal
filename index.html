@@ -434,6 +434,12 @@
 
     .fg-ai-panel { background: var(--fg-bg-elevated); border-radius: 6px; padding: var(--space-4); margin-top: var(--space-4); }
     .fg-ai-panel pre { white-space: pre-wrap; font-family: inherit; }
+    /* listas "Host(s) atacado(s)"/"IPs de origem observados" (até 20 itens
+       curtos) — lista de 1 coluna só ficava espremida à esquerda, sobrando
+       ~75% do card vazio à direita. column-width deixa o navegador decidir
+       quantas colunas cabem, preenchendo a largura toda do card. */
+    .fg-ai-panel .fg-ip-list { list-style: none; margin: 0; padding: 0; column-width: 260px; column-gap: var(--space-5); }
+    .fg-ai-panel .fg-ip-list li { padding: var(--space-1) 0; break-inside: avoid; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     #rules-detail pre { white-space: pre-wrap; font-size: var(--text-sm); background: var(--fg-bg); border: 1px solid var(--fg-border); border-radius: 6px; padding: var(--space-3) var(--space-4); max-height: 240px; overflow-y: auto; }
     #rules-detail table { margin-bottom: var(--space-4); }
     #rules-detail table td:first-child { color: var(--fg-text-muted); width: 180px; }

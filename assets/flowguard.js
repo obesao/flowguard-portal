@@ -1648,12 +1648,12 @@
       "<h5>Linha do tempo (bps recebido)</h5>" +
       '<canvas id="fg-attack-detail-chart" width="760" height="140" role="img" aria-label="Linha do tempo de tráfego recebido — carregando dados"></canvas>' +
       "<h5>Host(s) atacado(s) (top " + topHosts.length + ")</h5>" +
-      "<ul>" + hostItems + "</ul>" +
+      '<ul class="fg-ip-list">' + hostItems + "</ul>" +
       "<h5>Tráfego por protocolo/porta</h5>" +
       "<table><thead><tr><th scope='col'>Protocolo</th><th scope='col'>Porta</th><th scope='col'>bps</th><th scope='col'>pps</th><th scope='col'>Bytes totais</th>" +
       "<th scope='col'>Pacotes totais</th><th scope='col'>Tam. médio pkt</th><th scope='col'>Flows</th></tr></thead><tbody>" + portRows + "</tbody></table>" +
       "<h5>IPs de origem observados (top " + topSources.length + ")</h5>" +
-      "<ul>" + sourceItems + "</ul>" +
+      '<ul class="fg-ip-list">' + sourceItems + "</ul>" +
       '<p class="fg-kpi-sub">Ocorrências = em quantos ciclos de agregação o IP apareceu entre os top 10 daquele grupo — não é volume exato por IP. ' +
       "Bytes/pacotes totais são estimados a partir das taxas bps/pps de cada ciclo, não medidos diretamente.</p>" +
       noteHtml +

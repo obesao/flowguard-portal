@@ -101,6 +101,21 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 
 ## Changelog
 
+### v1.63.0 — 2026-08-18 — Fase 3/8 do redesign: remoção de código morto
+
+Terceira fase do redesign (ver fases 1/8 e 2/8 abaixo). Remove caminhos de
+código confirmados sem uso via grep, sem mudança de comportamento observável:
+
+- CSS órfão: `.fg-statusbar`, `.fg-cockpit-mini-kpis` (sem markup correspondente).
+- `CG_EDGE_CFG_ENDPOINT` (`assets/flowguard.js`): constante declarada, nunca lida.
+- Mecanismo `COCKPIT_JUMP_TARGETS`: mapa sempre vazio desde sua criação — a
+  função `cockpitJumpToWidget` era um no-op garantido. Removidos o mapa, a
+  função e o branch que a chamava no listener de clique dos cockpit cards;
+  `jumpable` em `cockpitCardHtml` agora depende só de `COCKPIT_POPOVER_TARGETS`.
+- Validado com Playwright: os 3 cards clicáveis (Regras, ClientGuard,
+  Mitigações) continuam abrindo popover normalmente; os outros 6 cards
+  seguem não-interativos, comportamento idêntico ao anterior.
+
 ### v1.62.0 — 2026-08-18 — Fase 2/8 do redesign: tokens de espaçamento e tipografia
 
 Segunda fase do redesign visual (ver fase 1/8 na v1.61.0 abaixo — consolidação

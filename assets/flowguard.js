@@ -28,7 +28,6 @@
   var CG_BLOCK_ENDPOINT = "/cgi-bin/clientguard-block.sh";
   var CG_TOGGLES_ENDPOINT = "/cgi-bin/clientguard-toggles.sh";
   var CG_EDGE_ENDPOINT = "/cgi-bin/clientguard-edge.sh";
-  var CG_EDGE_CFG_ENDPOINT = "/cgi-bin/clientguard-edge-cfg.sh";
   var CG_FLOWSPEC_CFG_ENDPOINT = "/cgi-bin/clientguard-flowspec-cfg.sh";
   var CG_ESCALATION_CFG_ENDPOINT = "/cgi-bin/clientguard-escalation-cfg.sh";
   var WARMODE_ENDPOINT = "/cgi-bin/flowguard-warmode.sh";
@@ -832,13 +831,6 @@
     { id: "daemon", title: "Daemon", size: "sm", accent: "var(--fg-success)" },
   ];
 
-  // cards com destino de navegação — clique fora do modo edição pula pra
-  // aba/subseção correspondente (mesmo padrão de scroll do jumpToAttack /
-  // fg-rules-nav / fg-incidents-nav). Hoje nenhum card usa mais esse
-  // caminho (rules e clientguard migraram pra popover, ver abaixo) — mapa
-  // fica pronto pra um próximo widget que precise mesmo sair da Visão Geral.
-  var COCKPIT_JUMP_TARGETS = {};
-
   // "Regras Ativas" e "ClientGuard": pedido do usuário foi mostrar a lista
   // sem sair da Visão Geral — em vez do jump acima, abrem um popover
   // ancorado no próprio card. build() é chamado tanto no clique quanto a
@@ -932,28 +924,6 @@
     if (pop) pop.innerHTML = target.build();
   }
 
-  function cockpitJumpToWidget(id) {
-    var jump = COCKPIT_JUMP_TARGETS[id];
-    if (!jump) return;
-    document.querySelectorAll(".fg-tab-btn").forEach(function (b) {
-      setActive(b, b.getAttribute("data-tab") === jump.tab);
-    });
-    document.querySelectorAll(".fg-tab-panel").forEach(function (p) {
-      setActive(p, p.getAttribute("data-tab") === jump.tab);
-    });
-    if (jump.setApp) jump.setApp();
-    var target = document.getElementById(jump.target);
-    if (!target) return;
-    // alvo na aba Regras vive dentro de uma seção colapsável (diferente da
-    // aba Incidentes) — expande antes de rolar, mesmo tratamento do fg-rules-nav
-    var section = target.closest("section.fg-panel-section");
-    if (section && section.classList.contains("fg-panel-collapsed")) {
-      setPanelCollapsed(section, false);
-      localStorage.setItem(panelStorageKey(section), "0");
-    }
-    target.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
   function cockpitLoadLayout() {
     var fallback = COCKPIT_WIDGETS.map(function (w) { return { id: w.id, visible: true, size: null }; });
     try {
@@ -1005,7 +975,7 @@
     // "oculto" é uma CLASSE (fg-cockpit-hidden), não o atributo [hidden]
     // nativo: o CSS só some com o card fora do modo edição — durante a
     // edição ele fica esmaecido, com o checkbox acessível pra reexibir
-    var jumpable = !!COCKPIT_JUMP_TARGETS[w.id] || !!COCKPIT_POPOVER_TARGETS[w.id];
+    var jumpable = !!COCKPIT_POPOVER_TARGETS[w.id];
     return (
       '<div class="fg-cockpit-card' + (visible ? "" : " fg-cockpit-hidden") + (jumpable ? " fg-cockpit-clickable" : "") + '" data-widget-id="' + w.id + '" data-size="' + size + '" style="--cockpit-accent:' + w.accent + '"' +
       (jumpable ? ' title="Clique para ver o detalhe"' : "") + ">" +
@@ -1113,8 +1083,8 @@
     });
 
     // clique no card (fora do modo edição, fora do checkbox/handle): cards em
-    // COCKPIT_POPOVER_TARGETS abrem a lista ali mesmo, sem sair da Visão
-    // Geral; os demais (COCKPIT_JUMP_TARGETS) pulam pra aba/subseção do detalhe
+    // COCKPIT_POPOVER_TARGETS abrem a lista ali mesmo, sem sair da Visão Geral;
+    // os demais cards não são clicáveis (ver `jumpable` em cockpitCardHtml)
     grid.addEventListener("click", function (ev) {
       if (state.cockpitEditing) return;
       if (ev.target.closest(".fg-cockpit-visibility") || ev.target.closest(".fg-cockpit-drag-handle")) return;
@@ -1122,8 +1092,7 @@
       var card = ev.target.closest(".fg-cockpit-card");
       if (!card) return;
       var id = card.getAttribute("data-widget-id");
-      if (COCKPIT_POPOVER_TARGETS[id]) { cockpitTogglePopover(card); return; }
-      cockpitJumpToWidget(id);
+      if (COCKPIT_POPOVER_TARGETS[id]) cockpitTogglePopover(card);
     });
 
     // clique fora de qualquer card fecha popover aberto (mesmo padrão de

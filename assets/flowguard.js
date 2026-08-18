@@ -822,7 +822,7 @@
     // sempre visível) — o card acrescenta o detalhe por severidade e pode
     // ser ocultado/reordenado; o tooltip só deixa a redundância explícita
     { id: "attacks", title: "Ataques Ativos", size: "sm", accent: "var(--fg-danger)", hint: "Mesmo contador do indicador “Ataques Ativos” da barra do topo — aqui com o detalhe por severidade." },
-    { id: "bgp", title: "BGP (ExaBGP)", size: "sm", accent: "var(--fg-success)" },
+    { id: "bgp", title: "BGP (ExaBGP)", size: "sm", accent: "var(--fg-success)", hint: "ExaBGP é o serviço que mantém nossa sessão BGP com a operadora" },
     { id: "mitigations", title: "Mitigações de Borda", size: "sm", accent: "var(--fg-orange)" },
     { id: "warmode", title: "Modo Guerra", size: "sm", accent: "var(--fg-danger)" },
     { id: "clientguard", title: "ClientGuard", size: "md", accent: "var(--fg-chart-purple)" },
@@ -1229,9 +1229,9 @@
 
   // --- KPIs ---------------------------------------------------------------
 
-  function kpiCard(label, valueHtml, sub, trendHtml, danger) {
+  function kpiCard(label, valueHtml, sub, trendHtml, danger, labelTitle) {
     return (
-      '<div class="fg-card' + (danger ? " fg-card-danger" : "") + '"><div class="fg-kpi-label">' + escapeHtml(label) + '</div>' +
+      '<div class="fg-card' + (danger ? " fg-card-danger" : "") + '"><div class="fg-kpi-label"' + (labelTitle ? ' title="' + escapeHtml(labelTitle) + '"' : "") + '>' + escapeHtml(label) + '</div>' +
       '<div class="fg-kpi-value">' + valueHtml + '</div>' +
       '<div class="fg-kpi-sub">' + escapeHtml(sub || "") + (trendHtml || "") + '</div></div>'
     );
@@ -1249,8 +1249,9 @@
     var state = (peer || {}).peer_state;
     var dotClass = state === "up" ? "fg-dot-up" : "fg-dot-down";
     var stateText = state === "up" ? "Up" : "Down/Idle";
+    var stateTitle = state === "up" ? "" : ' title="Idle = sessão BGP não estabelecida"';
     return '<div class="fg-bgp-peer"><span class="fg-dot ' + dotClass + '"></span><strong>' +
-      escapeHtml(label) + "</strong> " + stateText + "</div>";
+      escapeHtml(label) + "</strong> <span" + stateTitle + ">" + stateText + "</span></div>";
   }
 
   function bgpPeerSubText(label, peer) {
@@ -1282,7 +1283,7 @@
     if (!el) return;
 
     if (!data.ok) {
-      el.innerHTML = kpiCard("Daemon", '<span class="fg-dot fg-dot-down"></span>indisponível', data.error || "");
+      el.innerHTML = kpiCard("Daemon", '<span class="fg-dot fg-dot-down"></span>indisponível', data.error || "", null, false, "Serviço de detecção em segundo plano (daemon)");
       updateAttacksBadge(0);
       return;
     }
@@ -1328,7 +1329,7 @@
       kpiCard("Regras FlowSpec", s.active_rules, "", null, s.active_rules > 0) +
       kpiCard("Mitigações de Borda", activeEdgeMitigations, "ClientGuard · FlowSpec/SSH", null, activeEdgeMitigations > 0) +
       kpiCard("BGP (ExaBGP)", bgpHtml, bgpSub, null, bgpAnyDown) +
-      kpiCard("Daemon", daemonHtml, daemonSub);
+      kpiCard("Daemon", daemonHtml, daemonSub, null, false, "Serviço de detecção em segundo plano (daemon)");
 
     updateAttacksBadge(s.active_attacks);
     updateRulesBadge(s.active_rules);
@@ -1450,7 +1451,7 @@
       '<button data-action="analyze">Detalhes IA</button>' +
       '<input type="number" class="fg-mitigate-ttl-min" min="1" step="1" ' +
       'placeholder="min RTBH (padrão)" title="Duração do bloqueio RTBH em minutos — deixe em branco para usar o padrão configurado (aba Configuração > Mitigação)">' +
-      '<button data-action="mitigate">Mitigar</button>' +
+      '<button data-action="mitigate" title="Bloqueia o prefixo inteiro via RTBH (BGP blackhole) — ação manual de emergência, sempre RTBH independente de outras estratégias configuradas.">Mitigar</button>' +
       '<button data-action="release">Liberar</button>' +
       suggestionMenuItem +
       "</div></div></td></tr>"
@@ -1746,6 +1747,12 @@
     var attackId = Number(row.getAttribute("data-attack-id"));
     var prefix = row.getAttribute("data-prefix");
     var action = btn.getAttribute("data-action");
+
+    if (action === "mitigate" && !window.confirm(
+      "Mitigar " + prefix + " agora vai bloquear o prefixo INTEIRO via RTBH (BGP blackhole), imediatamente. Essa é sempre a ação do botão \"Mitigar\" — para bloqueio parcial (FlowSpec), use a Configuração de Mitigação. Confirma?"
+    )) {
+      return;
+    }
 
     btn.disabled = true;
     var original = btn.textContent;
@@ -4024,7 +4031,7 @@
     var el = document.getElementById("cg-kpis");
     if (!el) return;
     if (!status || !status.ok) {
-      el.innerHTML = kpiCard("Daemon", '<span class="fg-dot fg-dot-down"></span>indisponível', (status && status.error) || "");
+      el.innerHTML = kpiCard("Daemon", '<span class="fg-dot fg-dot-down"></span>indisponível', (status && status.error) || "", null, false, "Serviço de detecção em segundo plano (daemon)");
       return;
     }
     el.innerHTML =
@@ -4032,7 +4039,7 @@
       kpiCard("Mitigações ativas", status.active_mitigations, "FlowSpec + SSH legado", null, status.active_mitigations > 0) +
       kpiCard("Redes cadastradas", status.n_customers, "") +
       kpiCard("Whitelist", status.n_whitelist, "") +
-      kpiCard("Daemon", '<span class="fg-dot fg-dot-up"></span>ativo', "uptime " + fmtUptime(status.uptime_s) + " · pid " + status.pid);
+      kpiCard("Daemon", '<span class="fg-dot fg-dot-up"></span>ativo', "uptime " + fmtUptime(status.uptime_s) + " · pid " + status.pid, null, false, "Serviço de detecção em segundo plano (daemon)");
   }
 
   function loadClientGuardStatus() {
@@ -4137,7 +4144,7 @@
       "<h5>Tráfego ao longo do tempo</h5>" +
       '<canvas id="cg-client-detail-chart" width="760" height="160" role="img" aria-label="Tráfego do cliente ao longo do tempo — carregando dados"></canvas>' +
       "<h5>Top destinos (" + (data.top_destinations || []).length + ")</h5>" +
-      "<table><thead><tr><th scope='col'>Destino</th><th scope='col'>Protocolo</th><th scope='col'>Porta</th><th scope='col'>ASN/País</th>" +
+      "<table><thead><tr><th scope='col'>Destino</th><th scope='col'>Protocolo</th><th scope='col'>Porta</th><th scope='col' title='ASN = Número do Sistema Autônomo'>ASN/País</th>" +
       "<th scope='col'>Tráfego</th><th scope='col'>Pacotes</th></tr></thead><tbody>" + destRows + "</tbody></table>" +
       "</div>";
     var canvas = document.getElementById("cg-client-detail-chart");

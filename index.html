@@ -853,7 +853,7 @@
             <div class="fg-toggle-group" id="cg-suspicious-severity-chips">
               <button class="fg-toggle-btn" aria-pressed="false" data-sev="high">high</button>
               <button class="fg-toggle-btn" aria-pressed="false" data-sev="medium">medium</button>
-              <button class="fg-toggle-btn" aria-pressed="false" data-sev="watch">watch</button>
+              <button class="fg-toggle-btn" aria-pressed="false" data-sev="watch" title="Observação — sinal de baixa severidade, não é crítico nem urgente">watch</button>
             </div>
             <input type="text" id="cg-suspicious-search" placeholder="filtrar por IP, cliente ou tipo de sinal..." aria-label="Filtrar sinais suspeitos por IP, cliente ou tipo">
             <button class="fg-btn" id="cg-suspicious-group-btn" aria-pressed="false">Agrupar por cliente</button>
@@ -931,7 +931,7 @@
           <input type="text" id="rules-host-filter" placeholder="filtrar por host/IP..." aria-label="Filtrar regras por host ou IP">
           <select id="rules-type-filter" aria-label="Filtrar regras por tipo">
             <option value="">todos os tipos</option>
-            <option value="rtbh">RTBH (blackhole)</option>
+            <option value="rtbh" title="Bloqueio total do prefixo via anúncio BGP (Remote-Triggered Black Hole)">RTBH (blackhole)</option>
             <option value="discard">FlowSpec: descarte</option>
             <option value="rate-limit">FlowSpec: rate-limit</option>
             <option value="redirect">FlowSpec: redirect</option>

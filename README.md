@@ -101,6 +101,21 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 
 ## Changelog
 
+### v1.64.0 — 2026-08-18 — Fases 4-5/8 do redesign: consentimento e jargão explicado
+
+Quarta e quinta fases do redesign (ver fases anteriores abaixo) — camada de
+apresentação, sem mudança de payload/endpoint/lógica de negócio:
+
+- **Botão "Mitigar" (RTBH)**: ganhou `title` explicativo e `confirm()` antes
+  de disparar a ação — hoje o único aviso de que "Mitigar" sempre bloqueia o
+  prefixo INTEIRO via RTBH (BGP blackhole) estava num parágrafo em outra aba.
+  Mesmo padrão de confirmação já usado em "Apagar todas as regras".
+- **Jargão explicado no ponto de uso** (`title`/`hint`, sem mudar rótulo
+  visível, exceto onde indicado): chip de severidade "watch", opção "RTBH
+  (blackhole)" no filtro de regras, título do card cockpit "BGP (ExaBGP)",
+  status "Down/Idle" de peer BGP, KPI "Daemon" (FlowGuard e ClientGuard),
+  coluna "ASN/País" no detalhe de cliente.
+
 ### v1.63.0 — 2026-08-18 — Fase 3/8 do redesign: remoção de código morto
 
 Terceira fase do redesign (ver fases 1/8 e 2/8 abaixo). Remove caminhos de

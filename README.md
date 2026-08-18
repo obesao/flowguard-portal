@@ -101,6 +101,19 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 
 ## Changelog
 
+### v1.73.0 — 2026-08-18 — Listas de IP: corrige caso de poucos itens não preenchendo o card
+
+Ajuste sobre a v1.72.0: `column-width` preenchia bem a largura do card
+quando o ataque tinha muitos hosts/IPs (ex: 20), mas com poucos (2-3) só
+criava 1 coluna estreita — voltava a sobrar boa parte do card vazia, mesmo
+sintoma de antes. Trocado por `display:flex; flex-wrap:wrap` com cada
+`<li>` em `flex: 1 1 260px` — agora poucos itens ESTICAM (flex-grow) pra
+preencher a linha inteira, e muitos itens quebram em várias linhas cheias,
+os dois casos preenchendo a largura do card. Também corrige uma
+regressão de meio-caminho: uma tentativa intermediária com `flex-basis:
+200px` truncava o texto ("— 1 cicl...") por ser estreito demais pro
+conteúdo real (~260px necessários).
+
 ### v1.72.0 — 2026-08-18 — Listas de IP no detalhe do ataque preenchem o card
 
 "Host(s) atacado(s)" e "IPs de origem observados" (detalhe do ataque, botão

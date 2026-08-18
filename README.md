@@ -101,6 +101,28 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 
 ## Changelog
 
+### v1.68.0 — 2026-08-18 — Incidentes: FlowGuard/ClientGuard lado a lado + barra de intensidade em ataques
+
+Mudança de layout pedida separadamente do redesign de 8 fases anterior
+(ver v1.61.0-v1.67.0 abaixo) — aba Incidentes:
+
+- **FlowGuard e ClientGuard lado a lado**: antes era um toggle A/B
+  (`#incidents-app-toggle`, `[hidden]`) que só mostrava um lado por vez.
+  Agora os dois ficam em colunas permanentemente visíveis
+  (`.fg-incidents-columns`, grid 2 colunas — empilha em 1 coluna abaixo de
+  700px, mesmo breakpoint do resto do sistema), cada uma com cabeçalho
+  próprio (FlowGuard em azul, ClientGuard em roxo — mesma convenção de cor
+  já usada no widget do cockpit). Os dois lados já eram sempre polados juntos
+  (`poll()` nunca dependeu do toggle), então a mudança é só CSS/markup —
+  removido `setIncidentsApp()`, o estado `incidentsApp` e o toggle A/B; a
+  barra "Ir para" só rola até a subseção agora (não troca mais de lado antes).
+- **Barra de intensidade nos ataques DDoS**: colunas "Pico (bps)" e "Pico
+  (pps)" da tabela de ataques ganharam uma barra horizontal (mesmo
+  componente `fg-hbar-wrap` já usado em Top Clientes), proporcional ao pico
+  da lista filtrada inteira (não só a página atual, pra escala não pular ao
+  paginar) e colorida pela severidade do ataque (`SEV_COLORS` — crítico
+  salta aos olhos em vermelho), em vez de só o número cru.
+
 ### v1.67.0 — 2026-08-18 — Fase 8/8 do redesign: verificação final
 
 Oitava e última fase — fecha o redesign visual/CSS iniciado no audit Dieter

@@ -201,6 +201,21 @@
     /* título das subseções que não têm a moldura .fg-incident-subsection
        (Ataques DDoS e Sinais Suspeitos abrem o bloco, sem border-top) */
     .fg-incident-heading { margin: var(--space-1) 0 var(--space-4); }
+    /* FlowGuard e ClientGuard lado a lado, sempre visíveis (antes era um
+       toggle A/B com [hidden] — ver histórico do CHANGELOG); empilha numa
+       coluna só abaixo de 700px, mesmo breakpoint do resto do sistema */
+    .fg-incidents-columns { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-7); align-items: start; }
+    @media (max-width: 700px) {
+      .fg-incidents-columns { grid-template-columns: 1fr; gap: var(--space-6); }
+    }
+    .fg-incidents-column-title {
+      font-size: var(--text-lg); margin: 0 0 var(--space-4); padding-bottom: var(--space-3);
+      border-bottom: 2px solid var(--fg-accent);
+    }
+    /* roxo = ClientGuard em todo o sistema (widget do cockpit, gráficos) —
+       mesma convenção de cor, não uma escolha nova */
+    .fg-incidents-column[data-incidents-app="clientguard"] .fg-incidents-column-title { border-bottom-color: var(--fg-chart-purple); }
+    .fg-incidents-column-title .fg-kpi-sub { font-weight: normal; margin-left: var(--space-2); }
     /* barra "Ir para" no topo das abas Incidentes (#fg-incidents-nav) e Regras
        (#fg-rules-nav) — atalhos de scroll pra cada subseção/lista, com as
        MESMAS contagens que o poll já traz pros badges (nenhum fetch extra) */
@@ -789,25 +804,22 @@
     <div class="fg-tab-panel" data-tab="attacks">
       <section class="fg-panel-section">
         <h2>Incidentes</h2>
-        <div class="fg-toolbar">
-          <div class="fg-toggle-group" id="incidents-app-toggle">
-            <button class="fg-toggle-btn active" aria-pressed="true" data-app="flowguard">FlowGuard — vítimas</button>
-            <button class="fg-toggle-btn" aria-pressed="false" data-app="clientguard">ClientGuard — clientes</button>
-          </div>
-        </div>
 
-        <!-- atalhos de navegação: a aba ficou longa (4 subseções empilhadas) —
-             clique pula direto pra subseção (troca o lado FlowGuard/ClientGuard
-             se preciso); contagens vêm do mesmo state.incidents do badge da aba -->
+        <!-- atalhos de navegação: a aba ficou longa (4 subseções em 2 colunas) —
+             clique pula direto pra subseção; contagens vêm do mesmo
+             state.incidents do badge da aba. FlowGuard e ClientGuard ficam
+             lado a lado sempre visíveis (não é mais A/B) — o jump só rola. -->
         <div class="fg-incident-nav" id="fg-incidents-nav">
           <span class="fg-incident-nav-label">Ir para:</span>
-          <button class="fg-incident-nav-btn" data-jump-target="fg-sub-attacks" data-jump-app="flowguard">Ataques DDoS <span class="fg-badge fg-badge-neutral" data-nav-count="openAttacks">0</span></button>
-          <button class="fg-incident-nav-btn" data-jump-target="fg-sub-scanners" data-jump-app="flowguard">Scanners <span class="fg-badge fg-badge-neutral" data-nav-count="openScans">0</span></button>
-          <button class="fg-incident-nav-btn" data-jump-target="fg-sub-coordinated" data-jump-app="flowguard">Destino Coordenado <span class="fg-badge fg-badge-neutral" data-nav-count="openCoordinated">0</span></button>
-          <button class="fg-incident-nav-btn" data-jump-target="cg-sub-suspicious" data-jump-app="clientguard">Sinais Suspeitos <span class="fg-badge fg-badge-neutral" data-nav-count="openSignals">0</span></button>
+          <button class="fg-incident-nav-btn" data-jump-target="fg-sub-attacks">Ataques DDoS <span class="fg-badge fg-badge-neutral" data-nav-count="openAttacks">0</span></button>
+          <button class="fg-incident-nav-btn" data-jump-target="fg-sub-scanners">Scanners <span class="fg-badge fg-badge-neutral" data-nav-count="openScans">0</span></button>
+          <button class="fg-incident-nav-btn" data-jump-target="fg-sub-coordinated">Destino Coordenado <span class="fg-badge fg-badge-neutral" data-nav-count="openCoordinated">0</span></button>
+          <button class="fg-incident-nav-btn" data-jump-target="cg-sub-suspicious">Sinais Suspeitos <span class="fg-badge fg-badge-neutral" data-nav-count="openSignals">0</span></button>
         </div>
 
-        <div data-incidents-app="flowguard">
+      <div class="fg-incidents-columns">
+        <div class="fg-incidents-column" data-incidents-app="flowguard">
+          <h3 class="fg-incidents-column-title">FlowGuard <span class="fg-kpi-sub">— ataques por prefixo</span></h3>
           <h3 class="fg-incident-heading" id="fg-sub-attacks">Ataques DDoS <span class="fg-badge fg-badge-neutral" id="fg-sub-attacks-badge">0</span></h3>
           <div class="fg-toolbar">
             <div class="fg-toggle-group" id="fg-attacks-view-toggle">
@@ -863,7 +875,8 @@
           </div>
         </div>
 
-        <div data-incidents-app="clientguard" hidden>
+        <div class="fg-incidents-column" data-incidents-app="clientguard">
+          <h3 class="fg-incidents-column-title">ClientGuard <span class="fg-kpi-sub">— sinais por cliente</span></h3>
           <h3 class="fg-incident-heading" id="cg-sub-suspicious">Sinais Suspeitos <span class="fg-badge fg-badge-neutral" id="cg-sub-suspicious-badge">0</span></h3>
           <div class="fg-toolbar">
             <div class="fg-toggle-group" id="cg-suspicious-view-toggle">
@@ -887,6 +900,7 @@
           <div id="cg-suspicious"><div class="fg-skeleton-lines"><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span><span class="fg-skeleton-line"></span></div></div>
           <div id="cg-suspicious-detail"></div>
         </div>
+      </div>
       </section>
     </div>
 

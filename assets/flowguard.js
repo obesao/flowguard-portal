@@ -115,7 +115,6 @@
     attacksSelectMode: false,
     attacksSelected: {},
     attacksCollapsedGroups: {},
-    incidentsApp: "flowguard",
     incidents: { openAttacks: 0, openSignals: 0, openScans: 0, openCoordinated: 0 },
     scanView: "active",
     scanOffenders: [],
@@ -659,42 +658,16 @@
     });
   }
 
-  // toggle FlowGuard/ClientGuard dentro da aba Incidentes — mesmo padrão de
-  // setRulesApp()/#rules-app-toggle, só que aqui os dois lados são sistemas de
-  // detecção diferentes (ataque por prefixo vs sinal por cliente), não a mesma
-  // lista filtrada por origem.
-  function setIncidentsApp(app) {
-    state.incidentsApp = app;
-    var appToggle = document.getElementById("incidents-app-toggle");
-    if (appToggle) {
-      appToggle.querySelectorAll(".fg-toggle-btn").forEach(function (b) {
-        setActive(b, b.getAttribute("data-app") === app);
-      });
-    }
-    document.querySelectorAll("[data-incidents-app]").forEach(function (p) {
-      p.hidden = p.getAttribute("data-incidents-app") !== app;
-    });
-  }
-
   function initIncidentsControls() {
-    var appToggle = document.getElementById("incidents-app-toggle");
-    if (appToggle) {
-      appToggle.addEventListener("click", function (ev) {
-        var btn = ev.target.closest(".fg-toggle-btn");
-        if (!btn) return;
-        setIncidentsApp(btn.getAttribute("data-app"));
-      });
-    }
     // barra "Ir para" — pula pra subseção (mesmo padrão de scroll suave do
-    // jumpToAttack); se a subseção está no outro lado do toggle
-    // FlowGuard/ClientGuard, troca o lado primeiro e depois rola
+    // jumpToAttack). FlowGuard e ClientGuard ficam lado a lado sempre
+    // visíveis (ver .fg-incidents-columns) — não existe mais toggle A/B pra
+    // trocar antes de rolar.
     var nav = document.getElementById("fg-incidents-nav");
     if (nav) {
       nav.addEventListener("click", function (ev) {
         var btn = ev.target.closest(".fg-incident-nav-btn");
         if (!btn) return;
-        var app = btn.getAttribute("data-jump-app");
-        if (app && state.incidentsApp !== app) setIncidentsApp(app);
         var target = document.getElementById(btn.getAttribute("data-jump-target"));
         if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
       });
@@ -1421,8 +1394,22 @@
 
   var SEV_RANK = { critical: 0, high: 1, medium: 2, info: 3 };
 
-  function attackRowHtml(a) {
+  // barra de intensidade (mesmo componente fg-hbar-wrap/fg-hbar já usado em
+  // Top Clientes/histórico de scanners) — pct relativo ao pico da LISTA
+  // completa filtrada (não só a página atual), pra escala não pular ao
+  // trocar de página; cor da barra segue a severidade (SEV_COLORS), não o
+  // azul padrão, pra severidade crítica saltar aos olhos igual o texto.
+  function attackIntensityBarHtml(value, max, sevColor, label) {
+    var pct = max > 0 ? Math.max(2, Math.round((value / max) * 100)) : 2;
+    return (
+      '<div class="fg-hbar-wrap"><div class="fg-hbar" style="width:' + pct + '%; background:' + sevColor + '"></div>' +
+      '<span class="fg-hbar-label">' + escapeHtml(label) + "</span></div>"
+    );
+  }
+
+  function attackRowHtml(a, maxBps, maxPps) {
     var sevClass = "fg-sev-" + a.severity;
+    var sevColor = SEV_COLORS[a.severity] || FG_COLORS.textMuted;
     var suggestion = a.suggested_mitigation;
     var suggestionMenuItem = suggestion
       ? '<span class="fg-menu-hint">' + escapeHtml(suggestion.label) + "</span>" +
@@ -1444,8 +1431,8 @@
       "<td>" + escapeHtml(a.customer || "-") + "</td>" +
       "<td>" + escapeHtml(a.attack_type) + "</td>" +
       "<td class=\"" + sevClass + "\">" + escapeHtml(a.severity) + "</td>" +
-      "<td>" + fmtBps(a.bps_peak || 0) + "</td>" +
-      "<td>" + (a.pps_peak || 0).toLocaleString("pt-BR") + " pps</td>" +
+      "<td>" + attackIntensityBarHtml(a.bps_peak || 0, maxBps, sevColor, fmtBps(a.bps_peak || 0)) + "</td>" +
+      "<td>" + attackIntensityBarHtml(a.pps_peak || 0, maxPps, sevColor, (a.pps_peak || 0).toLocaleString("pt-BR") + " pps") + "</td>" +
       "<td>" + fgAttackMitigationBadgeHtml(a.mitigation, isGenuinelyActive(a.ts_end, a.ts_last_seen)) + "</td>" +
       '<td><div class="fg-menu">' +
       '<button class="fg-btn" data-menu-toggle aria-haspopup="true" aria-expanded="false">Ações ▾</button>' +
@@ -1477,13 +1464,17 @@
       if (!groups[key]) { groups[key] = []; order.push(key); }
       groups[key].push(a);
     });
+    // pico da lista INTEIRA (todos os grupos), não só do grupo — barras
+    // continuam comparáveis entre grupos diferentes, mesma régua pra todo mundo
+    var maxBps = rows.reduce(function (m, a) { return Math.max(m, a.bps_peak || 0); }, 1);
+    var maxPps = rows.reduce(function (m, a) { return Math.max(m, a.pps_peak || 0); }, 1);
     var colspan = (state.attacksSelectMode ? 1 : 0) + 10;
     var body = order.map(function (key) {
       var items = groups[key].slice().sort(function (a, b) { return (SEV_RANK[a.severity] || 9) - (SEV_RANK[b.severity] || 9); });
       var worst = items[0].severity;
       var collapsed = state.attacksCollapsedGroups[key];
       if (collapsed === undefined) collapsed = SEV_RANK[worst] > 1;
-      var rowsHtml = collapsed ? "" : items.map(attackRowHtml).join("");
+      var rowsHtml = collapsed ? "" : items.map(function (a) { return attackRowHtml(a, maxBps, maxPps); }).join("");
       return (
         '<tr class="fg-group-head" data-group-key="' + escapeHtml(key) + '">' +
         '<td colspan="' + colspan + '" class="fg-sev-' + worst + '" style="cursor:pointer;">' +
@@ -1523,8 +1514,12 @@
       return;
     }
 
+    // pico do FILTRO INTEIRO (todas as páginas), não só a página atual —
+    // escala da barra não muda ao trocar de página
+    var maxBps = attacks.reduce(function (m, a) { return Math.max(m, a.bps_peak || 0); }, 1);
+    var maxPps = attacks.reduce(function (m, a) { return Math.max(m, a.pps_peak || 0); }, 1);
     var p = paginate(attacks, "attacks");
-    var rows = p.pageRows.map(attackRowHtml).join("");
+    var rows = p.pageRows.map(function (a) { return attackRowHtml(a, maxBps, maxPps); }).join("");
 
     el.innerHTML =
       "<table><thead><tr>" + (state.attacksSelectMode ? "<th scope='col'></th>" : "") + ATTACKS_TABLE_HEAD + "</tr></thead><tbody>" +
@@ -5680,7 +5675,6 @@
     document.querySelectorAll(".fg-tab-panel").forEach(function (p) {
       setActive(p, p.getAttribute("data-tab") === "attacks");
     });
-    setIncidentsApp("flowguard");
     expandPanelSectionsIn(document.querySelector('.fg-tab-panel[data-tab="attacks"]'));
     var viewToggle = document.getElementById("fg-attacks-view-toggle");
     if (viewToggle) {

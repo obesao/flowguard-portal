@@ -101,6 +101,37 @@ mesmo host, cada um com seu próprio socket Unix de controle:
 
 ## Changelog
 
+### v1.67.0 — 2026-08-18 — Fase 8/8 do redesign: verificação final
+
+Oitava e última fase — fecha o redesign visual/CSS iniciado no audit Dieter
+Rams (16/30, veredito REDESIGN; ver fase 1/8 abaixo pro início da execução).
+
+- **Drift residual da fase 2 corrigido**: a verificação (`grep -oE
+  '[0-9.]+rem' index.html | sort -u`) apontou 22 valores distintos ainda
+  restantes, contra o esperado ~15 tokens da escala — 9 literais no bloco
+  `<style>` que a migração original não tinha coberto (`.fg-dot`,
+  `.fg-skeleton-sm`, skeleton genérico, `.fg-toggle-item` checkbox,
+  `#fg-toast-container`, `.fg-hbar-wrap`/`.fg-hbar-label`,
+  `.fg-wm-chevron-btn`). Remapeados pro degrau mais próximo da escala
+  (`--space-4/5/6/7`), fechando a consolidação. Ficaram de fora, por decisão
+  deliberada (fora do escopo original de migração, que mirava o bloco
+  `<style>`): 2 valores em `style=""` inline soltos no markup (`1.3rem` no
+  `<h1>` do topbar, `6rem` num `<input>`).
+- **Cores**: confirmado que os 14 literais hex restantes em `flowguard.js`
+  são só a declaração única do objeto `FG_COLORS` (necessário porque canvas
+  2D não resolve `var()` CSS) — zero uso solto fora dela.
+- **Código morto**: confirmado zero ocorrência de `COCKPIT_JUMP_TARGETS`,
+  `cockpitJumpToWidget`, `.fg-statusbar`, `.fg-cockpit-mini-kpis`,
+  `CG_EDGE_CFG_ENDPOINT`.
+- **Regressão funcional**: revalidado com Playwright — navegação entre as 7
+  abas, ordenação de tabela (`aria-sort` alterna corretamente), colapso de
+  painel, e o modal "Modo Guerra" completo (abre, `Escape` fecha, foco
+  retorna pro botão que abriu). Zero erro de console em toda a sessão.
+- **Escopo do diff**: `git diff --stat` desde antes da fase 1 mostra mudança
+  concentrada em exatamente 3 arquivos — `index.html`, `assets/flowguard.js`
+  e `README.md` — nenhuma lógica de negócio, endpoint ou contrato de API
+  tocado em nenhuma das 8 fases.
+
 ### v1.66.0 — 2026-08-18 — Fase 7/8 do redesign: polimento de estados de erro
 
 Sétima fase do redesign (ver fases anteriores abaixo):

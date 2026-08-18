@@ -149,7 +149,7 @@
     .fg-card { padding: var(--space-4) var(--space-5); border-top: 2px solid var(--fg-accent); transition: border-color 0.15s ease; }
     .fg-card .fg-kpi-label { font-size: var(--text-sm); color: var(--fg-text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
     .fg-card .fg-kpi-value { font-size: var(--text-xl); font-weight: bold; margin-top: var(--space-1); }
-    .fg-dot { display: inline-block; width: 0.55rem; height: 0.55rem; border-radius: 50%; margin-right: var(--space-2); }
+    .fg-dot { display: inline-block; width: var(--space-3); height: var(--space-3); border-radius: 50%; margin-right: var(--space-2); }
     .fg-dot-up { background: var(--fg-success); }
     .fg-dot-down { background: var(--fg-danger); }
     .fg-kpi-sub { font-size: var(--text-xs); color: var(--fg-text-muted); margin-top: var(--space-1); }
@@ -411,7 +411,7 @@
     .fg-wm-warn { color: var(--fg-warning); }
 
     .fg-wm-row-actions { display: flex; align-items: center; gap: var(--space-2); flex-shrink: 0; }
-    .fg-wm-chevron-btn { font-family: inherit; min-width: 2.2rem; }
+    .fg-wm-chevron-btn { font-family: inherit; min-width: var(--space-7); }
 
     .fg-wm-lastrun { font-size: var(--text-xs); padding: var(--space-1) var(--space-3); border-radius: 999px; white-space: nowrap; border: 1px solid var(--fg-border); }
     .fg-wm-lastrun-ok { color: var(--fg-success); border-color: var(--fg-success); }
@@ -448,7 +448,7 @@
       display: flex; align-items: center; gap: var(--space-3); background: var(--fg-bg-panel); border: 1px solid var(--fg-border);
       border-radius: 6px; padding: var(--space-3) var(--space-3);
     }
-    .fg-toggle-item input[type="checkbox"] { width: 1.05rem; height: 1.05rem; flex-shrink: 0; cursor: pointer; }
+    .fg-toggle-item input[type="checkbox"] { width: var(--space-5); height: var(--space-5); flex-shrink: 0; cursor: pointer; }
     .fg-toggle-item.disabled { opacity: 0.55; }
     .fg-toggle-item label { cursor: pointer; }
     .fg-toggle-item .fg-toggle-name { font-weight: 600; }
@@ -465,7 +465,7 @@
     #fg-mitigation-cfg table input[type="number"] { width: 6rem; }
     #fg-mitigation-cfg table td.fg-muted { color: var(--fg-text-muted); }
 
-    #fg-toast-container { position: fixed; bottom: 1.2rem; right: 1.2rem; display: flex; flex-direction: column; gap: var(--space-3); z-index: 999; }
+    #fg-toast-container { position: fixed; bottom: var(--space-6); right: var(--space-6); display: flex; flex-direction: column; gap: var(--space-3); z-index: 999; }
     .fg-toast {
       background: var(--fg-bg-elevated); border: 1px solid var(--fg-border); border-radius: 6px; padding: var(--space-3) var(--space-5);
       font-size: var(--text-base); max-width: 320px; box-shadow: 0 2px 8px rgba(var(--fg-black-rgb),0.4); opacity: 1; transition: opacity 0.3s;
@@ -496,9 +496,9 @@
 
     .fg-trend { font-size: var(--text-xs); color: var(--fg-text-muted); margin-left: var(--space-2); }
 
-    .fg-hbar-wrap { position: relative; background: var(--fg-bg-elevated); border-radius: 4px; height: 1.4rem; min-width: 160px; max-width: 320px; overflow: hidden; }
+    .fg-hbar-wrap { position: relative; background: var(--fg-bg-elevated); border-radius: 4px; height: var(--space-6); min-width: 160px; max-width: 320px; overflow: hidden; }
     .fg-hbar { position: absolute; left: 0; top: 0; bottom: 0; background: var(--fg-accent); opacity: 0.35; border-radius: 4px 0 0 4px; }
-    .fg-hbar-label { position: relative; z-index: 1; font-size: var(--text-sm); padding: 0 var(--space-3); line-height: 1.4rem; }
+    .fg-hbar-label { position: relative; z-index: 1; font-size: var(--text-sm); padding: 0 var(--space-3); line-height: var(--space-6); }
 
     /* cockpit (Visão Geral) — grade de widgets customizável (ver initCockpit
        em flowguard.js). Cada card tem uma cor de acento fixa por widget
@@ -571,11 +571,11 @@
     .fg-skeleton-lines { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-1) 0; }
     .fg-skeleton-lines.fg-skeleton-sm { gap: var(--space-2); }
     .fg-skeleton-line {
-      display: block; height: 0.9rem; border-radius: 4px;
+      display: block; height: var(--space-4); border-radius: 4px;
       background: linear-gradient(90deg, var(--fg-bg-elevated) 25%, var(--fg-border) 37%, var(--fg-bg-elevated) 63%);
       background-size: 400% 100%; animation: fg-shimmer 1.4s ease infinite;
     }
-    .fg-skeleton-sm .fg-skeleton-line { height: 0.75rem; }
+    .fg-skeleton-sm .fg-skeleton-line { height: var(--space-4); }
     .fg-skeleton-line:nth-child(1) { width: 70%; }
     .fg-skeleton-line:nth-child(2) { width: 92%; }
     .fg-skeleton-line:nth-child(3) { width: 55%; }
